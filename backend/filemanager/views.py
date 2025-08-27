@@ -222,16 +222,6 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
             'can_admin': file_item.can_admin(request.user),
         })
     
-    @action(detail=False, methods=['get'])
-    def tree(self, request):
-        """Get directory tree structure"""
-        root_path = request.query_params.get('root', '/')
-        
-        try:
-            tree_data = self._build_directory_tree(root_path, request.user)
-            return Response(tree_data)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
     def search(self, request):
@@ -294,6 +284,75 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
             })
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'])
+    def create_directory(self, request):
+        """Create a new directory"""
+        name = request.data.get('name')
+        parent_id = request.data.get('parent_id')
+        visibility = request.data.get('visibility', 'private')
+        
+        if not name:
+            return Response({'error': 'Directory name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate directory name
+        if not name or '/' in name or '\\' in name:
+            return Response({'error': 'Invalid directory name. Cannot contain slashes or backslashes.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get parent directory if specified
+            parent_directory = None
+            if parent_id:
+                try:
+                    parent_directory = FileSystemItem.objects.get(id=parent_id, item_type='directory')
+                    # Check if user can write to parent directory
+                    if not parent_directory.can_write(request.user):
+                        return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
+                except FileSystemItem.DoesNotExist:
+                    return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Build the full path
+            if parent_directory:
+                full_path = os.path.join(parent_directory.path, name)
+            else:
+                # Root level directory - use get_safe_path for security
+                full_path = file_path_manager.get_safe_path(name)
+            
+            # Check if directory already exists
+            if os.path.exists(full_path):
+                return Response({'error': 'Directory already exists'}, status=status.HTTP_409_CONFLICT)
+            
+            # Create the directory on filesystem
+            os.makedirs(full_path, exist_ok=True)
+            
+            # Create database record
+            directory_item = FileSystemItem.objects.create(
+                name=name,
+                path=full_path,
+                item_type='directory',
+                parent=parent_directory,
+                owner=request.user,
+                visibility=visibility
+            )
+            
+            # Log the directory creation
+            FileAccessLog.objects.create(
+                file=directory_item,
+                user=request.user,
+                action='create',
+                ip_address=self.get_client_ip(request),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            )
+            
+            return Response({
+                'message': 'Directory created successfully',
+                'directory': FileSystemItemSerializer(directory_item, context={'request': request}).data
+            }, status=status.HTTP_201_CREATED)
+            
+        except PermissionError as e:
+            return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({'error': f'Failed to create directory: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['get'])
     def get_children(self, request, pk=None):
@@ -361,11 +420,9 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
                     parent=parent_item
                 ).order_by('item_type', 'name')  # Directories first, then files, alphabetically
                 
-                parent_info = {
-                    'id': parent_item.id,
-                    'name': parent_item.name,
-                    'relative_path': parent_item.get_relative_path()
-                }
+                # Use full serializer for parent to include parents field
+                parent_serializer = FileSystemItemSerializer(parent_item, context={'request': request})
+                parent_info = parent_serializer.data
             except FileSystemItem.DoesNotExist:
                 return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
         else:
@@ -403,55 +460,6 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         
         return Response(response_data)
 
-    def _build_directory_tree(self, root_path, user):
-        """Build directory tree structure with permission filtering"""
-        if not os.path.exists(root_path):
-            raise ValueError(f"Path {root_path} does not exist")
-        
-        def build_tree(path):
-            try:
-                items = []
-                for item in os.listdir(path):
-                    item_path = os.path.join(path, item)
-                    if os.path.isdir(item_path):
-                        items.append({
-                            'name': item,
-                            'path': item_path,
-                            'item_type': 'directory',
-                            'children': build_tree(item_path)
-                        })
-                    else:
-                        # Try to get existing database item
-                        try:
-                            db_item = FileSystemItem.objects.get(path=item_path)
-                            
-                            # Check if user can access this file
-                            if user.is_authenticated and not user.is_superuser:
-                                if not db_item.can_access(user, 'read'):
-                                    continue  # Skip files user can't access
-                            
-                            items.append({
-                                'id': db_item.id,
-                                'name': item,
-                                'path': item_path,
-                                'item_type': 'file',
-                                'size': db_item.size,
-                                'mime_type': db_item.mime_type,
-                                'extension': db_item.extension,
-                                'last_modified': db_item.last_modified,
-                                'visibility': db_item.visibility
-                            })
-                        except FileSystemItem.DoesNotExist:
-                            items.append({
-                                'name': item,
-                                'path': item_path,
-                                'item_type': 'file'
-                            })
-                return items
-            except PermissionError:
-                return []
-        
-        return build_tree(root_path)
     
     def _scan_directory_recursive(self, directory_path, user):
         """Recursively scan directory and add items to database"""
@@ -510,27 +518,43 @@ class FileUploadView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         
         uploaded_file = serializer.validated_data['file']
-        relative_path = serializer.validated_data.get('path', '')  # Changed from destination_path to path
+        parent_id = serializer.validated_data.get('parent_id')
         tags = serializer.validated_data.get('tags', [])
         visibility = serializer.validated_data.get('visibility', 'private')
         shared_users = serializer.validated_data.get('shared_users', [])
         shared_groups = serializer.validated_data.get('shared_groups', [])
         
         try:
+            # Get parent directory if specified
+            parent_directory = None
+            if parent_id:
+                try:
+                    parent_directory = FileSystemItem.objects.get(id=parent_id, item_type='directory')
+                    # Check if user can write to parent directory
+                    if not parent_directory.can_write(request.user):
+                        return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
+                except FileSystemItem.DoesNotExist:
+                    return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
+            
             # Get safe upload path using the path manager
-            file_path = file_path_manager.get_upload_path(uploaded_file.name, relative_path)
+            if parent_directory:
+                file_path = file_path_manager.get_upload_path(uploaded_file.name, parent_directory.get_relative_path())
+            else:
+                # Upload to root
+                file_path = file_path_manager.get_upload_path(uploaded_file.name, '')
             
             # Save file to destination
             with open(file_path, 'wb+') as destination:
                 for chunk in uploaded_file.chunks():
                     destination.write(chunk)
             
-            # Create database record with relative path for display
+            # Create database record
             file_item = FileSystemItem.objects.create(
                 name=uploaded_file.name,
                 path=file_path,  # Absolute path for internal use
                 relative_path=file_path_manager.get_relative_path(file_path),  # Relative path for display
                 item_type='file',
+                parent=parent_directory,
                 owner=request.user,
                 visibility=visibility
             )

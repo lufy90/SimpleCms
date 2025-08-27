@@ -22,27 +22,40 @@
       <div class="sidebar-content">
         <div class="tree-header" v-if="!sidebarCollapsed">
           <h4>Directory Tree</h4>
-          <el-button
-            type="text"
-            size="small"
-            @click="refreshTree"
-            :loading="isLoading"
-          >
-            <el-icon><Refresh /></el-icon>
-          </el-button>
+          <div class="tree-actions">
+            <el-button
+              type="text"
+              size="small"
+              @click="showCreateDirectoryDialog"
+            >
+              <el-icon><Plus /></el-icon>
+            </el-button>
+            <el-button
+              type="text"
+              size="small"
+              @click="refreshTree"
+              :loading="isLoading"
+            >
+              <el-icon><Refresh /></el-icon>
+            </el-button>
+          </div>
         </div>
         
         <el-tree
+          :key="treeRefreshKey"
           :data="directoryTree"
           :props="treeProps"
           :expand-on-click-node="false"
           :default-expand-all="false"
-          node-key="path"
+          :lazy="true"
+          :load="loadNode"
+          :current-node-key="currentDirectoryId"
+          node-key="id"
           @node-click="handleNodeClick"
           class="directory-tree"
         >
           <template #default="{ node, data }">
-            <div class="tree-node">
+            <div class="tree-node" :class="{ 'virtual-root': data.is_virtual }">
               <el-icon class="node-icon">
                 <Folder v-if="data.item_type === 'directory'" />
                 <Document v-else />
@@ -139,7 +152,10 @@ import {
   User,
   Setting,
   SwitchButton,
+  Plus,
 } from '@element-plus/icons-vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
+import { filesAPI } from '@/services/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -148,6 +164,7 @@ const filesStore = useFilesStore()
 // Sidebar state
 const sidebarCollapsed = ref(false)
 const searchQuery = ref('')
+const treeRefreshKey = ref(0)
 
 // Computed properties
 const userInitials = computed(() => {
@@ -157,6 +174,12 @@ const userInitials = computed(() => {
     return `${first_name[0]}${last_name[0]}`.toUpperCase()
   }
   return username[0].toUpperCase()
+})
+
+const currentRoute = computed(() => router.currentRoute.value)
+const currentDirectoryId = computed(() => {
+  const parentId = currentRoute.value.query.parent_id
+  return parentId ? Number(parentId) : null
 })
 
 const currentPath = computed(() => {
@@ -171,6 +194,8 @@ const isLoading = computed(() => filesStore.isLoading)
 const treeProps = {
   children: 'children',
   label: 'name',
+  isLeaf: (data: any) => data.item_type === 'file' && !data.is_virtual,
+  hasChildren: (data: any) => data.item_type === 'directory' || data.is_virtual,
 }
 
 // Methods
@@ -179,17 +204,62 @@ const toggleSidebar = () => {
 }
 
 const refreshTree = async () => {
+  treeRefreshKey.value++ // Increment key to force re-render
   await filesStore.fetchDirectoryTree()
 }
 
+const loadNode = async (node: any, resolve: (data: any[]) => void) => {
+  if (node.level === 0) {
+    // Root level - already loaded with virtual root node
+    resolve(directoryTree.value)
+  } else if (node.data.is_virtual && node.level === 1) {
+    // Virtual root node - load actual root items (no parent_id)
+    const response = await filesAPI.listChildren()
+    resolve(response.data.children || [])
+  } else {
+    // Load children for this node
+    const children = await filesStore.fetchTreeChildren(node.data.id)
+    resolve(children)
+  }
+}
+
+const showCreateDirectoryDialog = () => {
+  ElMessageBox.prompt('Enter directory name:', 'Create Directory', {
+    confirmButtonText: 'Create',
+    cancelButtonText: 'Cancel',
+    inputPattern: /^[^\/\\]+$/,
+    inputErrorMessage: 'Directory name cannot contain slashes or backslashes'
+  }).then(async ({ value }) => {
+    if (value) {
+      // Create directory at root level (no parent_id)
+      const newDirectory = await filesStore.createDirectory(value)
+      if (newDirectory) {
+        ElMessage.success('Directory created successfully')
+      }
+    }
+  }).catch(() => {
+    // User cancelled
+  })
+}
+
 const handleNodeClick = (data: any) => {
-  if (data.item_type === 'directory') {
-    // Navigate to directory
-    router.push({ name: 'Files', query: { path: data.path } })
+  if (data.is_virtual) {
+    // Virtual root node - navigate to root files with explicit query params
+    router.push({ name: 'Files', query: {} })
+  } else if (data.item_type === 'directory') {
+    // Navigate to directory using parent_id for proper navigation
+    router.push({ name: 'Files', query: { parent_id: data.id } })
   } else {
     // Navigate to file details
     router.push({ name: 'FileDetails', params: { id: data.id } })
   }
+}
+
+// Highlight current directory in sidebar without changing tree state
+const highlightCurrentDirectory = () => {
+  // This method can be used to visually highlight the current directory
+  // without expanding/collapsing nodes or changing the tree state
+  console.log('Current directory ID from route:', currentDirectoryId.value)
 }
 
 const handleSearch = (value: string) => {
@@ -223,6 +293,7 @@ watch(
   () => router.currentRoute.value,
   (route) => {
     // Update current path based on route
+    highlightCurrentDirectory()
   },
   { immediate: true }
 )
@@ -286,6 +357,17 @@ watch(
   color: #606266;
 }
 
+.tree-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-actions .el-button {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
 .directory-tree {
   background: transparent;
 }
@@ -295,6 +377,31 @@ watch(
   align-items: center;
   gap: 8px;
   padding: 4px 0;
+}
+
+.tree-node.virtual-root {
+  font-weight: 600;
+  color: #409eff;
+}
+
+.tree-node.virtual-root .node-icon {
+  color: #409eff;
+}
+
+/* Highlight current directory */
+:deep(.el-tree-node.is-current > .el-tree-node__content) {
+  background-color: #f0f9ff;
+  color: #409eff;
+  font-weight: 600;
+}
+
+:deep(.el-tree-node.is-current > .el-tree-node__content .node-icon) {
+  color: #409eff;
+}
+
+:deep(.el-tree-node.is-current > .el-tree-node__content .node-label) {
+  color: #409eff;
+  font-weight: 600;
 }
 
 .node-icon {

@@ -54,8 +54,11 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" @click="handleUpload" :loading="isUploading">
+          <el-button type="primary" @click="handleUpload" :loading="isUploading" style="margin-right: 10px;">
             Upload Files
+          </el-button>
+          <el-button @click="handleClose" plain>
+            Cancel
           </el-button>
         </el-form-item>
       </el-form>
@@ -67,7 +70,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { ArrowLeft, UploadFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, UploadFilled, Close } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
@@ -112,6 +115,10 @@ const handleUploadError = (error: any, file: any) => {
 
 const beforeUpload = (file: any) => {
   return true
+}
+
+const handleClose = () => {
+  router.go(-1)
 }
 </script>
 

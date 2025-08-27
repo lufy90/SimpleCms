@@ -28,6 +28,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     "10.7.13.132",
+    "192.168.1.134",
     "localhost",
 ]
 
@@ -187,6 +188,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:8080",  # Alternative Vue.js port
     "http://127.0.0.1:8080",
+    "http://192.168.1.134:3000",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -196,7 +198,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # File Manager Security Settings
-FILE_MANAGER_ROOT = '/var/filemanager'  # Root directory for all file operations
+FILE_MANAGER_ROOT = '/home/lufei/develop/SimpleCms/media/upload/'  # Root directory for all file operations
 
 # Maximum file upload size (100MB)
 MAX_UPLOAD_SIZE = 104857600

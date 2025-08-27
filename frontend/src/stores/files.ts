@@ -9,6 +9,11 @@ export interface FileSystemItem {
   path: string
   item_type: 'file' | 'directory'
   parent?: number
+  parents?: Array<{
+    id: number
+    name: string
+    relative_path: string
+  }>
   size?: number
   mime_type?: string
   extension?: string
@@ -62,16 +67,23 @@ export interface FileSystemItem {
 }
 
 export interface DirectoryTreeItem {
-  id?: number
+  id?: number | string
   name: string
   path: string
   item_type: 'file' | 'directory'
+  parent?: number
+  parents?: Array<{
+    id: number
+    name: string
+    relative_path: string
+  }>
   children?: DirectoryTreeItem[]
   size?: number
   mime_type?: string
   extension?: string
   last_modified?: string
   visibility?: string
+  is_virtual?: boolean
 }
 
 export interface PaginationInfo {
@@ -214,12 +226,34 @@ export const useFilesStore = defineStore('files', () => {
 
   const fetchDirectoryTree = async (root?: string) => {
     try {
-      const response = await filesAPI.tree(root)
-      directoryTree.value = response.data
+      // For lazy loading, we only fetch root level items
+      const response = await filesAPI.listChildren()
+      const rootItems = response.data.children || []
+      
+      // Add virtual root node at the top
+      directoryTree.value = [{
+        id: 'root',
+        name: '/',
+        path: '/',
+        item_type: 'directory',
+        children: rootItems,
+        is_virtual: true
+      }]
+      
       return true
     } catch (error: any) {
       toast.error('Failed to fetch directory tree')
       return false
+    }
+  }
+
+  const fetchTreeChildren = async (parentId: number) => {
+    try {
+      const response = await filesAPI.listChildren(parentId)
+      return response.data.children || []
+    } catch (error: any) {
+      toast.error('Failed to fetch directory children')
+      return []
     }
   }
 
@@ -230,7 +264,14 @@ export const useFilesStore = defineStore('files', () => {
       
       if (response.data.children) {
         files.value = response.data.children
-        currentDirectory.value = response.data.parent || null
+        // Set current directory to the directory we're entering
+        if (parentId && response.data.parent) {
+          // The parent now includes the complete information with parents field
+          currentDirectory.value = response.data.parent
+        } else {
+          // Root level
+          currentDirectory.value = null
+        }
         pagination.value = null
       }
       
@@ -257,13 +298,13 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const uploadFile = async (file: File, destinationPath?: string, visibility?: string, tags?: string[]) => {
+  const uploadFile = async (file: File, parentId?: number, visibility?: string, tags?: string[]) => {
     try {
       const formData = new FormData()
       formData.append('file', file)
       
-      if (destinationPath) {
-        formData.append('destination_path', destinationPath)
+      if (parentId) {
+        formData.append('parent_id', parentId.toString())
       }
       
       if (visibility) {
@@ -370,6 +411,30 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
+  const createDirectory = async (name: string, parentId?: number, visibility: string = 'private') => {
+    try {
+      isLoading.value = true
+      const response = await filesAPI.createDirectory({ name, parent_id: parentId, visibility })
+      
+      toast.success('Directory created successfully')
+      
+      // Refresh tree and files
+      await fetchDirectoryTree()
+      if (parentId) {
+        await fetchChildren(parentId)
+      } else {
+        await fetchChildren()
+      }
+      
+      return response.data.directory
+    } catch (error: any) {
+      toast.error('Failed to create directory')
+      return null
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   const toggleFileSelection = (fileId: number) => {
     if (selectedFiles.value.has(fileId)) {
       selectedFiles.value.delete(fileId)
@@ -432,6 +497,7 @@ export const useFilesStore = defineStore('files', () => {
     // Actions
     fetchFiles,
     fetchDirectoryTree,
+    fetchTreeChildren,
     fetchChildren,
     searchFiles,
     uploadFile,
@@ -439,6 +505,7 @@ export const useFilesStore = defineStore('files', () => {
     copyFiles,
     moveFiles,
     scanDirectory,
+    createDirectory,
     toggleFileSelection,
     clearSelection,
     selectAll,

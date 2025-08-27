@@ -74,6 +74,7 @@ class FileAccessPermissionCreateSerializer(serializers.ModelSerializer):
 
 class FileSystemItemSerializer(serializers.ModelSerializer):
     parent = serializers.PrimaryKeyRelatedField(queryset=FileSystemItem.objects.all(), required=False)
+    parents = serializers.SerializerMethodField()
     owner = UserSerializer(read_only=True)
     shared_users = UserSerializer(many=True, read_only=True)
     shared_groups = GroupSerializer(many=True, read_only=True)
@@ -91,7 +92,7 @@ class FileSystemItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = FileSystemItem
         fields = [
-            'id', 'name', 'relative_path', 'item_type', 'parent', 'size', 'mime_type', 
+            'id', 'name', 'relative_path', 'item_type', 'parent', 'parents', 'size', 'mime_type', 
             'extension', 'created_at', 'updated_at', 'last_modified', 
             'owner', 'visibility', 'shared_users', 'shared_groups', 'children_count', 'tags', 
             'file_info', 'permissions', 'can_read', 'can_write', 'can_delete', 
@@ -170,6 +171,19 @@ class FileSystemItemSerializer(serializers.ModelSerializer):
             return list(obj.get_effective_permissions(request.user))
         return []
     
+    def get_parents(self, obj):
+        """Recursively build parent hierarchy for breadcrumb navigation"""
+        parents = []
+        current_item = obj
+        while current_item.parent:
+            parents.append({
+                'id': current_item.parent.id,
+                'name': current_item.parent.name,
+                'relative_path': current_item.parent.relative_path
+            })
+            current_item = current_item.parent
+        return parents[::-1] # Reverse to show from root to current
+    
     def validate_path(self, value):
         """Validate that the path is accessible and safe"""
         import os
@@ -236,6 +250,8 @@ class DirectoryTreeSerializer(serializers.Serializer):
     name = serializers.CharField()
     path = serializers.CharField()
     item_type = serializers.CharField()
+    parent = serializers.IntegerField(required=False)
+    parents = serializers.ListField(child=serializers.DictField(), required=False)
     children = serializers.ListField(child=serializers.DictField(), required=False)
     size = serializers.IntegerField(required=False)
     mime_type = serializers.CharField(required=False)
@@ -256,7 +272,7 @@ class FileSearchSerializer(serializers.Serializer):
 class FileUploadSerializer(serializers.Serializer):
     """Serializer for file uploads"""
     file = serializers.FileField()
-    path = serializers.CharField(required=False, help_text="Relative path within FILE_MANAGER_ROOT (optional)")
+    parent_id = serializers.IntegerField(required=False, help_text="ID of parent directory (optional, uploads to root if not specified)")
     tags = serializers.ListField(child=serializers.CharField(), required=False)
     visibility = serializers.CharField(required=False)
     shared_users = serializers.ListField(child=serializers.IntegerField(), required=False)
