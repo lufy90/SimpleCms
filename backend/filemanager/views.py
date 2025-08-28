@@ -25,7 +25,8 @@ from .serializers import (
     DirectoryTreeSerializer, FileSearchSerializer, FileUploadSerializer, FileOperationSerializer,
     FileAccessPermissionSerializer, FileAccessPermissionCreateSerializer,
     FileVisibilityUpdateSerializer, FilePermissionRequestSerializer,
-    FilePermissionRequestCreateSerializer, FilePermissionRequestReviewSerializer
+    FilePermissionRequestCreateSerializer, FilePermissionRequestReviewSerializer,
+    # DirectoryUploadSerializer removed
 )
 from .pagination import (
     FileSystemItemPagination, FileAccessLogPagination, FileTagPagination
@@ -519,6 +520,7 @@ class FileUploadView(generics.CreateAPIView):
         
         uploaded_file = serializer.validated_data['file']
         parent_id = serializer.validated_data.get('parent_id')
+        relative_path = serializer.validated_data.get('relative_path', '')
         tags = serializer.validated_data.get('tags', [])
         visibility = serializer.validated_data.get('visibility', 'private')
         shared_users = serializer.validated_data.get('shared_users', [])
@@ -536,9 +538,17 @@ class FileUploadView(generics.CreateAPIView):
                 except FileSystemItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
             
+            # Handle relative path and create directories if needed
+            final_parent_directory = parent_directory
+            if relative_path:
+                # Create directory structure for the relative path
+                final_parent_directory = self._ensure_directory_structure(
+                    relative_path, parent_directory, request.user, visibility
+                )
+            
             # Get safe upload path using the path manager
-            if parent_directory:
-                file_path = file_path_manager.get_upload_path(uploaded_file.name, parent_directory.get_relative_path())
+            if final_parent_directory:
+                file_path = file_path_manager.get_upload_path(uploaded_file.name, final_parent_directory.get_relative_path())
             else:
                 # Upload to root
                 file_path = file_path_manager.get_upload_path(uploaded_file.name, '')
@@ -554,7 +564,7 @@ class FileUploadView(generics.CreateAPIView):
                 path=file_path,  # Absolute path for internal use
                 relative_path=file_path_manager.get_relative_path(file_path),  # Relative path for display
                 item_type='file',
-                parent=parent_directory,
+                parent=final_parent_directory,
                 owner=request.user,
                 visibility=visibility
             )
@@ -567,7 +577,7 @@ class FileUploadView(generics.CreateAPIView):
             # Add shared groups if visibility is 'group'
             if visibility == 'group' and shared_groups:
                 groups = Group.objects.filter(id__in=shared_groups)
-                file_item.shared_groups.set(groups)
+                file_item.shared_users.set(groups)
             
             # Update file metadata
             file_item.update_from_filesystem()
@@ -598,6 +608,61 @@ class FileUploadView(generics.CreateAPIView):
         else:
             ip = request.META.get('REMOTE_ADDR')
         return ip
+    
+    def _ensure_directory_structure(self, relative_path, parent_directory, user, visibility):
+        """Ensure directory structure exists, creating directories if necessary"""
+        if not relative_path:
+            return parent_directory
+        
+        path_parts = relative_path.split('/')
+        current_parent = parent_directory
+        
+        for part in path_parts:
+            if not part:  # Skip empty parts
+                continue
+            
+            # Check if directory already exists
+            existing_dir = None
+            if current_parent:
+                existing_dir = FileSystemItem.objects.filter(
+                    name=part,
+                    parent=current_parent,
+                    item_type='directory'
+                ).first()
+            else:
+                existing_dir = FileSystemItem.objects.filter(
+                    name=part,
+                    parent__isnull=True,
+                    item_type='directory'
+                ).first()
+            
+            if not existing_dir:
+                # Create the directory
+                if current_parent:
+                    dir_path = file_path_manager.get_create_path(part, current_parent.get_relative_path())
+                else:
+                    dir_path = file_path_manager.get_create_path(part, '')
+                
+                file_path_manager.ensure_directory_exists(dir_path)
+                
+                existing_dir = FileSystemItem.objects.create(
+                    name=part,
+                    path=dir_path,
+                    relative_path=file_path_manager.get_relative_path(dir_path),
+                    item_type='directory',
+                    parent=current_parent,
+                    owner=user,
+                    visibility=visibility
+                )
+            
+            current_parent = existing_dir
+        
+        return current_parent
+
+
+# DirectoryUploadView removed - functionality now integrated into FileUploadView
+    
+    # All DirectoryUploadView methods removed
 
 
 class FileOperationView(generics.CreateAPIView):

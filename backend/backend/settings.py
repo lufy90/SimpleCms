@@ -198,7 +198,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # File Manager Security Settings
-FILE_MANAGER_ROOT = '/home/lufei/develop/SimpleCms/media/upload/'  # Root directory for all file operations
+FILE_MANAGER_ROOT = BASE_DIR / 'media/upload/'  # Root directory for all file operations
 
 # Maximum file upload size (100MB)
 MAX_UPLOAD_SIZE = 104857600

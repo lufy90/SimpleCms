@@ -273,6 +273,7 @@ class FileUploadSerializer(serializers.Serializer):
     """Serializer for file uploads"""
     file = serializers.FileField()
     parent_id = serializers.IntegerField(required=False, help_text="ID of parent directory (optional, uploads to root if not specified)")
+    relative_path = serializers.CharField(required=False, help_text="Relative path within the parent directory (e.g., 'images/thumbnails')")
     tags = serializers.ListField(child=serializers.CharField(), required=False)
     visibility = serializers.CharField(required=False)
     shared_users = serializers.ListField(child=serializers.IntegerField(), required=False)
@@ -283,6 +284,7 @@ class FileUploadSerializer(serializers.Serializer):
         if value and value not in valid_choices:
             raise serializers.ValidationError(f"Visibility must be one of: {valid_choices}")
         return value
+
 
 
 class FileOperationSerializer(serializers.Serializer):

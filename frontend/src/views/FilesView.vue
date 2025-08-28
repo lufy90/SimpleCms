@@ -5,10 +5,41 @@
         <h1>{{ currentDirectory ? currentDirectory.name : 'Files' }}</h1>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="openUpload">
-          <el-icon><Upload /></el-icon>
-          Upload
-        </el-button>
+        <!-- File input for multiple files -->
+        <input
+          ref="fileInputRef"
+          type="file"
+          multiple
+          style="display: none"
+          @change="handleFileSelection"
+        />
+        <!-- Directory input for directory structure -->
+        <input
+          ref="dirInputRef"
+          type="file"
+          webkitdirectory
+          style="display: none"
+          @change="handleDirectorySelection"
+        />
+        <el-dropdown @command="handleUploadCommand" trigger="click">
+          <el-button type="primary">
+            <el-icon><Upload /></el-icon>
+            Upload
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="files">
+                <el-icon><Document /></el-icon>
+                Multiple Files
+              </el-dropdown-item>
+              <el-dropdown-item command="directory">
+                <el-icon><Folder /></el-icon>
+                Directory Structure
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button type="success" @click="showCreateDirectoryDialog">
           <el-icon><FolderAdd /></el-icon>
           New Folder
@@ -174,6 +205,7 @@
           </el-select>
         </el-form-item>
 
+        <!-- File Upload Section -->
         <el-form-item label="Files">
           <el-upload
             ref="uploadRef"
@@ -183,27 +215,85 @@
             :on-success="handleUploadSuccess"
             :on-error="handleUploadError"
             :before-upload="beforeUpload"
+            :on-change="handleFileChange"
+            :on-remove="handleFileRemove"
+            :on-progress="handleUploadProgress"
+            :on-exceed="handleFileExceed"
+            :limit="20"
             multiple
             drag
             class="upload-area"
+            :auto-upload="false"
+            :show-file-list="true"
           >
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">
-              Drop file here or <em>click to upload</em>
+              Drop files here or <em>click to upload</em>
             </div>
+            <template #tip>
+              <div class="el-upload__tip">
+                Support for multiple files. Drag and drop or click to select.
+                <div v-if="selectedFiles.length > 0" style="margin-top: 8px; color: #409eff; font-weight: 500;">
+                  {{ selectedFiles.length }} file(s) selected
+                </div>
+              </div>
+            </template>
           </el-upload>
         </el-form-item>
       </el-form>
 
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="uploadDialogVisible = false">Cancel</el-button>
-          <el-button type="primary" @click="handleUpload" :loading="isUploading">
-            Upload Files
+          <el-button @click="closeUploadDialog">Cancel</el-button>
+          <el-button 
+            type="primary" 
+            @click="handleUpload" 
+            :loading="isUploading"
+            :disabled="!hasFilesToUpload"
+          >
+            Upload Files {{ selectedFiles.length > 0 ? `(${selectedFiles.length})` : '' }}
           </el-button>
         </div>
       </template>
     </el-dialog>
+  </div>
+
+  <!-- Upload Progress Display -->
+  <div v-if="uploadProgress.length > 0" class="upload-progress-overlay">
+    <div class="upload-progress-panel">
+      <div class="progress-header">
+        <h3>Upload Progress</h3>
+        <el-button 
+          v-if="!isUploading" 
+          @click="uploadProgress = []" 
+          size="small" 
+          type="text"
+        >
+          Close
+        </el-button>
+      </div>
+      <div class="progress-list">
+        <div 
+          v-for="(progress, index) in uploadProgress" 
+          :key="index" 
+          class="progress-item"
+        >
+          <div class="progress-item-header">
+            <span class="filename">{{ progress.filename }}</span>
+            <span class="status" :class="progress.status">{{ progress.status }}</span>
+          </div>
+          <el-progress 
+            v-if="progress.status === 'uploading'" 
+            :percentage="progress.percentage" 
+            :status="progress.error ? 'exception' : undefined"
+            :stroke-width="4"
+          />
+          <div v-if="progress.error" class="error-message">
+            {{ progress.error }}
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -211,7 +301,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFilesStore } from '@/stores/files'
-import { Grid, List, Document, Folder, Upload, Refresh, Back, FolderAdd, UploadFilled } from '@element-plus/icons-vue'
+import { uploadAPI } from '@/services/api'
+import { Grid, List, Document, Folder, Upload, Refresh, Back, UploadFilled, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
@@ -226,8 +317,12 @@ const uploadDialogVisible = ref(false)
 const uploadForm = ref({
   visibility: 'private',
 })
-const isUploading = ref(false)
+const fileInputRef = ref<HTMLInputElement>()
+const dirInputRef = ref<HTMLInputElement>()
 const uploadRef = ref()
+const selectedFiles = ref<Array<File>>([])
+const uploadProgress = ref<Array<{ filename: string; status: 'uploading' | 'success' | 'error'; percentage: number; error?: string }>>([])
+const isUploading = ref(false)
 
 // Upload configuration
 const uploadAction = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/upload/`
@@ -248,6 +343,13 @@ const filteredFiles = computed(() => filesStore.filteredFiles)
 const isLoading = computed(() => filesStore.isLoading)
 const pagination = computed(() => filesStore.pagination)
 const currentDirectory = computed(() => filesStore.currentDirectory)
+
+// Computed for upload functionality
+const hasFilesToUpload = computed(() => {
+  return selectedFiles.value.length > 0
+})
+
+// Directory upload functionality removed - now handled by file upload with relative paths
 
 // Breadcrumb state - maintains the full navigation path
 const breadcrumbPath = ref<Array<{id: number | null, name: string, path: string}>>([
@@ -312,13 +414,176 @@ watch(currentDirectory, (newDir, oldDir) => {
   updateBreadcrumb()
 }, { immediate: true })
 
+// Watch for selected files changes
+watch(selectedFiles, (newFiles, oldFiles) => {
+  console.log('selectedFiles changed:', { 
+    old: oldFiles?.length || 0, 
+    new: newFiles?.length || 0,
+    files: newFiles?.map(f => f.name) || []
+  })
+}, { deep: true })
+
 // Methods
 const setViewType = (type: 'grid' | 'list') => {
   viewType.value = type
 }
 
+const triggerFileSelection = () => {
+  fileInputRef.value?.click()
+}
+
+const triggerDirectorySelection = () => {
+  dirInputRef.value?.click()
+}
+
+const handleUploadCommand = (command: string) => {
+  if (command === 'files') {
+    triggerFileSelection()
+  } else if (command === 'directory') {
+    triggerDirectorySelection()
+  }
+}
+
+const handleFileSelection = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  
+  if (files.length === 0) return
+  
+  // Reset progress
+  uploadProgress.value = []
+  isUploading.value = true
+  
+  try {
+    // Process files and create directory structure
+    await processAndUploadFiles(files)
+  } catch (error: any) {
+    ElMessage.error(`Upload failed: ${error.message || error}`)
+  } finally {
+    isUploading.value = false
+    // Reset file input
+    if (target) target.value = ''
+  }
+}
+
+const handleDirectorySelection = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  
+  if (files.length === 0) return
+  
+  // Reset progress
+  uploadProgress.value = []
+  isUploading.value = true
+  
+  try {
+    // Process directory files with relative paths
+    await processAndUploadFiles(files)
+  } catch (error: any) {
+    ElMessage.error(`Upload failed: ${error.message || error}`)
+  } finally {
+    isUploading.value = false
+    // Reset directory input
+    if (target) target.value = ''
+  }
+}
+
+const processAndUploadFiles = async (files: File[]) => {
+  // Upload all files with their relative paths
+  await uploadAllFiles(files)
+  
+  // Refresh file list
+  await refreshFiles()
+  ElMessage.success(`Upload completed: ${files.length} files processed`)
+}
+
+// Directory creation now handled by backend during file upload
+
+const uploadAllFiles = async (files: File[]) => {
+  const batchSize = 3
+  let uploadedCount = 0
+  let failedCount = 0
+  
+  // Initialize progress for all files
+  files.forEach(file => {
+    uploadProgress.value.push({
+      filename: file.webkitRelativePath,
+      status: 'uploading',
+      percentage: 0
+    })
+  })
+  
+  for (let i = 0; i < files.length; i += batchSize) {
+    const batch = files.slice(i, i + batchSize)
+    
+    const batchPromises = batch.map(async (file, batchIndex) => {
+      const globalIndex = i + batchIndex
+      try {
+        // Get the relative path for this file
+        const pathParts = file.webkitRelativePath.split('/')
+        const fileName = pathParts.pop()! // Remove filename
+        const relativePath = pathParts.join('/') // Keep directory path
+        
+        // Create FormData for upload
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('visibility', uploadForm.value.visibility)
+        if (currentDirectory.value?.id) {
+          formData.append('parent_id', currentDirectory.value.id.toString())
+        }
+        if (relativePath) {
+          formData.append('relative_path', relativePath)
+        }
+        
+        // Upload the file - backend will handle directory creation
+        await uploadAPI.upload(formData)
+        
+        // Update progress
+        uploadProgress.value[globalIndex].status = 'success'
+        uploadProgress.value[globalIndex].percentage = 100
+        uploadedCount++
+        
+        return true
+      } catch (error: any) {
+        // Update progress with error
+        uploadProgress.value[globalIndex].status = 'error'
+        uploadProgress.value[globalIndex].error = error.response?.data?.error || error.message || 'Upload failed'
+        failedCount++
+        return false
+      }
+    })
+    
+    // Wait for batch to complete
+    await Promise.all(batchPromises)
+    
+    // Small delay between batches
+    if (i + batchSize < files.length) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    }
+  
+  // Show final results
+  if (failedCount === 0) {
+    ElMessage.success(`All ${files.length} files uploaded successfully!`)
+  } else {
+    ElMessage.warning(`${uploadedCount} files uploaded, ${failedCount} failed.`)
+  }
+}
+
+// Directory lookup methods removed - no longer needed with simplified backend approach
+
 const openUpload = () => {
   uploadDialogVisible.value = true
+  // Reset selected files when opening upload dialog
+  selectedFiles.value = []
+}
+
+const closeUploadDialog = () => {
+  uploadDialogVisible.value = false
+  // Reset selected files when closing upload dialog
+  selectedFiles.value = []
+  // Reset upload progress
+  uploadProgress.value = []
 }
 
 const showCreateDirectoryDialog = () => {
@@ -346,6 +611,15 @@ const showCreateDirectoryDialog = () => {
 // Upload methods
 const handleUpload = () => {
   if (uploadRef.value) {
+    // Get the file list from the upload component
+    const fileList = uploadRef.value.uploadFiles || []
+    
+    if (fileList.length === 0) {
+      ElMessage.warning('Please select files to upload.')
+      return
+    }
+    
+    // Submit all files
     uploadRef.value.submit()
   }
 }
@@ -356,13 +630,49 @@ const handleUploadSuccess = (response: any, file: any) => {
   refreshFiles()
 }
 
+const handleUploadComplete = () => {
+  // Clear selected files after all uploads are complete
+  selectedFiles.value = []
+}
+
 const handleUploadError = (error: any, file: any) => {
-  ElMessage.error(`${file.name} upload failed`)
+  ElMessage.error(`${file.name} upload failed: ${error.message || 'Unknown error'}`)
 }
 
 const beforeUpload = (file: any) => {
   return true
 }
+
+const handleFileChange = (file: any, fileList: any) => {
+  console.log('File changed:', file, 'File list:', fileList)
+  // Update the selected files array
+  selectedFiles.value = fileList.map((f: any) => f.raw || f)
+}
+
+const handleFileRemove = (file: any, fileList: any) => {
+  console.log('File removed:', file, 'File list:', fileList)
+  // Update the selected files array
+  selectedFiles.value = fileList.map((f: any) => f.raw || f)
+}
+
+const handleUploadProgress = (event: any, file: any) => {
+  console.log(`Upload progress for ${file.name}:`, event.percent)
+  // You can add progress tracking logic here if needed
+}
+
+const handleFileExceed = (files: any, fileList: any) => {
+  ElMessage.warning(`Maximum ${fileList.length} files allowed. Please remove some files first.`)
+}
+
+// Directory selection method removed - now handled by file input with webkitdirectory
+
+// Directory scanning method removed - no longer needed
+
+// Directory upload method removed - now handled by file upload with relative paths
+
+// handleBulkFileUpload method removed - no longer needed with simplified upload approach
+
+// Directory handle methods removed - no longer needed
 
 const refreshFiles = async () => {
   if (currentDirectory.value) {
@@ -518,6 +828,10 @@ watch(
   gap: 12px;
 }
 
+.header-actions .el-dropdown {
+  margin-right: 0;
+}
+
 .view-controls {
   margin-bottom: 24px;
 }
@@ -624,5 +938,152 @@ watch(
 :deep(.el-upload-dragger) {
   width: 100%;
   height: 120px;
+}
+
+/* Directory upload styles */
+.directory-upload-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.directory-input {
+  width: 100%;
+}
+
+.directory-preview {
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 10px;
+  background-color: #f9fafc;
+}
+
+.directory-preview h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #303133;
+}
+
+.item-breakdown {
+  font-size: 14px;
+  font-weight: 400;
+  color: #909399;
+  margin-left: 8px;
+}
+
+.total-size {
+  color: #409eff;
+  font-weight: 500;
+}
+
+.directory-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #ebeef5;
+}
+
+.directory-item:last-child {
+  border-bottom: none;
+}
+
+.item-name {
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #303133;
+}
+
+.item-size {
+  font-size: 12px;
+  color: #909399;
+}
+
+.directory-placeholder {
+  text-align: center;
+  padding: 40px 20px;
+  color: #c0c4cc;
+}
+
+.directory-placeholder p {
+  margin: 16px 0 0 0;
+  font-size: 14px;
+}
+
+.upload-progress-section {
+  margin-top: 20px;
+  border-top: 1px solid #e4e7ed;
+  padding-top: 20px;
+}
+
+.upload-progress-section h4 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #303133;
+}
+
+.upload-progress-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.progress-item {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  background-color: #fafafa;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.filename {
+  font-weight: 600;
+  color: #303133;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 12px;
+}
+
+.status {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: capitalize;
+}
+
+.status.uploading {
+  color: #409eff;
+  background-color: #ecf5ff;
+}
+
+.status.success {
+  color: #67c23a;
+  background-color: #f0f9ff;
+}
+
+.status.error {
+  color: #f56c6c;
+  background-color: #fef0f0;
+}
+
+.error-message {
+  color: #f56c6c;
+  font-size: 12px;
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #fef0f0;
+  border-radius: 4px;
 }
 </style>

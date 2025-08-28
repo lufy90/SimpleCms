@@ -13,5 +13,6 @@ router.register(r'permission-requests', views.FilePermissionRequestViewSet, base
 urlpatterns = [
     path('api/', include(router.urls)),
     path('api/upload/', views.FileUploadView.as_view(), name='file-upload'),
+    # Directory upload functionality now integrated into FileUploadView
     path('api/operations/', views.FileOperationView.as_view(), name='file-operations'),
 ]
