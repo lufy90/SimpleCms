@@ -26,6 +26,7 @@ from .serializers import (
     FileAccessPermissionSerializer, FileAccessPermissionCreateSerializer,
     FileVisibilityUpdateSerializer, FilePermissionRequestSerializer,
     FilePermissionRequestCreateSerializer, FilePermissionRequestReviewSerializer,
+    DeletedFileSerializer, FileRestoreSerializer, FileHardDeleteSerializer,
     # DirectoryUploadSerializer removed
 )
 from .pagination import (
@@ -675,54 +676,66 @@ class FileOperationView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         
         operation = serializer.validated_data['operation']
-        source_paths = serializer.validated_data['source_paths']
-        destination_path = serializer.validated_data.get('destination_path')
+        file_ids = serializer.validated_data['file_ids']
+        destination_id = serializer.validated_data.get('destination_id')
         
         results = []
         
         try:
-            for source_path in source_paths:
-                if not os.path.exists(source_path):
-                    results.append({
-                        'path': source_path,
-                        'success': False,
-                        'error': 'Source path does not exist'
-                    })
-                    continue
-                
-                # Check if user has permission to operate on this file
+            for file_id in file_ids:
                 try:
-                    file_item = FileSystemItem.objects.get(path=source_path)
+                    file_item = FileSystemItem.objects.with_deleted().get(id=file_id)
+                    
+                    # Check permissions
                     if operation == 'delete' and not file_item.can_delete(request.user):
                         results.append({
-                            'path': source_path,
+                            'id': file_id,
+                            'name': file_item.name,
                             'success': False,
                             'error': 'Permission denied'
                         })
                         continue
                     elif operation in ['copy', 'move'] and not file_item.can_access(request.user, 'read'):
                         results.append({
-                            'path': source_path,
+                            'id': file_id,
+                            'name': file_item.name,
                             'success': False,
                             'error': 'Permission denied'
                         })
                         continue
+                    
+                    # Check if file is already deleted
+                    if file_item.is_deleted:
+                        results.append({
+                            'id': file_id,
+                            'name': file_item.name,
+                            'success': False,
+                            'error': 'Cannot operate on deleted files'
+                        })
+                        continue
+                    
+                    # Execute operation
+                    if operation == 'delete':
+                        success, error = self._soft_delete_file(file_item, request.user)
+                    elif operation == 'copy':
+                        success, error = self._copy_file(file_item, destination_id, request.user)
+                    elif operation == 'move':
+                        success, error = self._move_file(file_item, destination_id, request.user)
+                    
+                    results.append({
+                        'id': file_id,
+                        'name': file_item.name,
+                        'success': success,
+                        'error': error
+                    })
+                    
                 except FileSystemItem.DoesNotExist:
-                    # File not in database, proceed with operation
-                    pass
-                
-                if operation == 'delete':
-                    success, error = self._delete_file(source_path)
-                elif operation == 'copy':
-                    success, error = self._copy_file(source_path, destination_path)
-                elif operation == 'move':
-                    success, error = self._move_file(source_path, destination_path)
-                
-                results.append({
-                    'path': source_path,
-                    'success': success,
-                    'error': error
-                })
+                    results.append({
+                        'id': file_id,
+                        'name': 'Unknown',
+                        'success': False,
+                        'error': 'File not found'
+                    })
             
             return Response({
                 'operation': operation,
@@ -732,49 +745,278 @@ class FileOperationView(generics.CreateAPIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    def _delete_file(self, file_path):
-        """Delete a file or directory"""
+    def _soft_delete_file(self, file_item, user):
+        """Soft delete a file (logical deletion)"""
         try:
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-            
-            # Remove from database
-            FileSystemItem.objects.filter(path=file_path).delete()
-            
+            file_item.soft_delete(user)
             return True, None
         except Exception as e:
             return False, str(e)
     
-    def _copy_file(self, source_path, destination_path):
-        """Copy a file or directory"""
+    def _copy_file(self, file_item, destination_id, user):
+        """Copy a file to a new destination"""
         try:
-            if os.path.isfile(source_path):
-                shutil.copy2(source_path, destination_path)
-            elif os.path.isdir(source_path):
-                shutil.copytree(source_path, destination_path)
+            # Handle root directory (destination_id == 0)
+            if destination_id == 0:
+                # Copy to root directory
+                destination_dir = None
+                # Generate unique name for root directory first
+                new_name = self._generate_unique_name_root(file_item.name)
+                root_path = file_path_manager.get_safe_path('')
+                new_path = os.path.join(root_path, new_name)
+                relative_path = new_name
+
+            else:
+                # Get destination directory
+                try:
+                    destination_dir = FileSystemItem.objects.get(id=destination_id, item_type='directory')
+                except FileSystemItem.DoesNotExist:
+                    return False, 'Destination directory not found'
+                
+                # Check if user can write to destination
+                if not destination_dir.can_access(user, 'write'):
+                    return False, 'No write permission to destination directory'
+                
+                # Generate new path
+                new_name = self._generate_unique_name(file_item.name, destination_dir)
+                new_path = os.path.join(destination_dir.path, new_name)
+                relative_path = os.path.join(destination_dir.get_relative_path(), new_name)
+            
+            # Copy file system
+            # Ensure we have the correct absolute path
+            source_path = file_item.path
+            
+            if not os.path.isabs(source_path):
+                # If path is relative, try to construct absolute path
+                if file_item.parent:
+                    source_path = os.path.join(file_item.parent.path, file_item.name)
+                else:
+                    # Root level file
+                    source_path = os.path.join(file_path_manager.get_safe_path(''), file_item.name)
+            
+            if file_item.item_type == 'file':
+                import shutil
+                shutil.copy2(source_path, new_path)
+            elif file_item.item_type == 'directory':
+                import shutil
+                shutil.copytree(source_path, new_path)
+            
+            # Create new database record
+            new_file_item = FileSystemItem.objects.create(
+                name=new_name,
+                path=new_path,
+                relative_path=relative_path,
+                item_type=file_item.item_type,
+                parent=destination_dir,
+                size=file_item.size,
+                mime_type=file_item.mime_type,
+                extension=file_item.extension,
+                owner=user,
+                visibility=file_item.visibility
+            )
+            
+            # Copy permissions and sharing
+            new_file_item.shared_users.set(file_item.shared_users.all())
+            new_file_item.shared_groups.set(file_item.shared_groups.all())
             
             return True, None
+            
         except Exception as e:
             return False, str(e)
     
-    def _move_file(self, source_path, destination_path):
-        """Move a file or directory"""
+    def _move_file(self, file_item, destination_id, user):
+        """Move a file to a new destination"""
         try:
-            shutil.move(source_path, destination_path)
+            # Handle root directory (destination_id is 0)
+            if destination_id == 0:
+                # Move to root directory
+                destination_dir = None
+                # Generate unique name for root directory first
+                new_name = self._generate_unique_name_root(file_item.name)
+                root_path = file_path_manager.get_safe_path('')
+                new_path = os.path.join(root_path, new_name)
+                relative_path = new_name
+
+            else:
+                # Get destination directory
+                try:
+                    destination_dir = FileSystemItem.objects.get(id=destination_id, item_type='directory')
+                except FileSystemItem.DoesNotExist:
+                    return False, 'Destination directory not found'
+                
+                # Check if user can write to destination
+                if not destination_dir.can_access(user, 'write'):
+                    return False, 'No write permission to destination directory'
+                
+                # Check if user can delete from current location
+                if not file_item.can_delete(user):
+                    return False, 'No permission to move file from current location'
+                
+                # Generate new path
+                new_name = self._generate_unique_name(file_item.name, destination_dir)
+                new_path = os.path.join(destination_dir.path, new_name)
+                relative_path = os.path.join(destination_dir.get_relative_path(), new_name)
+            
+            # Move file system
+            import shutil
+            
+            # Ensure we have the correct absolute path
+            source_path = file_item.path
+            
+            if not os.path.isabs(source_path):
+                # If path is relative, try to construct absolute path
+                if file_item.parent:
+                    source_path = os.path.join(file_item.parent.path, file_item.name)
+                else:
+                    # Root level file
+                    source_path = os.path.join(file_path_manager.get_safe_path(''), file_item.name)
+            shutil.move(source_path, new_path)
             
             # Update database record
-            try:
-                file_item = FileSystemItem.objects.get(path=source_path)
-                file_item.path = destination_path
-                file_item.save()
-            except FileSystemItem.DoesNotExist:
-                pass
+            file_item.name = new_name
+            file_item.path = new_path
+            file_item.relative_path = relative_path
+            file_item.parent = destination_dir
+            print(f"Updating database: name={new_name}, path={new_path}, parent={destination_dir}")  # Debug log
+            file_item.save()
             
             return True, None
+            
         except Exception as e:
             return False, str(e)
+    
+    def _generate_unique_name(self, original_name, destination_dir):
+        """Generate a unique name in the destination directory"""
+        base_name, extension = os.path.splitext(original_name)
+        counter = 1
+        new_name = original_name
+        
+        while FileSystemItem.objects.filter(parent=destination_dir, name=new_name).exists():
+            if extension:
+                new_name = f"{base_name} ({counter}){extension}"
+            else:
+                new_name = f"{base_name} ({counter})"
+            counter += 1
+        
+        return new_name
+    
+    def _generate_unique_name_root(self, original_name):
+        """Generate a unique name in the root directory"""
+        base_name, extension = os.path.splitext(original_name)
+        counter = 1
+        new_name = original_name
+        
+        while FileSystemItem.objects.filter(parent__isnull=True, name=new_name).exists():
+            if extension:
+                new_name = f"{base_name} ({counter}){extension}"
+            else:
+                new_name = f"{base_name} ({counter})"
+            counter += 1
+        
+        return new_name
+
+
+class DeletedFilesViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing deleted files"""
+    permission_classes = [IsAuthenticated]
+    serializer_class = DeletedFileSerializer
+    
+    def get_queryset(self):
+        """Only show deleted files"""
+        return FileSystemItem.objects.deleted_only()
+    
+    def list(self, request, *args, **kwargs):
+        """List all deleted files"""
+        queryset = self.get_queryset()
+        
+        # Filter by owner if not superuser
+        if not request.user.is_superuser:
+            queryset = queryset.filter(owner=request.user)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def restore(self, request, *args, **kwargs):
+        """Restore deleted files"""
+        serializer = FileRestoreSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        file_ids = serializer.validated_data['file_ids']
+        results = []
+        
+        for file_id in file_ids:
+            try:
+                file_item = FileSystemItem.objects.deleted_only().get(id=file_id)
+                
+                # Check permissions
+                if not file_item.can_access(request.user, 'write'):
+                    results.append({
+                        'id': file_id,
+                        'name': file_item.name,
+                        'success': False,
+                        'error': 'Permission denied'
+                    })
+                    continue
+                
+                # Restore file
+                file_item.restore()
+                results.append({
+                    'id': file_id,
+                    'name': file_item.name,
+                    'success': True,
+                    'error': None
+                })
+                
+            except FileSystemItem.DoesNotExist:
+                results.append({
+                    'id': file_id,
+                    'name': 'Unknown',
+                    'success': False,
+                    'error': 'File not found'
+                })
+        
+        return Response({'results': results})
+    
+    def hard_delete(self, request, *args, **kwargs):
+        """Permanently delete files"""
+        serializer = FileHardDeleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        file_ids = serializer.validated_data['file_ids']
+        results = []
+        
+        for file_id in file_ids:
+            try:
+                file_item = FileSystemItem.objects.deleted_only().get(id=file_id)
+                
+                # Check permissions
+                if not file_item.can_delete(request.user):
+                    results.append({
+                        'id': file_id,
+                        'name': file_item.name,
+                        'success': False,
+                        'error': 'Permission denied'
+                    })
+                    continue
+                
+                # Permanently delete file
+                file_item.hard_delete()
+                results.append({
+                    'id': file_id,
+                    'name': file_item.name,
+                    'success': True,
+                    'error': None
+                })
+                
+            except FileSystemItem.DoesNotExist:
+                results.append({
+                    'id': file_id,
+                    'name': 'Unknown',
+                    'success': False,
+                    'error': 'File not found'
+                })
+        
+        return Response({'results': results})
 
 
 class FileAccessPermissionViewSet(viewsets.ModelViewSet):

@@ -15,4 +15,7 @@ urlpatterns = [
     path('api/upload/', views.FileUploadView.as_view(), name='file-upload'),
     # Directory upload functionality now integrated into FileUploadView
     path('api/operations/', views.FileOperationView.as_view(), name='file-operations'),
+    path('api/deleted-files/', views.DeletedFilesViewSet.as_view({'get': 'list'}), name='deleted-files-list'),
+    path('api/deleted-files/restore/', views.DeletedFilesViewSet.as_view({'post': 'restore'}), name='deleted-files-restore'),
+    path('api/deleted-files/hard-delete/', views.DeletedFilesViewSet.as_view({'post': 'hard_delete'}), name='deleted-files-hard-delete'),
 ]

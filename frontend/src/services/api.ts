@@ -127,8 +127,15 @@ export const uploadAPI = {
 
 // Operations API
 export const operationsAPI = {
-  execute: (operation: 'copy' | 'move' | 'delete', sourcePaths: string[], destinationPath?: string) =>
-    api.post('/api/operations/', { operation, source_paths: sourcePaths, destination_path: destinationPath }),
+  execute: (operation: 'copy' | 'move' | 'delete', fileIds: number[], destinationId?: number) =>
+    api.post('/api/operations/', { operation, file_ids: fileIds, destination_id: destinationId }),
+}
+
+// Deleted Files API
+export const deletedFilesAPI = {
+  list: () => api.get('/api/deleted-files/'),
+  restore: (fileIds: number[]) => api.post('/api/deleted-files/restore/', { file_ids: fileIds }),
+  hardDelete: (fileIds: number[]) => api.post('/api/deleted-files/hard-delete/', { file_ids: fileIds }),
 }
 
 // Permissions API

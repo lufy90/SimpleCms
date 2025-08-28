@@ -79,6 +79,31 @@
       </el-button-group>
     </div>
 
+    <!-- Bulk Operations Toolbar -->
+    <div v-if="selectedFileIds.size > 0" class="bulk-operations-toolbar">
+      <div class="bulk-info">
+        <span>{{ selectedFileIds.size }} item(s) selected</span>
+      </div>
+      <div class="bulk-actions">
+        <el-button @click="showCopyDialog" type="primary" size="small">
+          <el-icon><CopyDocument /></el-icon>
+          Copy
+        </el-button>
+        <el-button @click="showMoveDialog" type="warning" size="small">
+          <el-icon><Position /></el-icon>
+          Move
+        </el-button>
+        <el-button @click="confirmDelete" type="danger" size="small">
+          <el-icon><Delete /></el-icon>
+          Delete
+        </el-button>
+        <el-button @click="clearSelection" size="small">
+          <el-icon><Close /></el-icon>
+          Clear
+        </el-button>
+      </div>
+    </div>
+
     <!-- Breadcrumb Navigation -->
     <div class="breadcrumb-container">
       <el-breadcrumb separator="/">
@@ -124,18 +149,49 @@
           v-for="file in filteredFiles"
           :key="file.id"
           class="file-card"
-          @click="handleFileClick(file)"
         >
-          <div class="file-icon">
-            <el-icon size="32" :color="getFileIconColor(file)">
-              <Folder v-if="file.item_type === 'directory'" />
-              <Document v-else />
-            </el-icon>
+          <div class="file-selection">
+            <el-checkbox
+              :model-value="selectedFileIds.has(file.id)"
+              @change="(checked: boolean) => toggleFileSelection(file.id, checked)"
+              @click.stop
+            />
           </div>
-          <div class="file-name">{{ file.name }}</div>
-          <div class="file-meta">
-            <span v-if="file.size">{{ formatFileSize(file.size) }}</span>
-            <span>{{ file.item_type }}</span>
+          <div class="file-content" @click="handleFileClick(file)">
+            <div class="file-icon">
+              <el-icon size="32" :color="getFileIconColor(file)">
+                <Folder v-if="file.item_type === 'directory'" />
+                <Document v-else />
+              </el-icon>
+            </div>
+            <div class="file-name">{{ file.name }}</div>
+            <div class="file-meta">
+              <span v-if="file.size">{{ formatFileSize(file.size) }}</span>
+              <span>{{ file.item_type }}</span>
+            </div>
+          </div>
+          <div class="file-actions">
+            <el-dropdown @command="(command: string) => handleFileAction(command, file)" trigger="click">
+              <el-button type="text" size="small" @click.stop>
+                <el-icon><More /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="copy">
+                    <el-icon><CopyDocument /></el-icon>
+                    Copy
+                  </el-dropdown-item>
+                  <el-dropdown-item command="move">
+                    <el-icon><Position /></el-icon>
+                    Move
+                  </el-dropdown-item>
+                  <el-dropdown-item command="delete" divided>
+                    <el-icon><Delete /></el-icon>
+                    Delete
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
         </div>
       </div>
@@ -144,9 +200,14 @@
       <el-table
         v-else
         :data="filteredFiles"
-        @row-click="handleFileClick"
+        @row-click="handleListRowClick"
         class="list-view"
+        @selection-change="handleListSelectionChange"
+        ref="listTableRef"
       >
+        <!-- Selection Column -->
+        <el-table-column type="selection" width="55" />
+        
         <el-table-column prop="name" label="Name" min-width="200">
           <template #default="{ row }">
             <div class="file-name-cell">
@@ -172,21 +233,45 @@
             </el-tag>
           </template>
         </el-table-column>
+        
+        <!-- Actions Column -->
+        <el-table-column label="Actions" width="280" fixed="right">
+          <template #default="{ row }">
+            <div class="list-actions">
+              <el-button 
+                type="primary" 
+                size="small" 
+                @click.stop="handleFileAction('copy', row)"
+                title="Copy"
+              >
+                <el-icon><CopyDocument /></el-icon>
+                Copy
+              </el-button>
+              <el-button 
+                type="warning" 
+                size="small" 
+                @click.stop="handleFileAction('move', row)"
+                title="Move"
+              >
+                <el-icon><Position /></el-icon>
+                Move
+              </el-button>
+              <el-button 
+                type="danger" 
+                size="small" 
+                @click.stop="handleFileAction('delete', row)"
+                title="Delete"
+              >
+                <el-icon><Delete /></el-icon>
+                Delete
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
       </el-table>
     </div>
 
-    <!-- Pagination -->
-    <div v-if="pagination" class="pagination">
-      <el-pagination
-        v-model:current-page="pagination.current_page"
-        v-model:page-size="pagination.page_size"
-        :page-sizes="[10, 25, 50, 100]"
-        :total="pagination.count"
-        layout="total, sizes, prev, pager, next"
-        @size-change="handlePageSizeChange"
-        @current-change="handlePageChange"
-      />
-    </div>
+
 
     <!-- Upload Dialog -->
     <el-dialog
@@ -295,6 +380,88 @@
       </div>
     </div>
   </div>
+
+  <!-- Copy Dialog -->
+  <el-dialog
+    v-model="copyDialogVisible"
+    title="Copy Files"
+    width="600px"
+    :close-on-click-modal="false"
+  >
+    <el-form>
+      <el-form-item label="Destination Directory">
+        <el-tree
+          ref="copyTreeRef"
+          :data="directoryTreeData"
+          :props="treeProps"
+          :expand-on-click-node="false"
+          :highlight-current="true"
+          @node-click="handleDirectorySelect"
+          style="max-height: 300px; overflow-y: auto; border: 1px solid #dcdfe6; border-radius: 4px; padding: 8px;"
+        >
+          <template #default="{ node, data }">
+            <span class="custom-tree-node">
+              <el-icon><Folder /></el-icon>
+              <span style="margin-left: 8px;">{{ node.label }}</span>
+              <span v-if="data.path" style="margin-left: 8px; color: #909399; font-size: 12px;">
+                ({{ data.path }})
+              </span>
+            </span>
+          </template>
+        </el-tree>
+        <div v-if="operationDestination" style="margin-top: 12px; padding: 8px; background-color: #f0f9ff; border-radius: 4px; border: 1px solid #bae6fd;">
+          <strong>Selected:</strong> {{ getSelectedDirectoryName() }}
+        </div>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="copyDialogVisible = false">Cancel</el-button>
+        <el-button type="primary" @click="executeOperation" :disabled="operationDestination === undefined">Copy Files</el-button>
+      </div>
+    </template>
+  </el-dialog>
+
+  <!-- Move Dialog -->
+  <el-dialog
+    v-model="moveDialogVisible"
+    title="Move Files"
+    width="600px"
+    :close-on-click-modal="false"
+  >
+    <el-form>
+      <el-form-item label="Destination Directory">
+        <el-tree
+          ref="moveTreeRef"
+          :data="directoryTreeData"
+          :props="treeProps"
+          :expand-on-click-node="false"
+          :highlight-current="true"
+          @node-click="handleDirectorySelect"
+          style="max-height: 300px; overflow-y: auto; border: 1px solid #dcdfe6; border-radius: 4px; padding: 8px;"
+        >
+          <template #default="{ node, data }">
+            <span class="custom-tree-node">
+              <el-icon><Folder /></el-icon>
+              <span style="margin-left: 8px;">{{ node.label }}</span>
+              <span v-if="data.path" style="margin-left: 8px; color: #909399; font-size: 12px;">
+                ({{ data.path }})
+              </span>
+            </span>
+          </template>
+        </el-tree>
+        <div v-if="operationDestination !== undefined" style="margin-top: 12px; padding: 8px; background-color: #fff7ed; border-radius: 4px; border: 1px solid #fed7aa;">
+          <strong>Selected:</strong> {{ getSelectedDirectoryName() }}
+        </div>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="moveDialogVisible = false">Cancel</el-button>
+        <el-button type="warning" @click="executeOperation" :disabled="operationDestination === undefined">Move Files</el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -302,7 +469,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFilesStore } from '@/stores/files'
 import { uploadAPI } from '@/services/api'
-import { Grid, List, Document, Folder, Upload, Refresh, Back, UploadFilled, ArrowDown } from '@element-plus/icons-vue'
+import { Grid, List, Document, Folder, Upload, Refresh, Back, UploadFilled, ArrowDown, CopyDocument, Position, Delete, Close, More } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
@@ -321,8 +488,31 @@ const fileInputRef = ref<HTMLInputElement>()
 const dirInputRef = ref<HTMLInputElement>()
 const uploadRef = ref()
 const selectedFiles = ref<Array<File>>([])
+const selectedFileIds = ref<Set<number>>(new Set())
 const uploadProgress = ref<Array<{ filename: string; status: 'uploading' | 'success' | 'error'; percentage: number; error?: string }>>([])
 const isUploading = ref(false)
+
+// Operation dialogs
+const copyDialogVisible = ref(false)
+const moveDialogVisible = ref(false)
+const operationDestination = ref<number | undefined>(undefined)
+const operationType = ref<'copy' | 'move'>('copy')
+
+// Tree selector configuration
+const treeProps = {
+  children: 'children',
+  label: 'name'
+}
+
+// Directory tree data for copy/move operations
+const directoryTreeData = computed(() => {
+  return filesStore.directoryTree.filter(item => item.item_type === 'directory')
+})
+
+// Tree refs
+const copyTreeRef = ref()
+const moveTreeRef = ref()
+const listTableRef = ref()
 
 // Upload configuration
 const uploadAction = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/upload/`
@@ -697,6 +887,14 @@ const handleFileClick = async (file: any) => {
   }
 }
 
+const handleListRowClick = (row: any, column: any, event: Event) => {
+  // Don't navigate if clicking on selection checkbox or actions column
+  if (column.type === 'selection' || column.label === 'Actions') {
+    return
+  }
+  handleFileClick(row)
+}
+
 const navigateToDirectory = async (directoryId: number) => {
   console.log('navigateToDirectory called with ID:', directoryId)
   await filesStore.fetchChildren(directoryId)
@@ -728,12 +926,119 @@ const handleBreadcrumbClick = async (item: { id: number | null, name: string, pa
   }
 }
 
-const handlePageSizeChange = (size: number) => {
-  filesStore.fetchFiles({ page_size: size, page: 1 })
+
+
+// File operation methods
+const toggleFileSelection = (fileId: number, checked: boolean) => {
+  if (checked) {
+    selectedFileIds.value.add(fileId)
+  } else {
+    selectedFileIds.value.delete(fileId)
+  }
 }
 
-const handlePageChange = (page: number) => {
-  filesStore.fetchFiles({ page })
+const clearSelection = () => {
+  selectedFileIds.value.clear()
+  // Clear table selection if list view is active
+  if (viewType.value === 'list' && listTableRef.value) {
+    listTableRef.value.clearSelection()
+  }
+}
+
+const showCopyDialog = () => {
+  operationType.value = 'copy'
+  operationDestination.value = undefined
+  copyDialogVisible.value = true
+}
+
+const showMoveDialog = () => {
+  operationType.value = 'move'
+  operationDestination.value = undefined
+  moveDialogVisible.value = true
+}
+
+const confirmDelete = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete ${selectedFileIds.value.size} item(s)? This action cannot be undone.`,
+      'Confirm Delete',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+      }
+    )
+    
+    const fileIds = Array.from(selectedFileIds.value)
+    await filesStore.deleteFiles(fileIds)
+    clearSelection()
+  } catch (error) {
+    // User cancelled
+  }
+}
+
+const handleFileAction = async (command: string, file: any) => {
+  if (command === 'copy') {
+    selectedFileIds.value.clear()
+    selectedFileIds.value.add(file.id)
+    showCopyDialog()
+  } else if (command === 'move') {
+    selectedFileIds.value.clear()
+    selectedFileIds.value.add(file.id)
+    showMoveDialog()
+  } else if (command === 'delete') {
+    selectedFileIds.value.clear()
+    selectedFileIds.value.add(file.id)
+    await confirmDelete()
+  }
+}
+
+const handleListSelectionChange = (selection: any[]) => {
+  // Update selectedFileIds based on table selection
+  selectedFileIds.value.clear()
+  selection.forEach(item => {
+    selectedFileIds.value.add(item.id)
+  })
+}
+
+const executeOperation = async () => {
+  if (operationDestination.value === undefined) {
+    ElMessage.warning('Please select a destination directory')
+    return
+  }
+  
+  try {
+    const fileIds = Array.from(selectedFileIds.value)
+    
+    if (operationType.value === 'copy') {
+      await filesStore.copyFiles(fileIds, operationDestination.value)
+      copyDialogVisible.value = false
+    } else if (operationType.value === 'move') {
+      await filesStore.moveFiles(fileIds, operationDestination.value)
+      moveDialogVisible.value = false
+    }
+    
+    operationDestination.value = undefined
+    clearSelection()
+  } catch (error: any) {
+    ElMessage.error(`Operation failed: ${error.message || error}`)
+  }
+}
+
+const handleDirectorySelect = (data: any) => {
+  // Handle root directory specially - root has id 'root' but we use 0 for root
+  if (data.id === 'root') {
+    operationDestination.value = 0  // Use 0 as special ID for root directory
+  } else {
+    operationDestination.value = data.id
+  }
+}
+
+const getSelectedDirectoryName = () => {
+  if (operationDestination.value === undefined) return ''
+  if (operationDestination.value === 0) return 'Root Directory (/)'
+  const selectedDir = directoryTreeData.value.find(dir => dir.id === operationDestination.value)
+  return selectedDir ? selectedDir.name : ''
 }
 
 // Utility methods
@@ -836,6 +1141,28 @@ watch(
   margin-bottom: 24px;
 }
 
+.bulk-operations-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 12px 24px;
+  background-color: #f5f7fa;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+}
+
+.bulk-info {
+  font-size: 16px;
+  color: #303133;
+  font-weight: 500;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 12px;
+}
+
 .breadcrumb-container {
   margin-bottom: 24px;
 }
@@ -878,14 +1205,47 @@ watch(
   border: 1px solid #e4e7ed;
   border-radius: 8px;
   padding: 16px;
-  cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
+  position: relative;
+}
+
+.file-content {
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .file-card:hover {
   border-color: #409eff;
   box-shadow: 0 4px 12px rgba(64, 158, 255, 0.1);
+}
+
+.file-content:hover {
+  transform: translateY(-2px);
+}
+
+.file-selection {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+}
+
+.file-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+
+.custom-tree-node {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.custom-tree-node .el-icon {
+  color: #409eff;
 }
 
 .file-icon {
@@ -906,6 +1266,7 @@ watch(
   color: #909399;
   display: flex;
   justify-content: space-between;
+  margin-bottom: 12px;
 }
 
 /* List View */
@@ -919,10 +1280,43 @@ watch(
   gap: 8px;
 }
 
-.pagination {
-  display: flex;
-  justify-content: center;
+/* List view table styling */
+:deep(.el-table) {
+  border-radius: 8px;
+  overflow: hidden;
 }
+
+:deep(.el-table th) {
+  background-color: #f5f7fa;
+  color: #606266;
+  font-weight: 600;
+}
+
+:deep(.el-table td) {
+  padding: 12px 0;
+}
+
+:deep(.el-table .el-table__row:hover) {
+  background-color: #f5f7fa;
+}
+
+/* List actions styling */
+.list-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.list-actions .el-button {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.list-actions .el-button .el-icon {
+  margin-right: 4px;
+}
+
+
 
 /* Upload Dialog Styles */
 .upload-area {

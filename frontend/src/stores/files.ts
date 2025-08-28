@@ -329,19 +329,16 @@ export const useFilesStore = defineStore('files', () => {
 
   const deleteFiles = async (fileIds: number[]) => {
     try {
-      const paths = fileIds.map(id => {
-        const file = files.value.find(f => f.id === id)
-        return file?.path || ''
-      }).filter(path => path)
-      
-      if (paths.length === 0) return false
-      
-      await operationsAPI.execute('delete', paths)
+      await operationsAPI.execute('delete', fileIds)
       toast.success('Files deleted successfully')
       
-      // Remove from selection and refresh
+      // Remove from selection and refresh current directory
       fileIds.forEach(id => selectedFiles.value.delete(id))
-      await fetchFiles()
+      if (currentDirectory.value) {
+        await fetchChildren(currentDirectory.value.id)
+      } else {
+        await fetchChildren()
+      }
       return true
     } catch (error: any) {
       toast.error('Delete failed')
@@ -349,21 +346,18 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const copyFiles = async (fileIds: number[], destinationPath: string) => {
+  const copyFiles = async (fileIds: number[], destinationId: number) => {
     try {
-      const paths = fileIds.map(id => {
-        const file = files.value.find(f => f.id === id)
-        return file?.path || ''
-      }).filter(path => path)
-      
-      if (paths.length === 0) return false
-      
-      await operationsAPI.execute('copy', paths, destinationPath)
+      await operationsAPI.execute('copy', fileIds, destinationId)
       toast.success('Files copied successfully')
       
-      // Clear selection and refresh
+      // Clear selection and refresh current directory
       selectedFiles.value.clear()
-      await fetchFiles()
+      if (currentDirectory.value) {
+        await fetchChildren(currentDirectory.value.id)
+      } else {
+        await fetchChildren()
+      }
       return true
     } catch (error: any) {
       toast.error('Copy failed')
@@ -371,21 +365,18 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const moveFiles = async (fileIds: number[], destinationPath: string) => {
+  const moveFiles = async (fileIds: number[], destinationId: number) => {
     try {
-      const paths = fileIds.map(id => {
-        const file = files.value.find(f => f.id === id)
-        return file?.path || ''
-      }).filter(path => path)
-      
-      if (paths.length === 0) return false
-      
-      await operationsAPI.execute('move', paths, destinationPath)
+      await operationsAPI.execute('move', fileIds, destinationId)
       toast.success('Files moved successfully')
       
-      // Clear selection and refresh
+      // Clear selection and refresh current directory
       selectedFiles.value.clear()
-      await fetchFiles()
+      if (currentDirectory.value) {
+        await fetchChildren(currentDirectory.value.id)
+      } else {
+        await fetchChildren()
+      }
       return true
     } catch (error: any) {
       toast.error('Move failed')

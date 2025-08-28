@@ -290,13 +290,37 @@ class FileUploadSerializer(serializers.Serializer):
 class FileOperationSerializer(serializers.Serializer):
     """Serializer for file operations (copy, move, delete)"""
     operation = serializers.ChoiceField(choices=['copy', 'move', 'delete'])
-    source_paths = serializers.ListField(child=serializers.CharField())
-    destination_path = serializers.CharField(required=False)
+    file_ids = serializers.ListField(child=serializers.IntegerField(), help_text="List of file IDs to operate on")
+    destination_id = serializers.IntegerField(required=False, help_text="ID of destination directory for copy/move operations")
     
     def validate(self, data):
-        if data['operation'] in ['copy', 'move'] and not data.get('destination_path'):
-            raise serializers.ValidationError("Destination path is required for copy and move operations")
+        if data['operation'] in ['copy', 'move'] and 'destination_id' not in data:
+            raise serializers.ValidationError("Destination directory ID is required for copy and move operations")
         return data
+
+
+class DeletedFileSerializer(serializers.ModelSerializer):
+    """Serializer for deleted files"""
+    deleted_by = UserSerializer(read_only=True)
+    
+    class Meta:
+        model = FileSystemItem
+        fields = [
+            'id', 'name', 'path', 'item_type', 'parent', 'size', 'mime_type', 
+            'extension', 'created_at', 'updated_at', 'last_modified', 'owner', 
+            'visibility', 'is_deleted', 'deleted_at', 'deleted_by'
+        ]
+        read_only_fields = ['is_deleted', 'deleted_at', 'deleted_by']
+
+
+class FileRestoreSerializer(serializers.Serializer):
+    """Serializer for restoring deleted files"""
+    file_ids = serializers.ListField(child=serializers.IntegerField(), help_text="List of deleted file IDs to restore")
+
+
+class FileHardDeleteSerializer(serializers.Serializer):
+    """Serializer for permanently deleting files"""
+    file_ids = serializers.ListField(child=serializers.IntegerField(), help_text="List of deleted file IDs to permanently delete")
 
 
 class FilePermissionRequestSerializer(serializers.ModelSerializer):

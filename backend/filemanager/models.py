@@ -7,6 +7,21 @@ from pathlib import Path
 from datetime import timezone as dt_timezone
 
 
+class FileSystemItemManager(models.Manager):
+    """Custom manager to filter out deleted items by default"""
+    
+    def get_queryset(self):
+        return super().get_queryset().filter(is_deleted=False)
+    
+    def with_deleted(self):
+        """Include deleted items in the queryset"""
+        return super().get_queryset()
+    
+    def deleted_only(self):
+        """Only deleted items"""
+        return super().get_queryset().filter(is_deleted=True)
+
+
 class FileSystemItem(models.Model):
     """Base model for both files and directories"""
     ITEM_TYPES = [
@@ -41,9 +56,17 @@ class FileSystemItem(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     visibility = models.CharField(max_length=10, choices=VISIBILITY_CHOICES, default='private')
     
+    # Logical deletion
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deleted_files')
+    
     # User and group sharing
     shared_users = models.ManyToManyField(User, blank=True, related_name='shared_files')
     shared_groups = models.ManyToManyField(Group, blank=True, related_name='shared_files')
+    
+    # Custom manager
+    objects = FileSystemItemManager()
     
     class Meta:
         ordering = ['name']
@@ -54,10 +77,12 @@ class FileSystemItem(models.Model):
             models.Index(fields=['parent']),
             models.Index(fields=['visibility']),
             models.Index(fields=['owner']),
+            models.Index(fields=['is_deleted']),
         ]
     
     def __str__(self):
-        return f"{self.name} ({self.item_type})"
+        status = " [DELETED]" if self.is_deleted else ""
+        return f"{self.name} ({self.item_type}){status}"
     
     def get_absolute_path(self):
         """Get the absolute file system path (internal use only)"""
@@ -179,6 +204,37 @@ class FileSystemItem(models.Model):
     def can_admin(self, user):
         """Check if user has admin access to this file"""
         return self.can_access(user, 'admin')
+    
+    def soft_delete(self, user):
+        """Mark file as deleted (logical deletion)"""
+        from django.utils import timezone
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.deleted_by = user
+        self.save()
+    
+    def restore(self):
+        """Restore a soft-deleted file"""
+        self.is_deleted = False
+        self.deleted_at = None
+        self.deleted_by = None
+        self.save()
+    
+    def hard_delete(self):
+        """Permanently delete the file (physical deletion)"""
+        # Remove from file system
+        try:
+            if os.path.exists(self.path):
+                if self.item_type == 'file':
+                    os.remove(self.path)
+                elif self.item_type == 'directory':
+                    import shutil
+                    shutil.rmtree(self.path)
+        except (OSError, FileNotFoundError):
+            pass
+        
+        # Delete from database
+        self.delete()
     
     def get_user_permission(self, user):
         """Get specific permission for a user"""
