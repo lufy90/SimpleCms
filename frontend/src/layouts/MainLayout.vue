@@ -68,6 +68,24 @@
         </el-tree>
       </div>
 
+      <!-- Dustbin Section -->
+      <div class="dustbin-section" v-if="!sidebarCollapsed">
+        <div class="dustbin-header">
+          <h4>Dustbin</h4>
+          <el-badge :value="deletedFilesCount" :hidden="deletedFilesCount === 0" class="dustbin-badge">
+            <el-button
+              type="text"
+              size="small"
+              @click="navigateToDustbin"
+              class="dustbin-button"
+            >
+              <el-icon><Delete /></el-icon>
+              <span>Deleted Files</span>
+            </el-button>
+          </el-badge>
+        </div>
+      </div>
+
       <!-- Sidebar Toggle Button -->
       <div class="sidebar-footer">
         <el-button
@@ -142,6 +160,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useFilesStore } from '@/stores/files'
+import { useDeletedFilesStore } from '@/stores/deletedFiles'
 import {
   Folder,
   Document,
@@ -153,6 +172,7 @@ import {
   Setting,
   SwitchButton,
   Plus,
+  Delete,
 } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
@@ -160,6 +180,7 @@ import { filesAPI } from '@/services/api'
 const router = useRouter()
 const authStore = useAuthStore()
 const filesStore = useFilesStore()
+const deletedFilesStore = useDeletedFilesStore()
 
 // Sidebar state
 const sidebarCollapsed = ref(false)
@@ -189,6 +210,7 @@ const currentPath = computed(() => {
 
 const directoryTree = computed(() => filesStore.directoryTree)
 const isLoading = computed(() => filesStore.isLoading)
+const deletedFilesCount = computed(() => deletedFilesStore.deletedFilesCount)
 
 // Tree configuration
 const treeProps = {
@@ -283,9 +305,14 @@ const handleUserCommand = (command: string) => {
   }
 }
 
+const navigateToDustbin = () => {
+  router.push('/deleted-files')
+}
+
 // Lifecycle
 onMounted(async () => {
   await filesStore.fetchDirectoryTree()
+  await deletedFilesStore.fetchDeletedFiles()
 })
 
 // Watch for route changes to update current path
@@ -341,6 +368,46 @@ watch(
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+}
+
+.dustbin-section {
+  padding: 16px;
+  border-top: 1px solid #e4e7ed;
+  background: #fafafa;
+}
+
+.dustbin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dustbin-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #606266;
+}
+
+.dustbin-badge {
+  margin-left: auto;
+}
+
+.dustbin-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #909399;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.dustbin-button:hover {
+  color: #409eff;
+}
+
+.dustbin-button .el-icon {
+  font-size: 14px;
 }
 
 .tree-header {

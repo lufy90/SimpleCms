@@ -74,6 +74,12 @@ const router = createRouter({
           meta: { title: 'Access Logs' }
         },
         {
+          path: 'deleted-files',
+          name: 'DeletedFiles',
+          component: () => import('@/views/DeletedFilesView.vue'),
+          meta: { title: 'Dustbin' }
+        },
+        {
           path: 'profile',
           name: 'Profile',
           component: () => import('@/views/ProfileView.vue'),

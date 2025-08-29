@@ -48,36 +48,18 @@
           <el-icon><Refresh /></el-icon>
           Refresh
         </el-button>
-        <el-button 
+        <!-- <el-button 
           v-if="currentDirectory" 
           @click="navigateToRoot"
           type="info"
         >
           <el-icon><Back /></el-icon>
           Back to Root
-        </el-button>
+        </el-button> -->
       </div>
     </div>
 
-    <!-- View Type Toggle -->
-    <div class="view-controls">
-      <el-button-group>
-        <el-button
-          :type="viewType === 'grid' ? 'primary' : 'default'"
-          @click="setViewType('grid')"
-        >
-          <el-icon><Grid /></el-icon>
-          Grid
-        </el-button>
-        <el-button
-          :type="viewType === 'list' ? 'primary' : 'default'"
-          @click="setViewType('list')"
-        >
-          <el-icon><List /></el-icon>
-          List
-        </el-button>
-      </el-button-group>
-    </div>
+
 
     <!-- Bulk Operations Toolbar -->
     <div v-if="selectedFileIds.size > 0" class="bulk-operations-toolbar">
@@ -92,6 +74,15 @@
         <el-button @click="showMoveDialog" type="warning" size="small">
           <el-icon><Position /></el-icon>
           Move
+        </el-button>
+        <el-button 
+          @click="bulkDownload" 
+          type="success" 
+          size="small"
+          :disabled="!hasSelectedFiles"
+        >
+          <el-icon><Download /></el-icon>
+          Download
         </el-button>
         <el-button @click="confirmDelete" type="danger" size="small">
           <el-icon><Delete /></el-icon>
@@ -130,6 +121,25 @@
         @input="handleSearch"
         style="width: 300px"
       />
+      <!-- View Type Toggle -->
+      <el-button-group class="view-toggle">
+        <el-button
+          :type="viewType === 'grid' ? 'primary' : 'default'"
+          @click="setViewType('grid')"
+          size="default"
+        >
+          <el-icon><Grid /></el-icon>
+          Grid
+        </el-button>
+        <el-button
+          :type="viewType === 'list' ? 'primary' : 'default'"
+          @click="setViewType('list')"
+          size="default"
+        >
+          <el-icon><List /></el-icon>
+          List
+        </el-button>
+      </el-button-group>
     </div>
 
     <!-- File List -->
@@ -167,7 +177,7 @@
             <div class="file-name">{{ file.name }}</div>
             <div class="file-meta">
               <span v-if="file.size">{{ formatFileSize(file.size) }}</span>
-              <span>{{ file.item_type }}</span>
+              <span>{{ formatDate(file.created_at) }}</span>
             </div>
           </div>
           <div class="file-actions">
@@ -184,6 +194,14 @@
                   <el-dropdown-item command="move">
                     <el-icon><Position /></el-icon>
                     Move
+                  </el-dropdown-item>
+                  <el-dropdown-item 
+                    command="download" 
+                    :disabled="file.item_type !== 'file'"
+                    divided
+                  >
+                    <el-icon><Download /></el-icon>
+                    Download
                   </el-dropdown-item>
                   <el-dropdown-item command="delete" divided>
                     <el-icon><Delete /></el-icon>
@@ -203,12 +221,21 @@
         @row-click="handleListRowClick"
         class="list-view"
         @selection-change="handleListSelectionChange"
+        @sort-change="handleSortChange"
         ref="listTableRef"
+        default-sort="{prop: 'name', order: 'ascending'}"
       >
         <!-- Selection Column -->
         <el-table-column type="selection" width="55" />
         
-        <el-table-column prop="name" label="Name" min-width="200">
+        <el-table-column 
+          prop="name" 
+          label="Name" 
+          min-width="200"
+          sortable
+          :sort-method="sortByName"
+          show-overflow-tooltip
+        >
           <template #default="{ row }">
             <div class="file-name-cell">
               <el-icon :color="getFileIconColor(row)">
@@ -219,23 +246,50 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="size" label="Size" width="120">
+        <el-table-column 
+          prop="size" 
+          label="Size" 
+          width="120"
+          sortable
+          :sort-method="sortBySize"
+        >
           <template #default="{ row }">
             <span v-if="row.size">{{ formatFileSize(row.size) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="item_type" label="Type" width="100" />
-        <el-table-column prop="visibility" label="Visibility" width="120">
+        <el-table-column 
+          prop="item_type" 
+          label="Type" 
+          width="100"
+          sortable
+        />
+        <el-table-column 
+          prop="visibility" 
+          label="Visibility" 
+          width="120"
+          sortable
+        >
           <template #default="{ row }">
             <el-tag :type="getVisibilityTagType(row.visibility)" size="small">
               {{ row.visibility }}
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column 
+          prop="created_at" 
+          label="Created" 
+          width="180"
+          sortable
+          :sort-method="sortByDate"
+        >
+          <template #default="{ row }">
+            <span>{{ formatDate(row.created_at) }}</span>
+          </template>
+        </el-table-column>
         
         <!-- Actions Column -->
-        <el-table-column label="Actions" width="280" fixed="right">
+        <el-table-column label="Actions" width="240" fixed="right">
           <template #default="{ row }">
             <div class="list-actions">
               <el-button 
@@ -243,32 +297,51 @@
                 size="small" 
                 @click.stop="handleFileAction('copy', row)"
                 title="Copy"
+                circle
               >
                 <el-icon><CopyDocument /></el-icon>
-                Copy
               </el-button>
               <el-button 
                 type="warning" 
                 size="small" 
                 @click.stop="handleFileAction('move', row)"
                 title="Move"
+                circle
               >
                 <el-icon><Position /></el-icon>
-                Move
+              </el-button>
+              <el-button 
+                type="success" 
+                size="small" 
+                @click.stop="handleFileAction('download', row)"
+                title="Download"
+                :disabled="row.item_type !== 'file'"
+                circle
+              >
+                <el-icon><Download /></el-icon>
               </el-button>
               <el-button 
                 type="danger" 
                 size="small" 
                 @click.stop="handleFileAction('delete', row)"
                 title="Delete"
+                circle
               >
                 <el-icon><Delete /></el-icon>
-                Delete
               </el-button>
             </div>
           </template>
         </el-table-column>
       </el-table>
+      
+      <!-- List View Summary -->
+      <div class="list-view-summary">
+        <p class="summary-text">
+          Total: <strong>{{ filteredFiles.length }}</strong> items
+          ({{ filteredFiles.filter(f => f.item_type === 'file').length }} files, 
+          {{ filteredFiles.filter(f => f.item_type === 'directory').length }} directories)
+        </p>
+      </div>
     </div>
 
 
@@ -468,8 +541,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFilesStore } from '@/stores/files'
-import { uploadAPI } from '@/services/api'
-import { Grid, List, Document, Folder, Upload, Refresh, Back, UploadFilled, ArrowDown, CopyDocument, Position, Delete, Close, More } from '@element-plus/icons-vue'
+import { uploadAPI, filesAPI } from '@/services/api'
+import { Grid, List, Document, Folder, Upload, Refresh, Back, UploadFilled, ArrowDown, CopyDocument, Position, Delete, Close, More, Download } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
@@ -478,7 +551,7 @@ const filesStore = useFilesStore()
 const authStore = useAuthStore()
 
 // State
-const viewType = ref<'grid' | 'list'>('grid')
+const viewType = ref<'grid' | 'list'>('list')
 const searchQuery = ref('')
 const uploadDialogVisible = ref(false)
 const uploadForm = ref({
@@ -537,6 +610,11 @@ const currentDirectory = computed(() => filesStore.currentDirectory)
 // Computed for upload functionality
 const hasFilesToUpload = computed(() => {
   return selectedFiles.value.length > 0
+})
+
+// Computed for bulk operations
+const hasSelectedFiles = computed(() => {
+  return selectedFileIds.value.size > 0
 })
 
 // Directory upload functionality removed - now handled by file upload with relative paths
@@ -616,6 +694,11 @@ watch(selectedFiles, (newFiles, oldFiles) => {
 // Methods
 const setViewType = (type: 'grid' | 'list') => {
   viewType.value = type
+}
+
+const handleSortChange = (sortInfo: { prop: string; order: string }) => {
+  console.log('Sort changed:', sortInfo)
+  // The table handles sorting automatically, but we can add custom logic here if needed
 }
 
 const triggerFileSelection = () => {
@@ -986,10 +1069,80 @@ const handleFileAction = async (command: string, file: any) => {
     selectedFileIds.value.clear()
     selectedFileIds.value.add(file.id)
     showMoveDialog()
+  } else if (command === 'download') {
+    if (file.item_type === 'file') {
+      await downloadFile(file)
+    }
   } else if (command === 'delete') {
     selectedFileIds.value.clear()
     selectedFileIds.value.add(file.id)
     await confirmDelete()
+  }
+}
+
+const downloadFile = async (file: any) => {
+  try {
+    ElMessage.info(`Downloading ${file.name}...`)
+    
+    // Use the API service to download the file
+    const response = await filesAPI.download(file.id)
+    
+    // Create a blob URL from the response
+    const blob = new Blob([response.data])
+    const url = window.URL.createObjectURL(blob)
+    
+    // Create a temporary link element to trigger the download
+    const link = document.createElement('a')
+    link.href = url
+    link.download = file.name
+    link.style.display = 'none'
+    
+    // Append to body, click, and remove
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    // Clean up the blob URL
+    window.URL.revokeObjectURL(url)
+    
+    ElMessage.success(`Successfully downloaded ${file.name}`)
+  } catch (error: any) {
+    console.error('Download error:', error)
+    ElMessage.error(`Download failed: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+  }
+}
+
+const bulkDownload = async () => {
+  try {
+    const selectedFiles = Array.from(selectedFileIds.value).map(id => 
+      filteredFiles.value.find(file => file.id === id)
+    ).filter(file => file && file.item_type === 'file')
+    
+    if (selectedFiles.length === 0) {
+      ElMessage.warning('No files selected for download')
+      return
+    }
+    
+    ElMessage.info(`Downloading ${selectedFiles.length} file(s)...`)
+    
+    // Download files one by one
+    for (const file of selectedFiles) {
+      if (file) {
+        try {
+          await downloadFile(file)
+          // Small delay between downloads to avoid overwhelming the browser
+          await new Promise(resolve => setTimeout(resolve, 100))
+        } catch (error) {
+          console.error(`Failed to download ${file.name}:`, error)
+          ElMessage.error(`Failed to download ${file.name}`)
+        }
+      }
+    }
+    
+    ElMessage.success(`Bulk download completed`)
+  } catch (error: any) {
+    console.error('Bulk download error:', error)
+    ElMessage.error(`Bulk download failed: ${error.message || 'Unknown error'}`)
   }
 }
 
@@ -1048,6 +1201,46 @@ const formatFileSize = (bytes: number): string => {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const formatDate = (dateString: string | null): string => {
+  if (!dateString) return '-'
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return '-'
+  }
+}
+
+// Sorting methods for table columns
+const sortByName = (a: any, b: any): number => {
+  const nameA = a.name.toLowerCase()
+  const nameB = b.name.toLowerCase()
+  
+  // Directories first, then files
+  if (a.item_type === 'directory' && b.item_type !== 'directory') return -1
+  if (a.item_type !== 'directory' && b.item_type === 'directory') return 1
+  
+  return nameA.localeCompare(nameB)
+}
+
+const sortBySize = (a: any, b: any): number => {
+  // Directories first (no size)
+  if (a.item_type === 'directory' && b.item_type !== 'directory') return -1
+  if (a.item_type !== 'directory' && b.item_type === 'directory') return 1
+  
+  const sizeA = a.size || 0
+  const sizeB = b.size || 0
+  
+  return sizeA - sizeB
+}
+
+const sortByDate = (a: any, b: any): number => {
+  const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
+  const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
+  
+  return dateA - dateB
 }
 
 const getFileIconColor = (file: any): string => {
@@ -1137,9 +1330,7 @@ watch(
   margin-right: 0;
 }
 
-.view-controls {
-  margin-bottom: 24px;
-}
+
 
 .bulk-operations-toolbar {
   display: flex;
@@ -1187,6 +1378,31 @@ watch(
 
 .search-bar {
   margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.view-toggle {
+  flex-shrink: 0;
+}
+
+/* Responsive adjustments for search bar */
+@media (max-width: 768px) {
+  .search-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .search-bar .el-input {
+    width: 100% !important;
+  }
+  
+  .view-toggle {
+    align-self: center;
+  }
 }
 
 .file-content {
@@ -1274,6 +1490,22 @@ watch(
   width: 100%;
 }
 
+.list-view-summary {
+  background: #f8f9fa;
+}
+
+.list-view-summary .summary-text {
+  margin: 4px;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.5;
+}
+
+.list-view-summary .summary-text strong {
+  color: #303133;
+  font-weight: 600;
+}
+
 .file-name-cell {
   display: flex;
   align-items: center;
@@ -1284,6 +1516,41 @@ watch(
 :deep(.el-table) {
   border-radius: 8px;
   overflow: hidden;
+}
+
+/* Sortable column styling */
+:deep(.el-table .sortable) {
+  cursor: pointer;
+}
+
+:deep(.el-table .sortable:hover) {
+  background-color: #f0f9ff;
+}
+
+:deep(.el-table .sortable .cell) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+:deep(.el-table .sortable .cell::after) {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  margin-left: 8px;
+  opacity: 0.3;
+}
+
+:deep(.el-table .sortable.ascending .cell::after) {
+  border-bottom: 4px solid #409eff;
+  opacity: 1;
+}
+
+:deep(.el-table .sortable.descending .cell::after) {
+  border-top: 4px solid #409eff;
+  opacity: 1;
 }
 
 :deep(.el-table th) {
@@ -1303,17 +1570,20 @@ watch(
 /* List actions styling */
 .list-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .list-actions .el-button {
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 8px;
+  font-size: 14px;
+  min-width: 32px;
+  height: 32px;
 }
 
 .list-actions .el-button .el-icon {
-  margin-right: 4px;
+  margin: 0;
+  font-size: 16px;
 }
 
 
