@@ -27,6 +27,7 @@ from .serializers import (
     FileVisibilityUpdateSerializer, FilePermissionRequestSerializer,
     FilePermissionRequestCreateSerializer, FilePermissionRequestReviewSerializer,
     DeletedFileSerializer, FileRestoreSerializer, FileHardDeleteSerializer,
+    UserSerializer, GroupSerializer,
     # DirectoryUploadSerializer removed
 )
 from .pagination import (
@@ -1151,3 +1152,40 @@ class FileAccessLogViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(timestamp__lte=end_date)
         
         return queryset
+
+
+class UserSearchView(generics.ListAPIView):
+    """View for searching users for file sharing"""
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = User.objects.filter(is_active=True)
+        query = self.request.query_params.get('q', '')
+        
+        if query:
+            queryset = queryset.filter(
+                Q(username__icontains=query) |
+                Q(email__icontains=query) |
+                Q(first_name__icontains=query) |
+                Q(last_name__icontains=query)
+            )
+        
+        # Limit results for performance
+        return queryset[:50]
+
+
+class GroupSearchView(generics.ListAPIView):
+    """View for searching groups for file sharing"""
+    serializer_class = GroupSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Group.objects.all()
+        query = self.request.query_params.get('q', '')
+        
+        if query:
+            queryset = queryset.filter(name__icontains=query)
+        
+        # Limit results for performance
+        return queryset[:50]

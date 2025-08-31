@@ -182,7 +182,12 @@
           </div>
           <div class="file-actions">
             <el-dropdown @command="(command: string) => handleFileAction(command, file)" trigger="click">
-              <el-button type="text" size="small" @click.stop>
+              <el-button 
+                type="info" 
+                size="small" 
+                title="Actions"
+                circle
+              >
                 <el-icon><More /></el-icon>
               </el-button>
               <template #dropdown>
@@ -198,15 +203,23 @@
                   <el-dropdown-item 
                     command="download" 
                     :disabled="file.item_type !== 'file'"
-                    divided
                   >
                     <el-icon><Download /></el-icon>
                     Download
+                  </el-dropdown-item>
+                  <el-dropdown-item command="details">
+                    <el-icon><Document /></el-icon>
+                    Details
+                  </el-dropdown-item>
+                  <el-dropdown-item command="share" :disabled="!file.can_share">
+                    <el-icon><Share /></el-icon>
+                    Share
                   </el-dropdown-item>
                   <el-dropdown-item command="delete" divided>
                     <el-icon><Delete /></el-icon>
                     Delete
                   </el-dropdown-item>
+                  <!-- Future operations can be added here -->
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -289,7 +302,7 @@
         </el-table-column>
         
         <!-- Actions Column -->
-        <el-table-column label="Actions" width="240" fixed="right">
+        <el-table-column label="Actions" width="200" fixed="right">
           <template #default="{ row }">
             <div class="list-actions">
               <el-button 
@@ -320,15 +333,34 @@
               >
                 <el-icon><Download /></el-icon>
               </el-button>
-              <el-button 
-                type="danger" 
-                size="small" 
-                @click.stop="handleFileAction('delete', row)"
-                title="Delete"
-                circle
-              >
-                <el-icon><Delete /></el-icon>
-              </el-button>
+              <el-dropdown @command="(command: string) => handleFileAction(command, row)" trigger="click">
+                <el-button 
+                  type="info" 
+                  size="small" 
+                  title="More Actions"
+                  circle
+                  style="margin-left: 12px;"
+                >
+                  <el-icon><More /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="details">
+                      <el-icon><Document /></el-icon>
+                      Details
+                    </el-dropdown-item>
+                    <el-dropdown-item command="share" :disabled="!row.can_share">
+                      <el-icon><Share /></el-icon>
+                      Share
+                    </el-dropdown-item>
+                    <el-dropdown-item command="delete" divided>
+                      <el-icon><Delete /></el-icon>
+                      Delete
+                    </el-dropdown-item>
+                    <!-- Future operations can be added here -->
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
           </template>
         </el-table-column>
@@ -458,33 +490,22 @@
   <el-dialog
     v-model="copyDialogVisible"
     title="Copy Files"
-    width="600px"
+    width="800px"
     :close-on-click-modal="false"
+    class="operation-dialog"
   >
     <el-form>
-      <el-form-item label="Destination Directory">
-        <el-tree
-          ref="copyTreeRef"
+      <el-form-item label="Destination Directory" class="destination-selector">
+        <el-tree-select
+          v-model="operationDestination"
           :data="directoryTreeData"
-          :props="treeProps"
-          :expand-on-click-node="false"
-          :highlight-current="true"
-          @node-click="handleDirectorySelect"
-          style="max-height: 300px; overflow-y: auto; border: 1px solid #dcdfe6; border-radius: 4px; padding: 8px;"
-        >
-          <template #default="{ node, data }">
-            <span class="custom-tree-node">
-              <el-icon><Folder /></el-icon>
-              <span style="margin-left: 8px;">{{ node.label }}</span>
-              <span v-if="data.path" style="margin-left: 8px; color: #909399; font-size: 12px;">
-                ({{ data.path }})
-              </span>
-            </span>
-          </template>
-        </el-tree>
-        <div v-if="operationDestination" style="margin-top: 12px; padding: 8px; background-color: #f0f9ff; border-radius: 4px; border: 1px solid #bae6fd;">
-          <strong>Selected:</strong> {{ getSelectedDirectoryName() }}
-        </div>
+          :props="treeSelectProps"
+          placeholder="Select destination directory"
+          class="destination-tree-select"
+          clearable
+          check-strictly
+          :render-after-expand="false"
+        />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -499,33 +520,22 @@
   <el-dialog
     v-model="moveDialogVisible"
     title="Move Files"
-    width="600px"
+    width="800px"
     :close-on-click-modal="false"
+    class="operation-dialog"
   >
     <el-form>
-      <el-form-item label="Destination Directory">
-        <el-tree
-          ref="moveTreeRef"
+      <el-form-item label="Destination Directory" class="destination-selector">
+        <el-tree-select
+          v-model="operationDestination"
           :data="directoryTreeData"
-          :props="treeProps"
-          :expand-on-click-node="false"
-          :highlight-current="true"
-          @node-click="handleDirectorySelect"
-          style="max-height: 300px; overflow-y: auto; border: 1px solid #dcdfe6; border-radius: 4px; padding: 8px;"
-        >
-          <template #default="{ node, data }">
-            <span class="custom-tree-node">
-              <el-icon><Folder /></el-icon>
-              <span style="margin-left: 8px;">{{ node.label }}</span>
-              <span v-if="data.path" style="margin-left: 8px; color: #909399; font-size: 12px;">
-                ({{ data.path }})
-              </span>
-            </span>
-          </template>
-        </el-tree>
-        <div v-if="operationDestination !== undefined" style="margin-top: 12px; padding: 8px; background-color: #fff7ed; border-radius: 4px; border: 1px solid #fed7aa;">
-          <strong>Selected:</strong> {{ getSelectedDirectoryName() }}
-        </div>
+          :props="treeSelectProps"
+          placeholder="Select destination directory"
+          class="destination-tree-select"
+          clearable
+          check-strictly
+          :render-after-expand="false"
+        />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -535,16 +545,107 @@
       </div>
     </template>
   </el-dialog>
+
+  <!-- Share Dialog -->
+  <ShareDialog
+    v-model:visible="shareDialogVisible"
+    :file="selectedFileForSharing"
+    @permissions-updated="handlePermissionsUpdated"
+  />
+
+  <!-- Details Dialog -->
+  <el-dialog
+    v-model="detailsDialogVisible"
+    :title="`File Details: ${selectedFileForDetails?.name}`"
+    width="600px"
+    :close-on-click-modal="false"
+  >
+    <div v-if="selectedFileForDetails" class="file-details-content">
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="Name">
+          {{ selectedFileForDetails.name }}
+        </el-descriptions-item>
+        <el-descriptions-item label="Type">
+          <el-tag :type="selectedFileForDetails.item_type === 'directory' ? 'primary' : 'success'">
+            {{ selectedFileForDetails.item_type }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="Size" v-if="selectedFileForDetails.size">
+          {{ formatFileSize(selectedFileForDetails.size) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="Extension" v-if="selectedFileForDetails.extension">
+          {{ selectedFileForDetails.extension }}
+        </el-descriptions-item>
+        <el-descriptions-item label="Visibility">
+          <el-tag :type="getVisibilityTagType(selectedFileForDetails.visibility)" size="small">
+            {{ selectedFileForDetails.visibility }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="Owner">
+          {{ selectedFileForDetails.owner.username }}
+        </el-descriptions-item>
+        <el-descriptions-item label="Created">
+          {{ formatDate(selectedFileForDetails.created_at) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="Last Modified">
+          {{ formatDate(selectedFileForDetails.updated_at) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="Path" :span="2">
+          <code>{{ selectedFileForDetails.relative_path }}</code>
+        </el-descriptions-item>
+        <el-descriptions-item label="Permissions" :span="2">
+          <div class="permissions-display">
+            <el-tag 
+              v-for="perm in selectedFileForDetails.effective_permissions" 
+              :key="perm"
+              :type="getPermissionTagType(perm)"
+              size="small"
+              style="margin-right: 8px; margin-bottom: 8px;"
+            >
+              {{ perm }}
+            </el-tag>
+          </div>
+        </el-descriptions-item>
+        <el-descriptions-item label="Tags" :span="2" v-if="selectedFileForDetails.tags && selectedFileForDetails.tags.length > 0">
+          <div class="tags-display">
+            <el-tag 
+              v-for="tagRel in selectedFileForDetails.tags" 
+              :key="tagRel.id"
+              :color="tagRel.tag.color"
+              size="small"
+              style="margin-right: 8px; margin-bottom: 8px;"
+            >
+              {{ tagRel.tag.name }}
+            </el-tag>
+          </div>
+        </el-descriptions-item>
+      </el-descriptions>
+    </div>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="detailsDialogVisible = false">Close</el-button>
+        <el-button 
+          type="primary" 
+          @click="handleFileAction('share', selectedFileForDetails)"
+          :disabled="!selectedFileForDetails?.can_share"
+        >
+          <el-icon><Share /></el-icon>
+          Share
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { useFilesStore } from '@/stores/files'
+import { useFilesStore, type FileSystemItem } from '@/stores/files'
 import { uploadAPI, filesAPI } from '@/services/api'
-import { Grid, List, Document, Folder, Upload, Refresh, Back, UploadFilled, ArrowDown, CopyDocument, Position, Delete, Close, More, Download } from '@element-plus/icons-vue'
+import { Grid, List, Document, Folder, Upload, Refresh, Back, UploadFilled, ArrowDown, CopyDocument, Position, Delete, Close, More, Download, Share } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import ShareDialog from '@/components/ShareDialog.vue'
 
 const router = useRouter()
 const filesStore = useFilesStore()
@@ -571,20 +672,88 @@ const moveDialogVisible = ref(false)
 const operationDestination = ref<number | undefined>(undefined)
 const operationType = ref<'copy' | 'move'>('copy')
 
-// Tree selector configuration
-const treeProps = {
+// Share dialog
+const shareDialogVisible = ref(false)
+const selectedFileForSharing = ref<FileSystemItem | null>(null)
+
+// Details dialog
+const detailsDialogVisible = ref(false)
+const selectedFileForDetails = ref<FileSystemItem | null>(null)
+
+
+
+// Tree selector configuration for el-tree-select
+const treeSelectProps = {
   children: 'children',
-  label: 'name'
+  label: 'name',
+  value: 'id'
 }
 
-// Directory tree data for copy/move operations
-const directoryTreeData = computed(() => {
-  return filesStore.directoryTree.filter(item => item.item_type === 'directory')
-})
+// Directory tree data for tree-select (non-lazy)
+const directoryTreeData = ref<any[]>([
+  {
+    id: 0,
+    name: 'Root Directory (/)',
+    children: []
+  }
+])
+
+// Load directory tree data for tree-select
+const loadDirectoryTreeData = async () => {
+  try {
+    const response = await filesAPI.listChildren()
+    const rootItems = response.data.children || []
+    const directories = rootItems.filter((item: any) => item.item_type === 'directory')
+    
+    // Build the tree structure
+    const treeData = [
+      {
+        id: 0,
+        name: 'Root Directory (/)',
+        children: await buildDirectoryTree(directories)
+      }
+    ]
+    
+    directoryTreeData.value = treeData
+  } catch (error) {
+    console.error('Failed to load directory tree data:', error)
+  }
+}
+
+// Recursively build directory tree
+const buildDirectoryTree = async (directories: any[]): Promise<any[]> => {
+  const tree = []
+  
+  for (const dir of directories) {
+    try {
+      const response = await filesAPI.listChildren(dir.id)
+      const children = response.data.children || []
+      const childDirs = children.filter((item: any) => item.item_type === 'directory')
+      
+      const node = {
+        id: dir.id,
+        name: dir.name,
+        children: childDirs.length > 0 ? await buildDirectoryTree(childDirs) : []
+      }
+      
+      tree.push(node)
+    } catch (error) {
+      console.error(`Failed to load children for directory ${dir.id}:`, error)
+      // Add directory without children if loading fails
+      tree.push({
+        id: dir.id,
+        name: dir.name,
+        children: []
+      })
+    }
+  }
+  
+  return tree
+}
+
+
 
 // Tree refs
-const copyTreeRef = ref()
-const moveTreeRef = ref()
 const listTableRef = ref()
 
 // Upload configuration
@@ -669,7 +838,7 @@ const updateBreadcrumb = async () => {
   newBreadcrumb.push({
     id: currentDirectory.value.id,
     name: currentDirectory.value.name,
-    path: currentDirectory.value.path
+    path: currentDirectory.value.relative_path
   })
   
   console.log('Built complete breadcrumb:', newBreadcrumb)
@@ -1032,12 +1201,20 @@ const showCopyDialog = () => {
   operationType.value = 'copy'
   operationDestination.value = undefined
   copyDialogVisible.value = true
+  console.log('Copy dialog opened')
+  
+  // Load directory tree data when dialog opens
+  loadDirectoryTreeData()
 }
 
 const showMoveDialog = () => {
   operationType.value = 'move'
   operationDestination.value = undefined
   moveDialogVisible.value = true
+  console.log('Move dialog opened')
+  
+  // Load directory tree data when dialog opens
+  loadDirectoryTreeData()
 }
 
 const confirmDelete = async () => {
@@ -1077,6 +1254,21 @@ const handleFileAction = async (command: string, file: any) => {
     selectedFileIds.value.clear()
     selectedFileIds.value.add(file.id)
     await confirmDelete()
+  } else if (command === 'share') {
+    selectedFileForSharing.value = file
+    shareDialogVisible.value = true
+  } else if (command === 'details') {
+    selectedFileForDetails.value = file
+    detailsDialogVisible.value = true
+  }
+}
+
+const handlePermissionsUpdated = () => {
+  // Refresh the current directory contents to get updated permission information
+  if (currentDirectory.value) {
+    filesStore.fetchChildren(currentDirectory.value.id)
+  } else {
+    filesStore.fetchChildren()
   }
 }
 
@@ -1178,21 +1370,9 @@ const executeOperation = async () => {
   }
 }
 
-const handleDirectorySelect = (data: any) => {
-  // Handle root directory specially - root has id 'root' but we use 0 for root
-  if (data.id === 'root') {
-    operationDestination.value = 0  // Use 0 as special ID for root directory
-  } else {
-    operationDestination.value = data.id
-  }
-}
 
-const getSelectedDirectoryName = () => {
-  if (operationDestination.value === undefined) return ''
-  if (operationDestination.value === 0) return 'Root Directory (/)'
-  const selectedDir = directoryTreeData.value.find(dir => dir.id === operationDestination.value)
-  return selectedDir ? selectedDir.name : ''
-}
+
+
 
 // Utility methods
 const formatFileSize = (bytes: number): string => {
@@ -1254,6 +1434,17 @@ const getVisibilityTagType = (visibility: string): string => {
     case 'group': return 'warning'
     case 'user': return 'info'
     case 'private': return 'danger'
+    default: return 'info'
+  }
+}
+
+const getPermissionTagType = (permission: string): string => {
+  switch (permission) {
+    case 'read': return 'info'
+    case 'write': return 'warning'
+    case 'delete': return 'danger'
+    case 'share': return 'success'
+    case 'admin': return 'danger'
     default: return 'info'
   }
 }
@@ -1452,6 +1643,9 @@ watch(
   top: 8px;
   right: 8px;
   z-index: 1;
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 
 .custom-tree-node {
@@ -1750,4 +1944,83 @@ watch(
   background-color: #fef0f0;
   border-radius: 4px;
 }
+
+/* Operation Dialog Styling */
+.operation-dialog {
+  border-radius: 12px;
+}
+
+.operation-dialog :deep(.el-dialog__header) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px 12px 0 0;
+  padding: 20px 24px;
+}
+
+.operation-dialog :deep(.el-dialog__title) {
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.operation-dialog :deep(.el-dialog__headerbtn .el-dialog__close) {
+  color: white;
+  font-size: 18px;
+}
+
+.operation-dialog :deep(.el-dialog__body) {
+  padding: 24px;
+}
+
+.operation-dialog :deep(.el-dialog__footer) {
+  padding: 16px 24px;
+  border-top: 1px solid #e4e7ed;
+  background-color: #fafafa;
+}
+
+/* Destination Selector Styling */
+.destination-selector {
+  margin-bottom: 0;
+}
+
+.destination-selector :deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #303133;
+  font-size: 16px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.destination-tree-select {
+  width: 100%;
+}
+
+.destination-tree-select :deep(.el-tree-select) {
+  width: 100%;
+}
+
+.destination-tree-select :deep(.el-input__wrapper) {
+  border: 2px solid #e4e7ed;
+  border-radius: 8px;
+  background-color: #fafafa;
+  transition: all 0.3s ease;
+}
+
+.destination-tree-select :deep(.el-input__wrapper:hover) {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+}
+
+.destination-tree-select :deep(.el-input__wrapper.is-focus) {
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+
+
+
+
+
+
+
 </style>

@@ -18,4 +18,8 @@ urlpatterns = [
     path('api/deleted-files/', views.DeletedFilesViewSet.as_view({'get': 'list'}), name='deleted-files-list'),
     path('api/deleted-files/restore/', views.DeletedFilesViewSet.as_view({'post': 'restore'}), name='deleted-files-restore'),
     path('api/deleted-files/hard-delete/', views.DeletedFilesViewSet.as_view({'post': 'hard_delete'}), name='deleted-files-hard-delete'),
+    
+    # User and Group search for file sharing
+    path('api/users/search/', views.UserSearchView.as_view(), name='user-search'),
+    path('api/groups/search/', views.GroupSearchView.as_view(), name='group-search'),
 ]

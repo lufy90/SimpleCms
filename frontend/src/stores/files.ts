@@ -7,6 +7,7 @@ export interface FileSystemItem {
   id: number
   name: string
   path: string
+  relative_path: string
   item_type: 'file' | 'directory'
   parent?: number
   parents?: Array<{
@@ -70,6 +71,7 @@ export interface DirectoryTreeItem {
   id?: number | string
   name: string
   path: string
+  relative_path: string
   item_type: 'file' | 'directory'
   parent?: number
   parents?: Array<{
@@ -235,6 +237,7 @@ export const useFilesStore = defineStore('files', () => {
         id: 'root',
         name: '/',
         path: '/',
+        relative_path: '/',
         item_type: 'directory',
         children: rootItems,
         is_virtual: true
