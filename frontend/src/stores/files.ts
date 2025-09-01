@@ -121,11 +121,11 @@ export const useFilesStore = defineStore('files', () => {
   // Getters
   const sortedFiles = computed(() => {
     const sorted = [...files.value]
-    
+
     sorted.sort((a, b) => {
       let aValue: any
       let bValue: any
-      
+
       switch (sortBy.value) {
         case 'name':
           aValue = a.name.toLowerCase()
@@ -146,54 +146,56 @@ export const useFilesStore = defineStore('files', () => {
         default:
           return 0
       }
-      
+
       if (sortOrder.value === 'asc') {
         return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
       } else {
         return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
       }
     })
-    
+
     return sorted
   })
 
   const filteredFiles = computed(() => {
     let filtered = sortedFiles.value
-    
+
     if (searchQuery.value) {
       const query = searchQuery.value.toLowerCase()
-      filtered = filtered.filter(file => 
-        file.name.toLowerCase().includes(query) ||
-        file.path.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (file) =>
+          file.name.toLowerCase().includes(query) || file.path.toLowerCase().includes(query),
       )
     }
-    
+
     if (filters.value.type) {
-      filtered = filtered.filter(file => file.item_type === filters.value.type)
+      filtered = filtered.filter((file) => file.item_type === filters.value.type)
     }
-    
+
     if (filters.value.visibility) {
-      filtered = filtered.filter(file => file.visibility === filters.value.visibility)
+      filtered = filtered.filter((file) => file.visibility === filters.value.visibility)
     }
-    
+
     if (filters.value.extension) {
-      filtered = filtered.filter(file => 
-        file.extension && file.extension.toLowerCase().includes(filters.value.extension.toLowerCase())
+      filtered = filtered.filter(
+        (file) =>
+          file.extension &&
+          file.extension.toLowerCase().includes(filters.value.extension.toLowerCase()),
       )
     }
-    
+
     return filtered
   })
 
-  const selectedFilesList = computed(() => 
-    files.value.filter(file => selectedFiles.value.has(file.id))
+  const selectedFilesList = computed(() =>
+    files.value.filter((file) => selectedFiles.value.has(file.id)),
   )
 
   const canPerformBulkOperation = computed(() => {
     if (selectedFiles.value.size === 0) return false
-    
+
     const selectedItems = selectedFilesList.value
-    return selectedItems.every(item => item.can_delete)
+    return selectedItems.every((item) => item.can_delete)
   })
 
   // Actions
@@ -208,7 +210,7 @@ export const useFilesStore = defineStore('files', () => {
     try {
       isLoading.value = true
       const response = await filesAPI.list(params)
-      
+
       if (response.data.pagination) {
         files.value = response.data.results
         pagination.value = response.data.pagination
@@ -216,7 +218,7 @@ export const useFilesStore = defineStore('files', () => {
         files.value = response.data.results || response.data
         pagination.value = null
       }
-      
+
       return true
     } catch (error: any) {
       toast.error('Failed to fetch files')
@@ -231,18 +233,20 @@ export const useFilesStore = defineStore('files', () => {
       // For lazy loading, we only fetch root level items
       const response = await filesAPI.listChildren()
       const rootItems = response.data.children || []
-      
+
       // Add virtual root node at the top
-      directoryTree.value = [{
-        id: 'root',
-        name: '/',
-        path: '/',
-        relative_path: '/',
-        item_type: 'directory',
-        children: rootItems,
-        is_virtual: true
-      }]
-      
+      directoryTree.value = [
+        {
+          id: 'root',
+          name: '/',
+          path: '/',
+          relative_path: '/',
+          item_type: 'directory',
+          children: rootItems,
+          is_virtual: true,
+        },
+      ]
+
       return true
     } catch (error: any) {
       toast.error('Failed to fetch directory tree')
@@ -264,7 +268,7 @@ export const useFilesStore = defineStore('files', () => {
     try {
       isLoading.value = true
       const response = await filesAPI.listChildren(parentId)
-      
+
       if (response.data.children) {
         files.value = response.data.children
         // Set current directory to the directory we're entering
@@ -277,7 +281,7 @@ export const useFilesStore = defineStore('files', () => {
         }
         pagination.value = null
       }
-      
+
       return true
     } catch (error: any) {
       toast.error('Failed to fetch directory contents')
@@ -301,26 +305,31 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const uploadFile = async (file: File, parentId?: number, visibility?: string, tags?: string[]) => {
+  const uploadFile = async (
+    file: File,
+    parentId?: number,
+    visibility?: string,
+    tags?: string[],
+  ) => {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      
+
       if (parentId) {
         formData.append('parent_id', parentId.toString())
       }
-      
+
       if (visibility) {
         formData.append('visibility', visibility)
       }
-      
+
       if (tags && tags.length > 0) {
-        tags.forEach(tag => formData.append('tags', tag))
+        tags.forEach((tag) => formData.append('tags', tag))
       }
-      
+
       await uploadAPI.upload(formData)
       toast.success('File uploaded successfully')
-      
+
       // Refresh file list
       await fetchFiles()
       return true
@@ -334,9 +343,9 @@ export const useFilesStore = defineStore('files', () => {
     try {
       await operationsAPI.execute('delete', fileIds)
       toast.success('Files deleted successfully')
-      
+
       // Remove from selection and refresh current directory
-      fileIds.forEach(id => selectedFiles.value.delete(id))
+      fileIds.forEach((id) => selectedFiles.value.delete(id))
       if (currentDirectory.value) {
         await fetchChildren(currentDirectory.value.id)
       } else {
@@ -353,7 +362,7 @@ export const useFilesStore = defineStore('files', () => {
     try {
       await operationsAPI.execute('copy', fileIds, destinationId)
       toast.success('Files copied successfully')
-      
+
       // Clear selection and refresh current directory
       selectedFiles.value.clear()
       if (currentDirectory.value) {
@@ -372,7 +381,7 @@ export const useFilesStore = defineStore('files', () => {
     try {
       await operationsAPI.execute('move', fileIds, destinationId)
       toast.success('Files moved successfully')
-      
+
       // Clear selection and refresh current directory
       selectedFiles.value.clear()
       if (currentDirectory.value) {
@@ -392,7 +401,7 @@ export const useFilesStore = defineStore('files', () => {
       isLoading.value = true
       await filesAPI.scanDirectory(path)
       toast.success('Directory scanned successfully')
-      
+
       // Refresh tree and files
       await fetchDirectoryTree()
       await fetchFiles()
@@ -405,13 +414,17 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const createDirectory = async (name: string, parentId?: number, visibility: string = 'private') => {
+  const createDirectory = async (
+    name: string,
+    parentId?: number,
+    visibility: string = 'private',
+  ) => {
     try {
       isLoading.value = true
       const response = await filesAPI.createDirectory({ name, parent_id: parentId, visibility })
-      
+
       toast.success('Directory created successfully')
-      
+
       // Refresh tree and files
       await fetchDirectoryTree()
       if (parentId) {
@@ -419,7 +432,7 @@ export const useFilesStore = defineStore('files', () => {
       } else {
         await fetchChildren()
       }
-      
+
       return response.data.directory
     } catch (error: any) {
       toast.error('Failed to create directory')
@@ -442,7 +455,7 @@ export const useFilesStore = defineStore('files', () => {
   }
 
   const selectAll = () => {
-    files.value.forEach(file => selectedFiles.value.add(file.id))
+    files.value.forEach((file) => selectedFiles.value.add(file.id))
   }
 
   const setViewType = (type: 'list' | 'grid' | 'details') => {
@@ -481,13 +494,13 @@ export const useFilesStore = defineStore('files', () => {
     isLoading,
     pagination,
     filters,
-    
+
     // Getters
     sortedFiles,
     filteredFiles,
     selectedFilesList,
     canPerformBulkOperation,
-    
+
     // Actions
     fetchFiles,
     fetchDirectoryTree,

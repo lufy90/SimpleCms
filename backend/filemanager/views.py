@@ -271,6 +271,55 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
             'search_time': search_time
         })
     
+    @action(detail=False, methods=['get'])
+    def shared_to_me(self, request):
+        """Get files shared directly to the current user"""
+        user = request.user
+        if not user.is_authenticated:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get files shared directly to the user through permissions
+        shared_files = FileSystemItem.objects.filter(
+            Q(access_permissions__user=user, access_permissions__is_active=True) |
+            Q(visibility='user', shared_users=user)
+        ).exclude(owner=user).distinct()
+        
+        # Apply pagination
+        page = self.paginate_queryset(shared_files)
+        if page is not None:
+            serializer = FileSystemItemSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = FileSystemItemSerializer(shared_files, many=True, context={'request': request})
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def shared_to_my_groups(self, request):
+        """Get files shared to groups the current user belongs to"""
+        user = request.user
+        if not user.is_authenticated:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get user's groups
+        user_groups = user.groups.all()
+        if not user_groups.exists():
+            return Response({'results': []})
+        
+        # Get files shared to user's groups through permissions
+        shared_files = FileSystemItem.objects.filter(
+            Q(access_permissions__group__in=user_groups, access_permissions__is_active=True) |
+            Q(visibility='group', shared_groups__in=user_groups)
+        ).exclude(owner=user).distinct()
+        
+        # Apply pagination
+        page = self.paginate_queryset(shared_files)
+        if page is not None:
+            serializer = FileSystemItemSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = FileSystemItemSerializer(shared_files, many=True, context={'request': request})
+        return Response(serializer.data)
+    
     @action(detail=False, methods=['post'])
     def scan_directory(self, request):
         """Scan a directory and add its contents to the database"""
@@ -508,6 +557,195 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         else:
             ip = request.META.get('REMOTE_ADDR')
         return ip
+
+    @action(detail=True, methods=['post'])
+    def share_recursively(self, request, pk=None):
+        """Share a directory and all its contents recursively with a user or group"""
+        file_item = self.get_object()
+        
+        if file_item.item_type != 'directory':
+            return Response({'error': 'Can only share directories recursively'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not file_item.can_share(request.user):
+            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get sharing parameters
+        share_type = request.data.get('share_type')  # 'user' or 'group'
+        target_id = request.data.get('target_id')
+        permission_types = request.data.get('permission_types', ['read'])
+        expires_at = request.data.get('expires_at')
+        
+        if not share_type or not target_id or not permission_types:
+            return Response({'error': 'share_type, target_id, and permission_types are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get all files and subdirectories recursively
+            all_items = self._get_recursive_items(file_item)
+            
+            # Create permissions for each item
+            created_permissions = []
+            failed_items = []
+            
+            for item in all_items:
+                try:
+                    # Create permissions for each permission type
+                    for permission_type in permission_types:
+                        permission_data = {
+                            'file': item.id,  # Use ID for serializer
+                            'permission_type': permission_type,
+                            'expires_at': expires_at
+                        }
+                        
+                        if share_type == 'user':
+                            permission_data['user'] = target_id
+                            permission_data['group'] = None
+                        else:
+                            permission_data['user'] = None
+                            permission_data['group'] = target_id
+                        
+                        # Check if permission already exists
+                        existing_permission = FileAccessPermission.objects.filter(
+                            file=item,
+                            user=permission_data.get('user'),
+                            group=permission_data.get('group'),
+                            permission_type=permission_type
+                        ).first()
+                        
+                        if existing_permission:
+                            # Update existing permission
+                            existing_permission.expires_at = expires_at
+                            existing_permission.is_active = True
+                            existing_permission.save()
+                            created_permissions.append(existing_permission)
+                        else:
+                            # Create new permission using serializer
+                            serializer = FileAccessPermissionCreateSerializer(data=permission_data, context={'request': request})
+                            if serializer.is_valid():
+                                permission = serializer.save(granted_by=request.user)
+                                created_permissions.append(permission)
+                            else:
+                                failed_items.append({
+                                    'item': item.name,
+                                    'error': f'Serializer validation failed: {serializer.errors}'
+                                })
+                            
+                except Exception as e:
+                    failed_items.append({
+                        'item': item.name,
+                        'error': str(e)
+                    })
+            
+            # Log the recursive sharing
+            FileAccessLog.objects.create(
+                file=file_item,
+                user=request.user,
+                action='recursive_share',
+                ip_address=self.get_client_ip(request),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            )
+            
+            return Response({
+                'message': f'Successfully shared {len(created_permissions)} items',
+                'shared_items_count': len(created_permissions),
+                'failed_items': failed_items,
+                'total_items': len(all_items)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({'error': f'Failed to share recursively: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _get_recursive_items(self, directory):
+        """Get all files and subdirectories within a directory recursively"""
+        items = [directory]  # Include the directory itself
+        
+        def _traverse(current_dir):
+            children = current_dir.get_children()
+            for child in children:
+                items.append(child)
+                if child.item_type == 'directory':
+                    _traverse(child)
+        
+        _traverse(directory)
+        return items
+
+    @action(detail=True, methods=['post'])
+    def unshare_recursively(self, request, pk=None):
+        """Unshare a directory and all its contents recursively from a user or group"""
+        file_item = self.get_object()
+        
+        if file_item.item_type != 'directory':
+            return Response({'error': 'Can only unshare directories recursively'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not file_item.can_share(request.user):
+            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get unsharing parameters
+        share_type = request.data.get('share_type')  # 'user' or 'group'
+        target_id = request.data.get('target_id')
+        permission_types = request.data.get('permission_types', [])  # Empty list means all permissions
+        
+        if not share_type or not target_id:
+            return Response({'error': 'share_type and target_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get all files and subdirectories recursively
+            all_items = self._get_recursive_items(file_item)
+            
+            # Revoke permissions for each item
+            revoked_permissions = []
+            failed_items = []
+            
+            for item in all_items:
+                try:
+                    # Build filter for permissions to revoke
+                    permission_filter = {
+                        'file': item,
+                        'is_active': True
+                    }
+                    
+                    if share_type == 'user':
+                        permission_filter['user_id'] = target_id
+                        permission_filter['group__isnull'] = True
+                    else:
+                        permission_filter['group_id'] = target_id
+                        permission_filter['user__isnull'] = True
+                    
+                    # Filter by specific permission types if provided
+                    if permission_types:
+                        permission_filter['permission_type__in'] = permission_types
+                    
+                    # Find and revoke permissions
+                    permissions_to_revoke = FileAccessPermission.objects.filter(**permission_filter)
+                    
+                    for permission in permissions_to_revoke:
+                        permission.is_active = False
+                        permission.save()
+                        revoked_permissions.append(permission)
+                        
+                except Exception as e:
+                    failed_items.append({
+                        'item': item.name,
+                        'error': str(e)
+                    })
+            
+            # Log the recursive unsharing
+            FileAccessLog.objects.create(
+                file=file_item,
+                user=request.user,
+                action='recursive_unshare',
+                ip_address=self.get_client_ip(request),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            )
+            
+            return Response({
+                'message': f'Successfully unshared {len(revoked_permissions)} permissions',
+                'revoked_permissions_count': len(revoked_permissions),
+                'failed_items': failed_items,
+                'total_items': len(all_items)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({'error': f'Failed to unshare recursively: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class FileUploadView(generics.CreateAPIView):
@@ -878,7 +1116,6 @@ class FileOperationView(generics.CreateAPIView):
             file_item.path = new_path
             file_item.relative_path = relative_path
             file_item.parent = destination_dir
-            print(f"Updating database: name={new_name}, path={new_path}, parent={destination_dir}")  # Debug log
             file_item.save()
             
             return True, None
@@ -1034,6 +1271,16 @@ class FileAccessPermissionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = FileAccessPermission.objects.all()
         user = self.request.user
+        
+        # Filter by file if specified
+        file_id = self.request.query_params.get('file', None)
+        if file_id:
+            try:
+                file_id = int(file_id)
+                queryset = queryset.filter(file_id=file_id)
+            except (ValueError, TypeError):
+                # Invalid file ID, return empty queryset
+                return FileAccessPermission.objects.none()
         
         # Users can only see permissions for files they own or have admin access to
         if not user.is_superuser:

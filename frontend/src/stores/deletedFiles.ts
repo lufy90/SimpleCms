@@ -31,8 +31,8 @@ export const useDeletedFilesStore = defineStore('deletedFiles', () => {
   // Computed
   const deletedFilesCount = computed(() => deletedFiles.value.length)
   const deletedFilesByType = computed(() => ({
-    files: deletedFiles.value.filter(item => item.item_type === 'file'),
-    directories: deletedFiles.value.filter(item => item.item_type === 'directory')
+    files: deletedFiles.value.filter((item) => item.item_type === 'file'),
+    directories: deletedFiles.value.filter((item) => item.item_type === 'directory'),
   }))
 
   // Actions
@@ -56,10 +56,10 @@ export const useDeletedFilesStore = defineStore('deletedFiles', () => {
       isLoading.value = true
       error.value = null
       await deletedFilesAPI.restore(fileIds)
-      
+
       // Remove restored files from the list
-      deletedFiles.value = deletedFiles.value.filter(item => !fileIds.includes(item.id))
-      
+      deletedFiles.value = deletedFiles.value.filter((item) => !fileIds.includes(item.id))
+
       ElMessage.success(`Successfully restored ${fileIds.length} item(s)`)
       return true
     } catch (err: any) {
@@ -77,10 +77,10 @@ export const useDeletedFilesStore = defineStore('deletedFiles', () => {
       isLoading.value = true
       error.value = null
       await deletedFilesAPI.hardDelete(fileIds)
-      
+
       // Remove permanently deleted files from the list
-      deletedFiles.value = deletedFiles.value.filter(item => !fileIds.includes(item.id))
-      
+      deletedFiles.value = deletedFiles.value.filter((item) => !fileIds.includes(item.id))
+
       ElMessage.success(`Successfully permanently deleted ${fileIds.length} item(s)`)
       return true
     } catch (err: any) {
@@ -102,15 +102,15 @@ export const useDeletedFilesStore = defineStore('deletedFiles', () => {
     deletedFiles,
     isLoading,
     error,
-    
+
     // Computed
     deletedFilesCount,
     deletedFilesByType,
-    
+
     // Actions
     fetchDeletedFiles,
     restoreFiles,
     hardDeleteFiles,
-    clearError
+    clearError,
   }
 })

@@ -45,27 +45,15 @@
 
       <el-form :model="passwordForm" label-width="120px">
         <el-form-item label="Current Password">
-          <el-input
-            v-model="passwordForm.oldPassword"
-            type="password"
-            show-password
-          />
+          <el-input v-model="passwordForm.oldPassword" type="password" show-password />
         </el-form-item>
 
         <el-form-item label="New Password">
-          <el-input
-            v-model="passwordForm.newPassword"
-            type="password"
-            show-password
-          />
+          <el-input v-model="passwordForm.newPassword" type="password" show-password />
         </el-form-item>
 
         <el-form-item label="Confirm Password">
-          <el-input
-            v-model="passwordForm.confirmPassword"
-            type="password"
-            show-password
-          />
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password />
         </el-form-item>
 
         <el-form-item>
@@ -132,7 +120,7 @@ const changePassword = async () => {
       new_password: passwordForm.newPassword,
     })
     ElMessage.success('Password changed successfully')
-    
+
     // Clear form
     passwordForm.oldPassword = ''
     passwordForm.newPassword = ''

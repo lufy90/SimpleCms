@@ -4,9 +4,7 @@
       <h1>404</h1>
       <h2>Page Not Found</h2>
       <p>The page you're looking for doesn't exist.</p>
-      <el-button type="primary" @click="$router.push('/files')">
-        Go to Files
-      </el-button>
+      <el-button type="primary" @click="$router.push('/files')"> Go to Files </el-button>
     </div>
   </div>
 </template>

@@ -47,19 +47,20 @@
             class="upload-area"
           >
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-            <div class="el-upload__text">
-              Drop file here or <em>click to upload</em>
-            </div>
+            <div class="el-upload__text">Drop file here or <em>click to upload</em></div>
           </el-upload>
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" @click="handleUpload" :loading="isUploading" style="margin-right: 10px;">
+          <el-button
+            type="primary"
+            @click="handleUpload"
+            :loading="isUploading"
+            style="margin-right: 10px"
+          >
             Upload Files
           </el-button>
-          <el-button @click="handleClose" plain>
-            Cancel
-          </el-button>
+          <el-button @click="handleClose" plain> Cancel </el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -88,14 +89,17 @@ const uploadRef = ref()
 // Upload configuration
 const uploadAction = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/upload/`
 const uploadHeaders = computed(() => {
-  const token = document.cookie.split('; ').find(row => row.startsWith('access_token='))?.split('=')[1]
+  const token = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith('access_token='))
+    ?.split('=')[1]
   return {
-    Authorization: `Bearer ${token}`
+    Authorization: `Bearer ${token}`,
   }
 })
 const uploadData = computed(() => ({
   path: uploadForm.value.path,
-  visibility: uploadForm.value.visibility
+  visibility: uploadForm.value.visibility,
 }))
 
 // Methods

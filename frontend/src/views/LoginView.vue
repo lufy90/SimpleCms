@@ -63,12 +63,8 @@
       <!-- Demo Credentials -->
       <div class="demo-credentials" v-if="showDemoCredentials">
         <el-divider>Demo Credentials</el-divider>
-        <div class="demo-item">
-          <strong>Admin:</strong> admin / admin123
-        </div>
-        <div class="demo-item">
-          <strong>User:</strong> alice / password123
-        </div>
+        <div class="demo-item"><strong>Admin:</strong> admin / admin123</div>
+        <div class="demo-item"><strong>User:</strong> alice / password123</div>
       </div>
     </div>
   </div>
@@ -136,7 +132,9 @@ const handleLogin = async () => {
 onMounted(() => {
   // Auto-focus username field
   setTimeout(() => {
-    const usernameInput = document.querySelector('input[placeholder="Username"]') as HTMLInputElement
+    const usernameInput = document.querySelector(
+      'input[placeholder="Username"]',
+    ) as HTMLInputElement
     if (usernameInput) {
       usernameInput.focus()
     }
@@ -150,7 +148,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0a67d1 0%, #070158 100%);
   padding: 20px;
 }
 
@@ -262,11 +260,11 @@ onMounted(() => {
     padding: 32px 24px;
     margin: 20px;
   }
-  
+
   .logo h1 {
     font-size: 24px;
   }
-  
+
   .subtitle {
     font-size: 14px;
   }

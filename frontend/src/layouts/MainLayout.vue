@@ -7,13 +7,7 @@
           <el-icon><Folder /></el-icon>
           File Manager
         </h3>
-        <el-button
-          v-else
-          type="text"
-          size="large"
-          @click="toggleSidebar"
-          class="sidebar-toggle"
-        >
+        <el-button v-else type="text" size="large" @click="toggleSidebar" class="sidebar-toggle">
           <el-icon><Expand /></el-icon>
         </el-button>
       </div>
@@ -23,24 +17,15 @@
         <div class="tree-header" v-if="!sidebarCollapsed">
           <h4>Directory Tree</h4>
           <div class="tree-actions">
-            <el-button
-              type="text"
-              size="small"
-              @click="showCreateDirectoryDialog"
-            >
+            <el-button type="text" size="small" @click="showCreateDirectoryDialog">
               <el-icon><Plus /></el-icon>
             </el-button>
-            <el-button
-              type="text"
-              size="small"
-              @click="refreshTree"
-              :loading="isLoading"
-            >
+            <el-button type="text" size="small" @click="refreshTree" :loading="isLoading">
               <el-icon><Refresh /></el-icon>
             </el-button>
           </div>
         </div>
-        
+
         <el-tree
           :key="treeRefreshKey"
           :data="directoryTree"
@@ -68,17 +53,43 @@
         </el-tree>
       </div>
 
+      <!-- Shared Files Section -->
+      <div class="shared-files-section" v-if="!sidebarCollapsed">
+        <div class="shared-files-header">
+          <h4>Shared Files</h4>
+        </div>
+        <div class="shared-files-menu">
+          <el-button
+            type="text"
+            size="small"
+            @click="navigateToSharedToMe"
+            class="shared-files-button"
+          >
+            <el-icon><User /></el-icon>
+            <span>Shared to Me</span>
+          </el-button>
+          <el-button
+            type="text"
+            size="small"
+            @click="navigateToSharedToMyGroup"
+            class="shared-files-button"
+          >
+            <el-icon><UserFilled /></el-icon>
+            <span>Shared to My Group</span>
+          </el-button>
+        </div>
+      </div>
+
       <!-- Dustbin Section -->
       <div class="dustbin-section" v-if="!sidebarCollapsed">
         <div class="dustbin-header">
           <h4>Dustbin</h4>
-          <el-badge :value="deletedFilesCount" :hidden="deletedFilesCount === 0" class="dustbin-badge">
-            <el-button
-              type="text"
-              size="small"
-              @click="navigateToDustbin"
-              class="dustbin-button"
-            >
+          <el-badge
+            :value="deletedFilesCount"
+            :hidden="deletedFilesCount === 0"
+            class="dustbin-badge"
+          >
+            <el-button type="text" size="small" @click="navigateToDustbin" class="dustbin-button">
               <el-icon><Delete /></el-icon>
               <span>Deleted Files</span>
             </el-button>
@@ -88,12 +99,7 @@
 
       <!-- Sidebar Toggle Button -->
       <div class="sidebar-footer">
-        <el-button
-          type="text"
-          size="large"
-          @click="toggleSidebar"
-          class="sidebar-toggle"
-        >
+        <el-button type="text" size="large" @click="toggleSidebar" class="sidebar-toggle">
           <el-icon v-if="sidebarCollapsed"><Expand /></el-icon>
           <el-icon v-else><Fold /></el-icon>
         </el-button>
@@ -173,6 +179,7 @@ import {
   SwitchButton,
   Plus,
   Delete,
+  UserFilled,
 } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
@@ -250,18 +257,20 @@ const showCreateDirectoryDialog = () => {
     confirmButtonText: 'Create',
     cancelButtonText: 'Cancel',
     inputPattern: /^[^\/\\]+$/,
-    inputErrorMessage: 'Directory name cannot contain slashes or backslashes'
-  }).then(async ({ value }) => {
-    if (value) {
-      // Create directory at root level (no parent_id)
-      const newDirectory = await filesStore.createDirectory(value)
-      if (newDirectory) {
-        ElMessage.success('Directory created successfully')
-      }
-    }
-  }).catch(() => {
-    // User cancelled
+    inputErrorMessage: 'Directory name cannot contain slashes or backslashes',
   })
+    .then(async ({ value }) => {
+      if (value) {
+        // Create directory at root level (no parent_id)
+        const newDirectory = await filesStore.createDirectory(value)
+        if (newDirectory) {
+          ElMessage.success('Directory created successfully')
+        }
+      }
+    })
+    .catch(() => {
+      // User cancelled
+    })
 }
 
 const handleNodeClick = (data: any) => {
@@ -309,6 +318,16 @@ const navigateToDustbin = () => {
   router.push('/deleted-files')
 }
 
+const navigateToSharedToMe = () => {
+  console.log('Navigating to shared to me...')
+  router.push('shared-to-me')
+}
+
+const navigateToSharedToMyGroup = () => {
+  console.log('Navigating to shared to my group...')
+  router.push('shared-to-my-group')
+}
+
 // Lifecycle
 onMounted(async () => {
   await filesStore.fetchDirectoryTree()
@@ -322,7 +341,7 @@ watch(
     // Update current path based on route
     highlightCurrentDirectory()
   },
-  { immediate: true }
+  { immediate: true },
 )
 </script>
 
@@ -407,6 +426,49 @@ watch(
 }
 
 .dustbin-button .el-icon {
+  font-size: 14px;
+}
+
+.shared-files-section {
+  padding: 16px;
+  border-top: 1px solid #e4e7ed;
+  background: #fafafa;
+}
+
+.shared-files-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.shared-files-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #606266;
+}
+
+.shared-files-menu {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shared-files-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #909399;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.shared-files-button:hover {
+  color: #409eff;
+}
+
+.shared-files-button .el-icon {
   font-size: 14px;
 }
 
@@ -554,11 +616,11 @@ watch(
     z-index: 1000;
     transform: translateX(-100%);
   }
-  
+
   .sidebar.open {
     transform: translateX(0);
   }
-  
+
   .search-input {
     width: 200px;
   }

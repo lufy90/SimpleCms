@@ -4,12 +4,18 @@ import Cookies from 'js-cookie'
 import { authAPI } from '@/services/api'
 import { toast } from 'vue3-toastify'
 
+export interface Group {
+  id: number
+  name: string
+}
+
 export interface User {
   id: number
   username: string
   email: string
   first_name: string
   last_name: string
+  groups: Group[]
 }
 
 export interface AuthTokens {
@@ -41,7 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
       const { access, refresh, user: userData } = response.data
 
       // Store tokens in cookies
-      Cookies.set('access_token', access, { expires: 1/24 }) // 1 hour
+      Cookies.set('access_token', access, { expires: 1 / 24 }) // 1 hour
       Cookies.set('refresh_token', refresh, { expires: 7 }) // 7 days
 
       // Update state
@@ -72,7 +78,7 @@ export const useAuthStore = defineStore('auth', () => {
       const { access, refresh, user: newUser } = response.data
 
       // Store tokens in cookies
-      Cookies.set('access_token', access, { expires: 1/24 })
+      Cookies.set('access_token', access, { expires: 1 / 24 })
       Cookies.set('refresh_token', refresh, { expires: 7 })
 
       // Update state
@@ -134,7 +140,7 @@ export const useAuthStore = defineStore('auth', () => {
       isLoading.value = true
       await authAPI.changePassword(passwords)
       toast.success('Password changed successfully')
-      
+
       // Logout after password change
       await logout()
       return true
@@ -173,11 +179,11 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isAuthenticated,
     isLoading,
-    
+
     // Getters
     isAdmin,
     displayName,
-    
+
     // Actions
     login,
     register,

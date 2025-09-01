@@ -56,6 +56,28 @@
               </div>
             </div>
           </div>
+
+          <!-- Bulk actions for directories -->
+          <div
+            v-if="file?.item_type === 'directory' && currentPermissions.length > 1"
+            class="bulk-actions"
+          >
+            <el-divider />
+            <div class="bulk-actions-content">
+              <el-text size="small" type="info"> Bulk actions for directory: </el-text>
+              <div class="bulk-buttons">
+                <el-button
+                  size="small"
+                  type="danger"
+                  @click="revokeAllPermissions"
+                  :loading="revokingAll"
+                >
+                  <el-icon><Delete /></el-icon>
+                  Revoke All Permissions
+                </el-button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -117,6 +139,19 @@
             </el-checkbox-group>
           </el-form-item>
 
+          <!-- Recursive sharing option for directories -->
+          <el-form-item v-if="file?.item_type === 'directory'" label="Recursive Sharing">
+            <el-checkbox v-model="shareForm.recursive">
+              Share this directory and all its contents recursively
+            </el-checkbox>
+            <div class="recursive-help">
+              <el-text size="small" type="info">
+                When enabled, all files and subdirectories within this directory will be shared with
+                the same permissions.
+              </el-text>
+            </div>
+          </el-form-item>
+
           <el-form-item label="Expires At">
             <el-date-picker
               v-model="shareForm.expiresAt"
@@ -128,12 +163,7 @@
           </el-form-item>
 
           <el-form-item>
-            <el-button
-              type="primary"
-              @click="shareFile"
-              :loading="sharing"
-              :disabled="!canShare"
-            >
+            <el-button type="primary" @click="shareFile" :loading="sharing" :disabled="!canShare">
               <el-icon><Share /></el-icon>
               Share File
             </el-button>
@@ -149,7 +179,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, UserFilled, Share, Delete } from '@element-plus/icons-vue'
-import { permissionsAPI } from '@/services/api'
+import { permissionsAPI, filesAPI } from '@/services/api'
 import type { FileSystemItem } from '@/stores/files'
 
 interface Permission {
@@ -192,6 +222,7 @@ interface ShareForm {
   targetId: number | null
   permissions: string[]
   expiresAt: string | null
+  recursive: boolean
 }
 
 const props = defineProps<{
@@ -213,12 +244,14 @@ const searchingUsers = ref(false)
 const searchingGroups = ref(false)
 const sharing = ref(false)
 const revokingPermission = ref<number | null>(null)
+const revokingAll = ref(false)
 
 const shareForm = ref<ShareForm>({
   shareType: 'user',
   targetId: null,
   permissions: ['read'],
-  expiresAt: null
+  expiresAt: null,
+  recursive: false,
 })
 
 // Computed properties
@@ -227,12 +260,15 @@ const canShare = computed(() => {
 })
 
 // Watch for dialog visibility changes
-watch(() => props.visible, (newVal) => {
-  dialogVisible.value = newVal
-  if (newVal && props.file) {
-    loadCurrentPermissions()
-  }
-})
+watch(
+  () => props.visible,
+  (newVal) => {
+    dialogVisible.value = newVal
+    if (newVal && props.file) {
+      loadCurrentPermissions()
+    }
+  },
+)
 
 watch(dialogVisible, (newVal) => {
   emit('update:visible', newVal)
@@ -244,7 +280,7 @@ watch(dialogVisible, (newVal) => {
 // Methods
 const loadCurrentPermissions = async () => {
   if (!props.file) return
-  
+
   try {
     const response = await permissionsAPI.list({ file: props.file.id })
     currentPermissions.value = response.data.results || response.data || []
@@ -256,18 +292,11 @@ const loadCurrentPermissions = async () => {
 
 const searchUsers = async (query: string) => {
   if (query.length < 2) return
-  
+
   searchingUsers.value = true
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/users/search/?q=${query}`, {
-      headers: {
-        'Authorization': `Bearer ${document.cookie.split('; ').find(row => row.startsWith('access_token='))?.split('=')[1]}`
-      }
-    })
-    if (response.ok) {
-      const data = await response.json()
-      availableUsers.value = data.results || data
-    }
+    const response = await permissionsAPI.searchUsers({ query })
+    availableUsers.value = response.data.results || response.data || []
   } catch (error) {
     console.error('Failed to search users:', error)
   } finally {
@@ -277,18 +306,11 @@ const searchUsers = async (query: string) => {
 
 const searchGroups = async (query: string) => {
   if (query.length < 2) return
-  
+
   searchingGroups.value = true
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/groups/search/?q=${query}`, {
-      headers: {
-        'Authorization': `Bearer ${document.cookie.split('; ').find(row => row.startsWith('access_token='))?.split('=')[1]}`
-      }
-    })
-    if (response.ok) {
-      const data = await response.json()
-      availableGroups.value = data.results || data
-    }
+    const response = await permissionsAPI.searchGroups({ query })
+    availableGroups.value = response.data.results || response.data || []
   } catch (error) {
     console.error('Failed to search groups:', error)
   } finally {
@@ -298,33 +320,59 @@ const searchGroups = async (query: string) => {
 
 const shareFile = async () => {
   if (!props.file || !shareForm.value.targetId) return
-  
+
+  // Validate that we have the correct combination
+  if (shareForm.value.shareType === 'user' && !shareForm.value.targetId) {
+    ElMessage.error('Please select a user to share with')
+    return
+  }
+
+  if (shareForm.value.shareType === 'group' && !shareForm.value.targetId) {
+    ElMessage.error('Please select a group to share with')
+    return
+  }
+
   sharing.value = true
   try {
-    // Create permissions for each selected permission type
-    const permissionPromises = shareForm.value.permissions.map(permissionType => {
-      const permissionData = {
-        file: props.file!.id,
-        permission_type: permissionType,
-        expires_at: shareForm.value.expiresAt || undefined
-      }
-      
-      if (shareForm.value.shareType === 'user') {
-        return permissionsAPI.create({
-          ...permissionData,
-          user: shareForm.value.targetId!
-        })
-      } else {
-        return permissionsAPI.create({
-          ...permissionData,
-          group: shareForm.value.targetId!
-        })
-      }
-    })
-    
-    await Promise.all(permissionPromises)
-    
-    ElMessage.success('File shared successfully')
+    // Check if this is recursive directory sharing
+    if (props.file.item_type === 'directory' && shareForm.value.recursive) {
+      // Use recursive sharing API
+      const response = await filesAPI.shareRecursively(props.file.id, {
+        share_type: shareForm.value.shareType,
+        target_id: shareForm.value.targetId,
+        permission_types: shareForm.value.permissions,
+        expires_at: shareForm.value.expiresAt || undefined,
+      })
+
+      ElMessage.success(`Directory shared recursively: ${response.data.message}`)
+    } else {
+      // Use regular permission creation for single files or non-recursive sharing
+      const permissionPromises = shareForm.value.permissions.map((permissionType) => {
+        const permissionData = {
+          file: props.file!.id,
+          permission_type: permissionType,
+          expires_at: shareForm.value.expiresAt || undefined,
+        }
+
+        if (shareForm.value.shareType === 'user') {
+          return permissionsAPI.create({
+            ...permissionData,
+            user: shareForm.value.targetId!,
+            group: null, // Explicitly set group to null when sharing with user
+          })
+        } else {
+          return permissionsAPI.create({
+            ...permissionData,
+            user: null, // Explicitly set user to null when sharing with group
+            group: shareForm.value.targetId!,
+          })
+        }
+      })
+
+      await Promise.all(permissionPromises)
+      ElMessage.success('File shared successfully')
+    }
+
     await loadCurrentPermissions()
     emit('permissions-updated')
     resetForm()
@@ -344,14 +392,57 @@ const revokePermission = async (permissionId: number) => {
       {
         confirmButtonText: 'Revoke',
         cancelButtonText: 'Cancel',
-        type: 'warning'
-      }
+        type: 'warning',
+      },
     )
-    
+
     revokingPermission.value = permissionId
-    await permissionsAPI.delete(permissionId)
     
-    ElMessage.success('Permission revoked successfully')
+    // Find the permission to get its details
+    const permission = currentPermissions.value.find(p => p.id === permissionId)
+    if (!permission) {
+      throw new Error('Permission not found')
+    }
+    
+    // Check if this is a directory and we should offer recursive unsharing
+    if (props.file?.item_type === 'directory') {
+      const shouldRecursive = await ElMessageBox.confirm(
+        'This is a directory. Do you want to revoke permissions for all files and subdirectories within it as well?',
+        'Recursive Unsharing',
+        {
+          confirmButtonText: 'Yes, revoke recursively',
+          cancelButtonText: 'No, just this directory',
+          type: 'warning',
+        },
+      ).then(() => true).catch(() => false)
+      
+      if (shouldRecursive) {
+        // Use recursive unsharing
+        const shareType = permission.user ? 'user' : 'group'
+        const targetId = permission.user?.id || permission.group?.id
+        
+        if (!targetId) {
+          throw new Error('Invalid permission target')
+        }
+        
+        await filesAPI.unshareRecursively(props.file.id, {
+          share_type: shareType,
+          target_id: targetId,
+          permission_types: [permission.permission_type],
+        })
+        
+        ElMessage.success('Directory permissions revoked recursively')
+      } else {
+        // Use regular permission deletion
+        await permissionsAPI.delete(permissionId)
+        ElMessage.success('Permission revoked successfully')
+      }
+    } else {
+      // Regular permission deletion for files
+      await permissionsAPI.delete(permissionId)
+      ElMessage.success('Permission revoked successfully')
+    }
+
     await loadCurrentPermissions()
     emit('permissions-updated')
   } catch (error) {
@@ -364,12 +455,40 @@ const revokePermission = async (permissionId: number) => {
   }
 }
 
+const revokeAllPermissions = async () => {
+  try {
+    await ElMessageBox.confirm(
+      'Are you sure you want to revoke all permissions for this file?',
+      'Confirm Revocation',
+      {
+        confirmButtonText: 'Revoke All',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+      },
+    )
+
+    // Revoke all permissions one by one
+    for (const permission of currentPermissions.value) {
+      await permissionsAPI.delete(permission.id)
+    }
+    ElMessage.success('All permissions revoked successfully')
+    await loadCurrentPermissions()
+    emit('permissions-updated')
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Failed to revoke all permissions:', error)
+      ElMessage.error('Failed to revoke all permissions')
+    }
+  }
+}
+
 const resetForm = () => {
   shareForm.value = {
     shareType: 'user',
     targetId: null,
     permissions: ['read'],
-    expiresAt: null
+    expiresAt: null,
+    recursive: false,
   }
 }
 
@@ -383,7 +502,7 @@ const getPermissionTagType = (permissionType: string) => {
     write: 'warning',
     delete: 'danger',
     share: 'success',
-    admin: 'danger'
+    admin: 'danger',
   }
   return types[permissionType] || 'info'
 }

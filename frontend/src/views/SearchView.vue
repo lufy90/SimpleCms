@@ -34,9 +34,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" @click="performSearch" :loading="isLoading">
-            Search
-          </el-button>
+          <el-button type="primary" @click="performSearch" :loading="isLoading"> Search </el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -44,7 +42,7 @@
     <!-- Search Results -->
     <div v-if="searchResults.length > 0" class="search-results">
       <h2>Search Results ({{ searchResults.length }})</h2>
-      
+
       <el-table :data="searchResults" @row-click="handleFileClick">
         <el-table-column prop="name" label="Name" min-width="200">
           <template #default="{ row }">
@@ -107,12 +105,12 @@ const performSearch = async () => {
   try {
     isLoading.value = true
     hasSearched.value = true
-    
+
     const success = await filesStore.searchFiles(searchForm.query, {
       type: searchForm.type || undefined,
-      limit: 100
+      limit: 100,
     })
-    
+
     if (success) {
       searchResults.value = filesStore.files
     }

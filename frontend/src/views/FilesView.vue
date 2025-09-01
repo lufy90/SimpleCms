@@ -59,8 +59,6 @@
       </div>
     </div>
 
-
-
     <!-- Bulk Operations Toolbar -->
     <div v-if="selectedFileIds.size > 0" class="bulk-operations-toolbar">
       <div class="bulk-info">
@@ -75,12 +73,7 @@
           <el-icon><Position /></el-icon>
           Move
         </el-button>
-        <el-button 
-          @click="bulkDownload" 
-          type="success" 
-          size="small"
-          :disabled="!hasSelectedFiles"
-        >
+        <el-button @click="bulkDownload" type="success" size="small" :disabled="!hasSelectedFiles">
           <el-icon><Download /></el-icon>
           Download
         </el-button>
@@ -101,8 +94,8 @@
         <el-breadcrumb-item @click="handleBreadcrumbClick({ id: null, name: 'root', path: '/' })">
           root
         </el-breadcrumb-item>
-        <el-breadcrumb-item 
-          v-for="(item, index) in breadcrumbPath.filter(item => item.id !== null)" 
+        <el-breadcrumb-item
+          v-for="(item, index) in breadcrumbPath.filter((item) => item.id !== null)"
           :key="index"
           @click="handleBreadcrumbClick(item)"
         >
@@ -144,22 +137,13 @@
 
     <!-- File List -->
     <div class="file-content">
-      <el-empty
-        v-if="filteredFiles.length === 0 && !isLoading"
-        description="No files found"
-      >
-        <el-button type="primary" @click="triggerFileSelection">
-          Upload Files
-        </el-button>
+      <el-empty v-if="filteredFiles.length === 0 && !isLoading" description="No files found">
+        <el-button type="primary" @click="triggerFileSelection"> Upload Files </el-button>
       </el-empty>
 
       <!-- Grid View -->
       <div v-else-if="viewType === 'grid'" class="grid-view">
-        <div
-          v-for="file in filteredFiles"
-          :key="file.id"
-          class="file-card"
-        >
+        <div v-for="file in filteredFiles" :key="file.id" class="file-card">
           <div class="file-selection">
             <el-checkbox
               :model-value="selectedFileIds.has(file.id)"
@@ -181,13 +165,11 @@
             </div>
           </div>
           <div class="file-actions">
-            <el-dropdown @command="(command: string) => handleFileAction(command, file)" trigger="click">
-              <el-button 
-                type="info" 
-                size="small" 
-                title="Actions"
-                circle
-              >
+            <el-dropdown
+              @command="(command: string) => handleFileAction(command, file)"
+              trigger="click"
+            >
+              <el-button type="info" size="small" title="Actions" circle>
                 <el-icon><More /></el-icon>
               </el-button>
               <template #dropdown>
@@ -200,10 +182,7 @@
                     <el-icon><Position /></el-icon>
                     Move
                   </el-dropdown-item>
-                  <el-dropdown-item 
-                    command="download" 
-                    :disabled="file.item_type !== 'file'"
-                  >
+                  <el-dropdown-item command="download" :disabled="file.item_type !== 'file'">
                     <el-icon><Download /></el-icon>
                     Download
                   </el-dropdown-item>
@@ -240,10 +219,10 @@
       >
         <!-- Selection Column -->
         <el-table-column type="selection" width="55" />
-        
-        <el-table-column 
-          prop="name" 
-          label="Name" 
+
+        <el-table-column
+          prop="name"
+          label="Name"
           min-width="200"
           sortable
           :sort-method="sortByName"
@@ -259,39 +238,23 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column 
-          prop="size" 
-          label="Size" 
-          width="120"
-          sortable
-          :sort-method="sortBySize"
-        >
+        <el-table-column prop="size" label="Size" width="120" sortable :sort-method="sortBySize">
           <template #default="{ row }">
             <span v-if="row.size">{{ formatFileSize(row.size) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column 
-          prop="item_type" 
-          label="Type" 
-          width="100"
-          sortable
-        />
-        <el-table-column 
-          prop="visibility" 
-          label="Visibility" 
-          width="120"
-          sortable
-        >
+        <el-table-column prop="item_type" label="Type" width="100" sortable />
+        <el-table-column prop="visibility" label="Visibility" width="120" sortable>
           <template #default="{ row }">
             <el-tag :type="getVisibilityTagType(row.visibility)" size="small">
               {{ row.visibility }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column 
-          prop="created_at" 
-          label="Created" 
+        <el-table-column
+          prop="created_at"
+          label="Created"
           width="180"
           sortable
           :sort-method="sortByDate"
@@ -300,32 +263,32 @@
             <span>{{ formatDate(row.created_at) }}</span>
           </template>
         </el-table-column>
-        
+
         <!-- Actions Column -->
         <el-table-column label="Actions" width="200" fixed="right">
           <template #default="{ row }">
             <div class="list-actions">
-              <el-button 
-                type="primary" 
-                size="small" 
+              <el-button
+                type="primary"
+                size="small"
                 @click.stop="handleFileAction('copy', row)"
                 title="Copy"
                 circle
               >
                 <el-icon><CopyDocument /></el-icon>
               </el-button>
-              <el-button 
-                type="warning" 
-                size="small" 
+              <el-button
+                type="warning"
+                size="small"
                 @click.stop="handleFileAction('move', row)"
                 title="Move"
                 circle
               >
                 <el-icon><Position /></el-icon>
               </el-button>
-              <el-button 
-                type="success" 
-                size="small" 
+              <el-button
+                type="success"
+                size="small"
                 @click.stop="handleFileAction('download', row)"
                 title="Download"
                 :disabled="row.item_type !== 'file'"
@@ -333,13 +296,16 @@
               >
                 <el-icon><Download /></el-icon>
               </el-button>
-              <el-dropdown @command="(command: string) => handleFileAction(command, row)" trigger="click">
-                <el-button 
-                  type="info" 
-                  size="small" 
+              <el-dropdown
+                @command="(command: string) => handleFileAction(command, row)"
+                trigger="click"
+              >
+                <el-button
+                  type="info"
+                  size="small"
                   title="More Actions"
                   circle
-                  style="margin-left: 12px;"
+                  style="margin-left: 12px"
                 >
                   <el-icon><More /></el-icon>
                 </el-button>
@@ -365,18 +331,17 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- List View Summary -->
       <div class="list-view-summary">
         <p class="summary-text">
-          Total: <strong>{{ filteredFiles.length }}</strong> items
-          ({{ filteredFiles.filter(f => f.item_type === 'file').length }} files, 
-          {{ filteredFiles.filter(f => f.item_type === 'directory').length }} directories)
+          Total: <strong>{{ filteredFiles.length }}</strong> items ({{
+            filteredFiles.filter((f) => f.item_type === 'file').length
+          }}
+          files, {{ filteredFiles.filter((f) => f.item_type === 'directory').length }} directories)
         </p>
       </div>
     </div>
-
-
 
     <!-- Upload Dialog -->
     <el-dialog
@@ -417,13 +382,14 @@
             :show-file-list="true"
           >
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-            <div class="el-upload__text">
-              Drop files here or <em>click to upload</em>
-            </div>
+            <div class="el-upload__text">Drop files here or <em>click to upload</em></div>
             <template #tip>
               <div class="el-upload__tip">
                 Support for multiple files. Drag and drop or click to select.
-                <div v-if="selectedFiles.length > 0" style="margin-top: 8px; color: #409eff; font-weight: 500;">
+                <div
+                  v-if="selectedFiles.length > 0"
+                  style="margin-top: 8px; color: #409eff; font-weight: 500"
+                >
                   {{ selectedFiles.length }} file(s) selected
                 </div>
               </div>
@@ -435,9 +401,9 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="closeUploadDialog">Cancel</el-button>
-          <el-button 
-            type="primary" 
-            @click="handleUpload" 
+          <el-button
+            type="primary"
+            @click="handleUpload"
             :loading="isUploading"
             :disabled="!hasFilesToUpload"
           >
@@ -453,28 +419,19 @@
     <div class="upload-progress-panel">
       <div class="progress-header">
         <h3>Upload Progress</h3>
-        <el-button 
-          v-if="!isUploading" 
-          @click="uploadProgress = []" 
-          size="small" 
-          type="text"
-        >
+        <el-button v-if="!isUploading" @click="uploadProgress = []" size="small" type="text">
           Close
         </el-button>
       </div>
       <div class="progress-list">
-        <div 
-          v-for="(progress, index) in uploadProgress" 
-          :key="index" 
-          class="progress-item"
-        >
+        <div v-for="(progress, index) in uploadProgress" :key="index" class="progress-item">
           <div class="progress-item-header">
             <span class="filename">{{ progress.filename }}</span>
             <span class="status" :class="progress.status">{{ progress.status }}</span>
           </div>
-          <el-progress 
-            v-if="progress.status === 'uploading'" 
-            :percentage="progress.percentage" 
+          <el-progress
+            v-if="progress.status === 'uploading'"
+            :percentage="progress.percentage"
             :status="progress.error ? 'exception' : undefined"
             :stroke-width="4"
           />
@@ -511,7 +468,12 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="copyDialogVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="executeOperation" :disabled="operationDestination === undefined">Copy Files</el-button>
+        <el-button
+          type="primary"
+          @click="executeOperation"
+          :disabled="operationDestination === undefined"
+          >Copy Files</el-button
+        >
       </div>
     </template>
   </el-dialog>
@@ -541,7 +503,12 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="moveDialogVisible = false">Cancel</el-button>
-        <el-button type="warning" @click="executeOperation" :disabled="operationDestination === undefined">Move Files</el-button>
+        <el-button
+          type="warning"
+          @click="executeOperation"
+          :disabled="operationDestination === undefined"
+          >Move Files</el-button
+        >
       </div>
     </template>
   </el-dialog>
@@ -595,25 +562,29 @@
         </el-descriptions-item>
         <el-descriptions-item label="Permissions" :span="2">
           <div class="permissions-display">
-            <el-tag 
-              v-for="perm in selectedFileForDetails.effective_permissions" 
+            <el-tag
+              v-for="perm in selectedFileForDetails.effective_permissions"
               :key="perm"
               :type="getPermissionTagType(perm)"
               size="small"
-              style="margin-right: 8px; margin-bottom: 8px;"
+              style="margin-right: 8px; margin-bottom: 8px"
             >
               {{ perm }}
             </el-tag>
           </div>
         </el-descriptions-item>
-        <el-descriptions-item label="Tags" :span="2" v-if="selectedFileForDetails.tags && selectedFileForDetails.tags.length > 0">
+        <el-descriptions-item
+          label="Tags"
+          :span="2"
+          v-if="selectedFileForDetails.tags && selectedFileForDetails.tags.length > 0"
+        >
           <div class="tags-display">
-            <el-tag 
-              v-for="tagRel in selectedFileForDetails.tags" 
+            <el-tag
+              v-for="tagRel in selectedFileForDetails.tags"
               :key="tagRel.id"
               :color="tagRel.tag.color"
               size="small"
-              style="margin-right: 8px; margin-bottom: 8px;"
+              style="margin-right: 8px; margin-bottom: 8px"
             >
               {{ tagRel.tag.name }}
             </el-tag>
@@ -624,8 +595,8 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="detailsDialogVisible = false">Close</el-button>
-        <el-button 
-          type="primary" 
+        <el-button
+          type="primary"
           @click="handleFileAction('share', selectedFileForDetails)"
           :disabled="!selectedFileForDetails?.can_share"
         >
@@ -642,7 +613,24 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFilesStore, type FileSystemItem } from '@/stores/files'
 import { uploadAPI, filesAPI } from '@/services/api'
-import { Grid, List, Document, Folder, Upload, Refresh, Back, UploadFilled, ArrowDown, CopyDocument, Position, Delete, Close, More, Download, Share } from '@element-plus/icons-vue'
+import {
+  Grid,
+  List,
+  Document,
+  Folder,
+  Upload,
+  Refresh,
+  Back,
+  UploadFilled,
+  ArrowDown,
+  CopyDocument,
+  Position,
+  Delete,
+  Close,
+  More,
+  Download,
+  Share,
+} from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import ShareDialog from '@/components/ShareDialog.vue'
@@ -663,7 +651,14 @@ const dirInputRef = ref<HTMLInputElement>()
 const uploadRef = ref()
 const selectedFiles = ref<Array<File>>([])
 const selectedFileIds = ref<Set<number>>(new Set())
-const uploadProgress = ref<Array<{ filename: string; status: 'uploading' | 'success' | 'error'; percentage: number; error?: string }>>([])
+const uploadProgress = ref<
+  Array<{
+    filename: string
+    status: 'uploading' | 'success' | 'error'
+    percentage: number
+    error?: string
+  }>
+>([])
 const isUploading = ref(false)
 
 // Operation dialogs
@@ -680,13 +675,11 @@ const selectedFileForSharing = ref<FileSystemItem | null>(null)
 const detailsDialogVisible = ref(false)
 const selectedFileForDetails = ref<FileSystemItem | null>(null)
 
-
-
 // Tree selector configuration for el-tree-select
 const treeSelectProps = {
   children: 'children',
   label: 'name',
-  value: 'id'
+  value: 'id',
 }
 
 // Directory tree data for tree-select (non-lazy)
@@ -694,8 +687,8 @@ const directoryTreeData = ref<any[]>([
   {
     id: 0,
     name: 'Root Directory (/)',
-    children: []
-  }
+    children: [],
+  },
 ])
 
 // Load directory tree data for tree-select
@@ -704,16 +697,16 @@ const loadDirectoryTreeData = async () => {
     const response = await filesAPI.listChildren()
     const rootItems = response.data.children || []
     const directories = rootItems.filter((item: any) => item.item_type === 'directory')
-    
+
     // Build the tree structure
     const treeData = [
       {
         id: 0,
         name: 'Root Directory (/)',
-        children: await buildDirectoryTree(directories)
-      }
+        children: await buildDirectoryTree(directories),
+      },
     ]
-    
+
     directoryTreeData.value = treeData
   } catch (error) {
     console.error('Failed to load directory tree data:', error)
@@ -723,19 +716,19 @@ const loadDirectoryTreeData = async () => {
 // Recursively build directory tree
 const buildDirectoryTree = async (directories: any[]): Promise<any[]> => {
   const tree = []
-  
+
   for (const dir of directories) {
     try {
       const response = await filesAPI.listChildren(dir.id)
       const children = response.data.children || []
       const childDirs = children.filter((item: any) => item.item_type === 'directory')
-      
+
       const node = {
         id: dir.id,
         name: dir.name,
-        children: childDirs.length > 0 ? await buildDirectoryTree(childDirs) : []
+        children: childDirs.length > 0 ? await buildDirectoryTree(childDirs) : [],
       }
-      
+
       tree.push(node)
     } catch (error) {
       console.error(`Failed to load children for directory ${dir.id}:`, error)
@@ -743,15 +736,13 @@ const buildDirectoryTree = async (directories: any[]): Promise<any[]> => {
       tree.push({
         id: dir.id,
         name: dir.name,
-        children: []
+        children: [],
       })
     }
   }
-  
+
   return tree
 }
-
-
 
 // Tree refs
 const listTableRef = ref()
@@ -759,14 +750,17 @@ const listTableRef = ref()
 // Upload configuration
 const uploadAction = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/upload/`
 const uploadHeaders = computed(() => {
-  const token = document.cookie.split('; ').find(row => row.startsWith('access_token='))?.split('=')[1]
+  const token = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith('access_token='))
+    ?.split('=')[1]
   return {
-    Authorization: `Bearer ${token}`
+    Authorization: `Bearer ${token}`,
   }
 })
 const uploadData = computed(() => ({
   parent_id: currentDirectory.value?.id,
-  visibility: uploadForm.value.visibility
+  visibility: uploadForm.value.visibility,
 }))
 
 // Computed
@@ -789,76 +783,90 @@ const hasSelectedFiles = computed(() => {
 // Directory upload functionality removed - now handled by file upload with relative paths
 
 // Breadcrumb state - maintains the full navigation path
-const breadcrumbPath = ref<Array<{id: number | null, name: string, path: string}>>([
-  { id: null, name: 'root', path: '/' }
+const breadcrumbPath = ref<Array<{ id: number | null; name: string; path: string }>>([
+  { id: null, name: 'root', path: '/' },
 ])
 
 // Update breadcrumb when directory changes
 const updateBreadcrumb = async () => {
   console.log('updateBreadcrumb called, currentDirectory:', currentDirectory.value)
-  
+
   if (!currentDirectory.value) {
     console.log('No current directory, setting root breadcrumb')
     breadcrumbPath.value = [{ id: null, name: 'root', path: '/' }]
     return
   }
-  
+
   // Debug: Log the complete current directory object
   console.log('Current directory full object:', JSON.stringify(currentDirectory.value, null, 2))
   console.log('Parents attribute:', currentDirectory.value.parents)
   console.log('Parents type:', typeof currentDirectory.value.parents)
   console.log('Parents is array:', Array.isArray(currentDirectory.value.parents))
-  
+
   // Build breadcrumb using the parents attribute from the API
   const newBreadcrumb = []
-  
+
   // Always start with root
   newBreadcrumb.push({
     id: null,
     name: 'root',
-    path: '/'
+    path: '/',
   })
-  
+
   // Add all parent directories from the parents array (if available)
-  if (currentDirectory.value.parents && Array.isArray(currentDirectory.value.parents) && currentDirectory.value.parents.length > 0) {
+  if (
+    currentDirectory.value.parents &&
+    Array.isArray(currentDirectory.value.parents) &&
+    currentDirectory.value.parents.length > 0
+  ) {
     console.log('Adding parents from API:', currentDirectory.value.parents)
-    
-    currentDirectory.value.parents.forEach(parent => {
+
+    currentDirectory.value.parents.forEach((parent) => {
       newBreadcrumb.push({
         id: parent.id,
         name: parent.name,
-        path: parent.relative_path
+        path: parent.relative_path,
       })
     })
   } else {
-    console.log('No parents attribute available, breadcrumb will only show root and current directory')
+    console.log(
+      'No parents attribute available, breadcrumb will only show root and current directory',
+    )
   }
-  
+
   // Add current directory at the end
   newBreadcrumb.push({
     id: currentDirectory.value.id,
     name: currentDirectory.value.name,
-    path: currentDirectory.value.relative_path
+    path: currentDirectory.value.relative_path,
   })
-  
+
   console.log('Built complete breadcrumb:', newBreadcrumb)
   breadcrumbPath.value = newBreadcrumb
 }
 
 // Watch for directory changes to update breadcrumb
-watch(currentDirectory, (newDir, oldDir) => {
-  console.log('currentDirectory changed:', { old: oldDir, new: newDir })
-  updateBreadcrumb()
-}, { immediate: true })
+watch(
+  currentDirectory,
+  (newDir, oldDir) => {
+    console.log('currentDirectory changed:', { old: oldDir, new: newDir })
+    updateBreadcrumb()
+  },
+  { immediate: true },
+)
 
 // Watch for selected files changes
-watch(selectedFiles, (newFiles, oldFiles) => {
-  console.log('selectedFiles changed:', { 
-    old: oldFiles?.length || 0, 
-    new: newFiles?.length || 0,
-    files: newFiles?.map(f => f.name) || []
-  })
-}, { deep: true })
+watch(
+  selectedFiles,
+  (newFiles, oldFiles) => {
+    console.log('selectedFiles changed:', {
+      old: oldFiles?.length || 0,
+      new: newFiles?.length || 0,
+      files: newFiles?.map((f) => f.name) || [],
+    })
+  },
+  { deep: true },
+)
 
 // Methods
 const setViewType = (type: 'grid' | 'list') => {
@@ -889,13 +897,13 @@ const handleUploadCommand = (command: string) => {
 const handleFileSelection = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const files = Array.from(target.files || [])
-  
+
   if (files.length === 0) return
-  
+
   // Reset progress
   uploadProgress.value = []
   isUploading.value = true
-  
+
   try {
     // Process files and create directory structure
     await processAndUploadFiles(files)
@@ -911,13 +919,13 @@ const handleFileSelection = async (event: Event) => {
 const handleDirectorySelection = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const files = Array.from(target.files || [])
-  
+
   if (files.length === 0) return
-  
+
   // Reset progress
   uploadProgress.value = []
   isUploading.value = true
-  
+
   try {
     // Process directory files with relative paths
     await processAndUploadFiles(files)
@@ -933,7 +941,7 @@ const handleDirectorySelection = async (event: Event) => {
 const processAndUploadFiles = async (files: File[]) => {
   // Upload all files with their relative paths
   await uploadAllFiles(files)
-  
+
   // Refresh file list
   await refreshFiles()
   ElMessage.success(`Upload completed: ${files.length} files processed`)
@@ -945,19 +953,19 @@ const uploadAllFiles = async (files: File[]) => {
   const batchSize = 3
   let uploadedCount = 0
   let failedCount = 0
-  
+
   // Initialize progress for all files
-  files.forEach(file => {
+  files.forEach((file) => {
     uploadProgress.value.push({
       filename: file.webkitRelativePath,
       status: 'uploading',
-      percentage: 0
+      percentage: 0,
     })
   })
-  
+
   for (let i = 0; i < files.length; i += batchSize) {
     const batch = files.slice(i, i + batchSize)
-    
+
     const batchPromises = batch.map(async (file, batchIndex) => {
       const globalIndex = i + batchIndex
       try {
@@ -965,7 +973,7 @@ const uploadAllFiles = async (files: File[]) => {
         const pathParts = file.webkitRelativePath.split('/')
         const fileName = pathParts.pop()! // Remove filename
         const relativePath = pathParts.join('/') // Keep directory path
-        
+
         // Create FormData for upload
         const formData = new FormData()
         formData.append('file', file)
@@ -976,34 +984,35 @@ const uploadAllFiles = async (files: File[]) => {
         if (relativePath) {
           formData.append('relative_path', relativePath)
         }
-        
+
         // Upload the file - backend will handle directory creation
         await uploadAPI.upload(formData)
-        
+
         // Update progress
         uploadProgress.value[globalIndex].status = 'success'
         uploadProgress.value[globalIndex].percentage = 100
         uploadedCount++
-        
+
         return true
       } catch (error: any) {
         // Update progress with error
         uploadProgress.value[globalIndex].status = 'error'
-        uploadProgress.value[globalIndex].error = error.response?.data?.error || error.message || 'Upload failed'
+        uploadProgress.value[globalIndex].error =
+          error.response?.data?.error || error.message || 'Upload failed'
         failedCount++
         return false
       }
     })
-    
+
     // Wait for batch to complete
     await Promise.all(batchPromises)
-    
+
     // Small delay between batches
     if (i + batchSize < files.length) {
-      await new Promise(resolve => setTimeout(resolve, 500))
-      }
+      await new Promise((resolve) => setTimeout(resolve, 500))
     }
-  
+  }
+
   // Show final results
   if (failedCount === 0) {
     ElMessage.success(`All ${files.length} files uploaded successfully!`)
@@ -1033,21 +1042,23 @@ const showCreateDirectoryDialog = () => {
     confirmButtonText: 'Create',
     cancelButtonText: 'Cancel',
     inputPattern: /^[^\/\\]+$/,
-    inputErrorMessage: 'Folder name cannot contain slashes or backslashes'
-  }).then(async ({ value }) => {
-    if (value) {
-      // Create directory within current directory
-      const parentId = currentDirectory.value?.id
-      const newDirectory = await filesStore.createDirectory(value, parentId)
-      if (newDirectory) {
-        ElMessage.success('Folder created successfully')
-        // Refresh the current directory contents
-        await refreshFiles()
-      }
-    }
-  }).catch(() => {
-    // User cancelled
+    inputErrorMessage: 'Folder name cannot contain slashes or backslashes',
   })
+    .then(async ({ value }) => {
+      if (value) {
+        // Create directory within current directory
+        const parentId = currentDirectory.value?.id
+        const newDirectory = await filesStore.createDirectory(value, parentId)
+        if (newDirectory) {
+          ElMessage.success('Folder created successfully')
+          // Refresh the current directory contents
+          await refreshFiles()
+        }
+      }
+    })
+    .catch(() => {
+      // User cancelled
+    })
 }
 
 // Upload methods
@@ -1055,12 +1066,12 @@ const handleUpload = () => {
   if (uploadRef.value) {
     // Get the file list from the upload component
     const fileList = uploadRef.value.uploadFiles || []
-    
+
     if (fileList.length === 0) {
       ElMessage.warning('Please select files to upload.')
       return
     }
-    
+
     // Submit all files
     uploadRef.value.submit()
   }
@@ -1165,20 +1176,18 @@ const navigateToRoot = async () => {
   console.log('Breadcrumb reset to root:', breadcrumbPath.value)
 }
 
-const handleBreadcrumbClick = async (item: { id: number | null, name: string, path: string }) => {
+const handleBreadcrumbClick = async (item: { id: number | null; name: string; path: string }) => {
   if (item.id === null) {
     // Clicked on root
     await navigateToRoot()
   } else {
     // Clicked on a directory in the breadcrumb
     console.log('Navigating to breadcrumb directory:', item)
-    
+
     // Navigate to this directory - the breadcrumb will be rebuilt automatically
     await navigateToDirectory(item.id)
   }
 }
-
-
 
 // File operation methods
 const toggleFileSelection = (fileId: number, checked: boolean) => {
@@ -1202,7 +1211,7 @@ const showCopyDialog = () => {
   operationDestination.value = undefined
   copyDialogVisible.value = true
   console.log('Copy dialog opened')
-  
+
   // Load directory tree data when dialog opens
   loadDirectoryTreeData()
 }
@@ -1212,7 +1221,7 @@ const showMoveDialog = () => {
   operationDestination.value = undefined
   moveDialogVisible.value = true
   console.log('Move dialog opened')
-  
+
   // Load directory tree data when dialog opens
   loadDirectoryTreeData()
 }
@@ -1226,9 +1235,9 @@ const confirmDelete = async () => {
         confirmButtonText: 'Delete',
         cancelButtonText: 'Cancel',
         type: 'warning',
-      }
+      },
     )
-    
+
     const fileIds = Array.from(selectedFileIds.value)
     await filesStore.deleteFiles(fileIds)
     clearSelection()
@@ -1275,62 +1284,64 @@ const handlePermissionsUpdated = () => {
 const downloadFile = async (file: any) => {
   try {
     ElMessage.info(`Downloading ${file.name}...`)
-    
+
     // Use the API service to download the file
     const response = await filesAPI.download(file.id)
-    
+
     // Create a blob URL from the response
     const blob = new Blob([response.data])
     const url = window.URL.createObjectURL(blob)
-    
+
     // Create a temporary link element to trigger the download
     const link = document.createElement('a')
     link.href = url
     link.download = file.name
     link.style.display = 'none'
-    
+
     // Append to body, click, and remove
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    
+
     // Clean up the blob URL
     window.URL.revokeObjectURL(url)
-    
+
     ElMessage.success(`Successfully downloaded ${file.name}`)
   } catch (error: any) {
     console.error('Download error:', error)
-    ElMessage.error(`Download failed: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+    ElMessage.error(
+      `Download failed: ${error.response?.data?.error || error.message || 'Unknown error'}`,
+    )
   }
 }
 
 const bulkDownload = async () => {
   try {
-    const selectedFiles = Array.from(selectedFileIds.value).map(id => 
-      filteredFiles.value.find(file => file.id === id)
-    ).filter(file => file && file.item_type === 'file')
-    
+    const selectedFiles = Array.from(selectedFileIds.value)
+      .map((id) => filteredFiles.value.find((file) => file.id === id))
+      .filter((file) => file && file.item_type === 'file')
+
     if (selectedFiles.length === 0) {
       ElMessage.warning('No files selected for download')
       return
     }
-    
+
     ElMessage.info(`Downloading ${selectedFiles.length} file(s)...`)
-    
+
     // Download files one by one
     for (const file of selectedFiles) {
       if (file) {
         try {
           await downloadFile(file)
           // Small delay between downloads to avoid overwhelming the browser
-          await new Promise(resolve => setTimeout(resolve, 100))
+          await new Promise((resolve) => setTimeout(resolve, 100))
         } catch (error) {
           console.error(`Failed to download ${file.name}:`, error)
           ElMessage.error(`Failed to download ${file.name}`)
         }
       }
     }
-    
+
     ElMessage.success(`Bulk download completed`)
   } catch (error: any) {
     console.error('Bulk download error:', error)
@@ -1341,7 +1352,7 @@ const bulkDownload = async () => {
 const handleListSelectionChange = (selection: any[]) => {
   // Update selectedFileIds based on table selection
   selectedFileIds.value.clear()
-  selection.forEach(item => {
+  selection.forEach((item) => {
     selectedFileIds.value.add(item.id)
   })
 }
@@ -1351,10 +1362,10 @@ const executeOperation = async () => {
     ElMessage.warning('Please select a destination directory')
     return
   }
-  
+
   try {
     const fileIds = Array.from(selectedFileIds.value)
-    
+
     if (operationType.value === 'copy') {
       await filesStore.copyFiles(fileIds, operationDestination.value)
       copyDialogVisible.value = false
@@ -1362,17 +1373,13 @@ const executeOperation = async () => {
       await filesStore.moveFiles(fileIds, operationDestination.value)
       moveDialogVisible.value = false
     }
-    
+
     operationDestination.value = undefined
     clearSelection()
   } catch (error: any) {
     ElMessage.error(`Operation failed: ${error.message || error}`)
   }
 }
-
-
-
-
 
 // Utility methods
 const formatFileSize = (bytes: number): string => {
@@ -1387,7 +1394,11 @@ const formatDate = (dateString: string | null): string => {
   if (!dateString) return '-'
   try {
     const date = new Date(dateString)
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return (
+      date.toLocaleDateString() +
+      ' ' +
+      date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    )
   } catch {
     return '-'
   }
@@ -1397,11 +1408,11 @@ const formatDate = (dateString: string | null): string => {
 const sortByName = (a: any, b: any): number => {
   const nameA = a.name.toLowerCase()
   const nameB = b.name.toLowerCase()
-  
+
   // Directories first, then files
   if (a.item_type === 'directory' && b.item_type !== 'directory') return -1
   if (a.item_type !== 'directory' && b.item_type === 'directory') return 1
-  
+
   return nameA.localeCompare(nameB)
 }
 
@@ -1409,17 +1420,17 @@ const sortBySize = (a: any, b: any): number => {
   // Directories first (no size)
   if (a.item_type === 'directory' && b.item_type !== 'directory') return -1
   if (a.item_type !== 'directory' && b.item_type === 'directory') return 1
-  
+
   const sizeA = a.size || 0
   const sizeB = b.size || 0
-  
+
   return sizeA - sizeB
 }
 
 const sortByDate = (a: any, b: any): number => {
   const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
   const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
-  
+
   return dateA - dateB
 }
 
@@ -1430,33 +1441,44 @@ const getFileIconColor = (file: any): string => {
 
 const getVisibilityTagType = (visibility: string): string => {
   switch (visibility) {
-    case 'public': return 'success'
-    case 'group': return 'warning'
-    case 'user': return 'info'
-    case 'private': return 'danger'
-    default: return 'info'
+    case 'public':
+      return 'success'
+    case 'group':
+      return 'warning'
+    case 'user':
+      return 'info'
+    case 'private':
+      return 'danger'
+    default:
+      return 'info'
   }
 }
 
 const getPermissionTagType = (permission: string): string => {
   switch (permission) {
-    case 'read': return 'info'
-    case 'write': return 'warning'
-    case 'delete': return 'danger'
-    case 'share': return 'success'
-    case 'admin': return 'danger'
-    default: return 'info'
+    case 'read':
+      return 'info'
+    case 'write':
+      return 'warning'
+    case 'delete':
+      return 'danger'
+    case 'share':
+      return 'success'
+    case 'admin':
+      return 'danger'
+    default:
+      return 'info'
   }
 }
 
 // Lifecycle
 onMounted(async () => {
   await filesStore.fetchDirectoryTree()
-  
+
   // Check if we have a parent_id in the route query (from sidebar navigation)
   const parentId = router.currentRoute.value.query.parent_id
   console.log('FilesView mounted, parent_id:', parentId, 'route:', router.currentRoute.value)
-  
+
   if (parentId) {
     console.log('Navigating to directory from sidebar:', parentId)
     await navigateToDirectory(Number(parentId))
@@ -1473,7 +1495,7 @@ watch(
   () => router.currentRoute.value.query.parent_id,
   async (newParentId, oldParentId) => {
     console.log('Route parent_id changed:', { old: oldParentId, new: newParentId })
-    
+
     if (newParentId && newParentId !== oldParentId) {
       // Navigate to specific directory
       console.log('Route parent_id changed, navigating to directory:', newParentId)
@@ -1483,7 +1505,7 @@ watch(
       console.log('Route parent_id removed, navigating to root')
       await navigateToRoot()
     }
-  }
+  },
 )
 </script>
 
@@ -1520,8 +1542,6 @@ watch(
 .header-actions .el-dropdown {
   margin-right: 0;
 }
-
-
 
 .bulk-operations-toolbar {
   display: flex;
@@ -1586,11 +1606,11 @@ watch(
     align-items: stretch;
     gap: 12px;
   }
-  
+
   .search-bar .el-input {
     width: 100% !important;
   }
-  
+
   .view-toggle {
     align-self: center;
   }
@@ -1779,8 +1799,6 @@ watch(
   margin: 0;
   font-size: 16px;
 }
-
-
 
 /* Upload Dialog Styles */
 .upload-area {
@@ -2015,12 +2033,4 @@ watch(
   border-color: #409eff;
   box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
 }
-
-
-
-
-
-
-
-
 </style>

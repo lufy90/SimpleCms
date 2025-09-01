@@ -6,19 +6,19 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/files'
+      redirect: '/files',
     },
     {
       path: '/login',
       name: 'Login',
       component: () => import('@/views/LoginView.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false },
     },
     {
       path: '/register',
       name: 'Register',
       component: () => import('@/views/RegisterView.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false },
     },
     {
       path: '/',
@@ -29,87 +29,99 @@ const router = createRouter({
           path: 'files',
           name: 'Files',
           component: () => import('@/views/FilesView.vue'),
-          meta: { title: 'Files' }
+          meta: { title: 'Files' },
         },
         {
           path: 'files/:id',
           name: 'FileDetails',
           component: () => import('@/views/FileDetailsView.vue'),
-          meta: { title: 'File Details' }
+          meta: { title: 'File Details' },
         },
         {
           path: 'upload',
           name: 'Upload',
           component: () => import('@/views/UploadView.vue'),
-          meta: { title: 'Upload Files' }
+          meta: { title: 'Upload Files' },
         },
         {
           path: 'search',
           name: 'Search',
           component: () => import('@/views/SearchView.vue'),
-          meta: { title: 'Search Files' }
+          meta: { title: 'Search Files' },
         },
         {
           path: 'permissions',
           name: 'Permissions',
           component: () => import('@/views/PermissionsView.vue'),
-          meta: { title: 'Permissions' }
+          meta: { title: 'Permissions' },
         },
         {
           path: 'permission-requests',
           name: 'PermissionRequests',
           component: () => import('@/views/PermissionRequestsView.vue'),
-          meta: { title: 'Permission Requests' }
+          meta: { title: 'Permission Requests' },
         },
         {
           path: 'tags',
           name: 'Tags',
           component: () => import('@/views/TagsView.vue'),
-          meta: { title: 'File Tags' }
+          meta: { title: 'File Tags' },
         },
         {
           path: 'access-logs',
           name: 'AccessLogs',
           component: () => import('@/views/AccessLogsView.vue'),
-          meta: { title: 'Access Logs' }
+          meta: { title: 'Access Logs' },
         },
         {
           path: 'deleted-files',
           name: 'DeletedFiles',
           component: () => import('@/views/DeletedFilesView.vue'),
-          meta: { title: 'Dustbin' }
+          meta: { title: 'Dustbin' },
+        },
+        {
+          path: 'shared-to-me',
+          name: 'SharedToMe',
+          component: () => import('@/views/SharedToMeView.vue'),
+          meta: { title: 'Files Shared to Me' },
+        },
+        {
+          path: 'shared-to-my-group',
+          name: 'SharedToMyGroup',
+          component: () => import('@/views/SharedToMyGroupView.vue'),
+          meta: { title: 'Files Shared to My Group' },
         },
         {
           path: 'profile',
           name: 'Profile',
           component: () => import('@/views/ProfileView.vue'),
-          meta: { title: 'User Profile' }
+          meta: { title: 'User Profile' },
         },
         {
           path: 'settings',
           name: 'Settings',
           component: () => import('@/views/SettingsView.vue'),
-          meta: { title: 'Settings' }
-        }
-      ]
+          meta: { title: 'Settings' },
+        },
+      ],
     },
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
-      component: () => import('@/views/NotFoundView.vue')
-    }
-  ]
+      component: () => import('@/views/NotFoundView.vue'),
+    },
+  ],
 })
 
 // Navigation guard
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  
+
   // Initialize auth state if not already done
   if (!authStore.isAuthenticated && authStore.user === null) {
     await authStore.init()
   }
-  
+
   if (to.meta.requiresAuth === false) {
     // Public routes (login, register)
     if (authStore.isAuthenticated) {

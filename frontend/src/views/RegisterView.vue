@@ -130,7 +130,11 @@ const registerRules: FormRules = {
   username: [
     { required: true, message: 'Please enter username', trigger: 'blur' },
     { min: 3, message: 'Username must be at least 3 characters', trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9_]+$/, message: 'Username can only contain letters, numbers, and underscores', trigger: 'blur' },
+    {
+      pattern: /^[a-zA-Z0-9_]+$/,
+      message: 'Username can only contain letters, numbers, and underscores',
+      trigger: 'blur',
+    },
   ],
   email: [
     { required: true, message: 'Please enter email', trigger: 'blur' },
@@ -188,7 +192,9 @@ const handleRegister = async () => {
 onMounted(() => {
   // Auto-focus username field
   setTimeout(() => {
-    const usernameInput = document.querySelector('input[placeholder="Username"]') as HTMLInputElement
+    const usernameInput = document.querySelector(
+      'input[placeholder="Username"]',
+    ) as HTMLInputElement
     if (usernameInput) {
       usernameInput.focus()
     }
@@ -290,11 +296,11 @@ onMounted(() => {
     padding: 32px 24px;
     margin: 20px;
   }
-  
+
   .logo h1 {
     font-size: 24px;
   }
-  
+
   .subtitle {
     font-size: 14px;
   }
