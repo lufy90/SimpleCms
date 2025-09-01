@@ -148,7 +148,7 @@
         v-if="filteredFiles.length === 0 && !isLoading"
         description="No files found"
       >
-        <el-button type="primary" @click="openUpload">
+        <el-button type="primary" @click="triggerFileSelection">
           Upload Files
         </el-button>
       </el-empty>
