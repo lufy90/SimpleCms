@@ -5,6 +5,8 @@ import os
 import mimetypes
 from pathlib import Path
 from datetime import timezone as dt_timezone
+import uuid
+import hashlib
 
 
 class FileSystemItemManager(models.Manager):
@@ -22,8 +24,82 @@ class FileSystemItemManager(models.Manager):
         return super().get_queryset().filter(is_deleted=True)
 
 
+class FileStorage(models.Model):
+    """Physical file storage with UUID naming"""
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    original_filename = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)  # upload_directory/uuid.ext
+    file_size = models.BigIntegerField()
+    mime_type = models.CharField(max_length=100)
+    extension = models.CharField(max_length=20)
+    checksum = models.CharField(max_length=64)  # SHA256 for integrity
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['uuid']),
+            models.Index(fields=['original_filename']),
+            models.Index(fields=['mime_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.original_filename} ({self.uuid})"
+    
+    def get_file_path(self):
+        """Get the absolute file system path"""
+        from django.conf import settings
+        return os.path.join(settings.FILE_MANAGER_ROOT, self.file_path)
+    
+    def calculate_checksum(self):
+        """Calculate SHA256 checksum of the file"""
+        try:
+            file_path = self.get_file_path()
+            if os.path.exists(file_path):
+                sha256_hash = hashlib.sha256()
+                with open(file_path, "rb") as f:
+                    for chunk in iter(lambda: f.read(4096), b""):
+                        sha256_hash.update(chunk)
+                return sha256_hash.hexdigest()
+        except (OSError, FileNotFoundError):
+            pass
+        return None
+    
+    def verify_checksum(self):
+        """Verify file integrity by comparing stored vs calculated checksum"""
+        if not self.checksum:
+            return False
+        calculated = self.calculate_checksum()
+        return calculated == self.checksum if calculated else False
+
+
+class FileThumbnail(models.Model):
+    """Thumbnail storage for files"""
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    original_file = models.ForeignKey(FileStorage, on_delete=models.CASCADE, related_name='thumbnails')
+    thumbnail_path = models.CharField(max_length=500)  # upload_directory/thumbnails/uuid.ext
+    thumbnail_size = models.CharField(max_length=20)  # e.g., "150x150", "300x300"
+    width = models.IntegerField()
+    height = models.IntegerField()
+    file_size = models.BigIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['original_file']),
+            models.Index(fields=['thumbnail_size']),
+        ]
+    
+    def __str__(self):
+        return f"{self.thumbnail_size} thumbnail for {self.original_file.original_filename}"
+    
+    def get_thumbnail_path(self):
+        """Get the absolute thumbnail file path"""
+        from django.conf import settings
+        return os.path.join(settings.FILE_MANAGER_ROOT, self.thumbnail_path)
+
+
 class FileSystemItem(models.Model):
-    """Base model for both files and directories"""
+    """Logical file system structure (separated from physical storage)"""
     ITEM_TYPES = [
         ('file', 'File'),
         ('directory', 'Directory'),
@@ -37,20 +113,18 @@ class FileSystemItem(models.Model):
     ]
     
     name = models.CharField(max_length=255)
-    path = models.CharField(max_length=1000, unique=True)  # Absolute path (internal use only)
-    relative_path = models.CharField(max_length=1000, blank=True)  # Relative path for display
     item_type = models.CharField(max_length=10, choices=ITEM_TYPES)
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children')
     
-    # File-specific fields
-    size = models.BigIntegerField(null=True, blank=True)  # File size in bytes
-    mime_type = models.CharField(max_length=100, null=True, blank=True)
-    extension = models.CharField(max_length=20, null=True, blank=True)
+    # Physical storage reference (NEW)
+    storage = models.OneToOneField(FileStorage, on_delete=models.CASCADE, null=True, blank=True)
     
-    # Metadata
+    # Thumbnail support (NEW)
+    thumbnail = models.OneToOneField(FileThumbnail, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    last_modified = models.DateTimeField(null=True, blank=True)  # File system last modified time
     
     # Ownership and visibility
     owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
@@ -71,63 +145,91 @@ class FileSystemItem(models.Model):
     class Meta:
         ordering = ['name']
         indexes = [
-            models.Index(fields=['path']),
-            models.Index(fields=['relative_path']),
             models.Index(fields=['item_type']),
             models.Index(fields=['parent']),
             models.Index(fields=['visibility']),
             models.Index(fields=['owner']),
             models.Index(fields=['is_deleted']),
         ]
+        # Note: SQLite doesn't handle NULL values in unique constraints properly
+        # We'll handle uniqueness validation in the model's clean() method
     
     def __str__(self):
         status = " [DELETED]" if self.is_deleted else ""
         return f"{self.name} ({self.item_type}){status}"
     
+    def clean(self):
+        """Custom validation for directory uniqueness"""
+        from django.core.exceptions import ValidationError
+        
+        if self.item_type == 'directory':
+            # Check for duplicate directory names within the same parent and owner
+            existing = FileSystemItem.objects.filter(
+                name=self.name,
+                parent=self.parent,
+                item_type='directory',
+                owner=self.owner,
+                is_deleted=False
+            ).exclude(pk=self.pk)
+            
+            if existing.exists():
+                raise ValidationError({
+                    'name': f'A directory with this name already exists in this location for this user.'
+                })
+    
+    def save(self, *args, **kwargs):
+        """Override save to call clean()"""
+        self.clean()
+        super().save(*args, **kwargs)
+    
     def get_absolute_path(self):
         """Get the absolute file system path (internal use only)"""
-        return self.path
+        if self.storage:
+            return self.storage.get_file_path()
+        return None
     
     def get_relative_path(self):
         """Get path relative to the root directory"""
-        if self.relative_path:
-            return self.relative_path
         if self.parent:
             return os.path.join(self.parent.get_relative_path(), self.name)
         return self.name
     
     def get_display_path(self):
         """Get a safe display path (relative or just filename)"""
-        if self.relative_path:
-            return self.relative_path
-        return self.name
+        return self.get_relative_path()
     
     def get_file_info(self):
         """Get detailed file information"""
-        if self.item_type == 'file':
+        if self.item_type == 'file' and self.storage:
             try:
-                stat = os.stat(self.path)
-                return {
-                    'size': stat.st_size,
-                    'created': stat.st_ctime,
-                    'modified': stat.st_mtime,
-                    'accessed': stat.st_atime,
-                    'permissions': oct(stat.st_mode)[-3:],
-                }
+                file_path = self.storage.get_file_path()
+                if os.path.exists(file_path):
+                    stat = os.stat(file_path)
+                    return {
+                        'size': stat.st_size,
+                        'created': stat.st_ctime,
+                        'modified': stat.st_mtime,
+                        'accessed': stat.st_atime,
+                        'permissions': oct(stat.st_mode)[-3:],
+                    }
             except (OSError, FileNotFoundError):
-                return None
+                pass
         return None
     
     def update_from_filesystem(self):
         """Update model from actual file system"""
-        if os.path.exists(self.path):
-            stat = os.stat(self.path)
-            self.last_modified = timezone.datetime.fromtimestamp(stat.st_mtime, tz=dt_timezone.utc)
+        if self.storage and os.path.exists(self.storage.get_file_path()):
+            stat = os.stat(self.storage.get_file_path())
+            self.storage.last_modified = timezone.datetime.fromtimestamp(stat.st_mtime, tz=dt_timezone.utc)
             
             if self.item_type == 'file':
-                self.size = stat.st_size
-                self.mime_type, _ = mimetypes.guess_type(self.path)
-                self.extension = Path(self.name).suffix.lower()
+                self.storage.file_size = stat.st_size
+                self.storage.mime_type, _ = mimetypes.guess_type(self.storage.get_file_path())
+                self.storage.extension = Path(self.storage.original_filename).suffix.lower()
+                
+                # Update checksum
+                self.storage.checksum = self.storage.calculate_checksum()
+                self.storage.save()
             
             self.save()
     
@@ -222,14 +324,28 @@ class FileSystemItem(models.Model):
     
     def hard_delete(self):
         """Permanently delete the file (physical deletion)"""
-        # Remove from file system
         try:
-            if os.path.exists(self.path):
-                if self.item_type == 'file':
-                    os.remove(self.path)
-                elif self.item_type == 'directory':
-                    import shutil
-                    shutil.rmtree(self.path)
+            if self.item_type == 'file' and self.storage:
+                # For files, delete physical file and storage
+                file_path = self.storage.get_file_path()
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                
+                # Delete thumbnails
+                for thumb in self.storage.thumbnails.all():
+                    thumb_path = thumb.get_thumbnail_path()
+                    if os.path.exists(thumb_path):
+                        os.remove(thumb_path)
+                    thumb.delete()
+                
+                # Delete storage record
+                self.storage.delete()
+            elif self.item_type == 'directory':
+                # For directories, recursively delete all children first
+                # This ensures we clean up any files that might have storage
+                children = self.get_children()
+                for child in children:
+                    child.hard_delete()
         except (OSError, FileNotFoundError):
             pass
         

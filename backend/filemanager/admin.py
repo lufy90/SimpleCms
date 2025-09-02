@@ -3,27 +3,89 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import (
-    FileSystemItem, FileTag, FileTagRelation, FileAccessLog, 
+    FileSystemItem, FileStorage, FileThumbnail, FileTag, FileTagRelation, FileAccessLog, 
     FileAccessPermission, FilePermissionRequest
 )
 from django.utils import timezone
 
 
+@admin.register(FileStorage)
+class FileStorageAdmin(admin.ModelAdmin):
+    list_display = ['uuid', 'original_filename', 'file_size_display', 'mime_type', 'extension', 'created_at']
+    list_filter = ['mime_type', 'extension', 'created_at']
+    search_fields = ['original_filename', 'uuid']
+    readonly_fields = ['uuid', 'created_at', 'checksum']
+    list_per_page = 50
+    
+    fieldsets = (
+        ('File Information', {
+            'fields': ('uuid', 'original_filename', 'file_path')
+        }),
+        ('File Details', {
+            'fields': ('file_size', 'mime_type', 'extension', 'checksum'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def file_size_display(self, obj):
+        if obj.file_size:
+            if obj.file_size < 1024:
+                return f"{obj.file_size} B"
+            elif obj.file_size < 1024 * 1024:
+                return f"{obj.file_size / 1024:.1f} KB"
+            elif obj.file_size < 1024 * 1024 * 1024:
+                return f"{obj.file_size / (1024 * 1024):.1f} MB"
+            else:
+                return f"{obj.file_size / (1024 * 1024 * 1024):.1f} GB"
+        return "-"
+    file_size_display.short_description = "Size"
+
+
+@admin.register(FileThumbnail)
+class FileThumbnailAdmin(admin.ModelAdmin):
+    list_display = ['uuid', 'original_file', 'thumbnail_size', 'dimensions', 'file_size_display', 'created_at']
+    list_filter = ['thumbnail_size', 'created_at']
+    search_fields = ['uuid', 'original_file__original_filename']
+    readonly_fields = ['uuid', 'created_at']
+    list_per_page = 50
+    
+    def dimensions(self, obj):
+        return f"{obj.width} × {obj.height}"
+    dimensions.short_description = "Dimensions"
+    
+    def file_size_display(self, obj):
+        if obj.file_size:
+            if obj.file_size < 1024:
+                return f"{obj.file_size} B"
+            elif obj.file_size < 1024 * 1024:
+                return f"{obj.file_size / 1024:.1f} KB"
+            elif obj.file_size < 1024 * 1024 * 1024:
+                return f"{obj.file_size / (1024 * 1024):.1f} MB"
+            else:
+                return f"{obj.file_size / (1024 * 1024 * 1024):.1f} GB"
+        return "-"
+    file_size_display.short_description = "Size"
+
+
 @admin.register(FileSystemItem)
 class FileSystemItemAdmin(admin.ModelAdmin):
-    list_display = ['name', 'item_type', 'size_display', 'owner', 'visibility_display', 'last_modified', 'path_preview']
-    list_filter = ['item_type', 'visibility', 'owner', 'created_at', 'last_modified']
-    search_fields = ['name', 'path']
-    readonly_fields = ['created_at', 'updated_at', 'size', 'mime_type', 'extension']
+    list_display = ['name', 'item_type', 'size_display', 'owner', 'visibility_display', 'created_at', 'storage_info']
+    list_filter = ['item_type', 'visibility', 'owner', 'created_at']
+    search_fields = ['name']
+    readonly_fields = ['created_at', 'updated_at', 'storage_info', 'thumbnail_info']
     list_per_page = 50
     filter_horizontal = ['shared_users', 'shared_groups']
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'path', 'item_type', 'parent')
+            'fields': ('name', 'item_type', 'parent')
         }),
-        ('File Details', {
-            'fields': ('size', 'mime_type', 'extension', 'last_modified'),
+        ('Storage', {
+            'fields': ('storage', 'thumbnail'),
             'classes': ('collapse',)
         }),
         ('Metadata', {
@@ -36,15 +98,17 @@ class FileSystemItemAdmin(admin.ModelAdmin):
     )
     
     def size_display(self, obj):
-        if obj.size:
-            if obj.size < 1024:
-                return f"{obj.size} B"
-            elif obj.size < 1024 * 1024:
-                return f"{obj.size / 1024:.1f} KB"
-            elif obj.size < 1024 * 1024 * 1024:
-                return f"{obj.size / (1024 * 1024):.1f} MB"
-            else:
-                return f"{obj.size / (1024 * 1024 * 1024):.1f} GB"
+        if obj.storage:
+            size = obj.storage.file_size
+            if size:
+                if size < 1024:
+                    return f"{size} B"
+                elif size < 1024 * 1024:
+                    return f"{size / 1024:.1f} KB"
+                elif size < 1024 * 1024 * 1024:
+                    return f"{size / (1024 * 1024):.1f} MB"
+                else:
+                    return f"{size / (1024 * 1024 * 1024):.1f} GB"
         return "-"
     size_display.short_description = "Size"
     
@@ -58,16 +122,22 @@ class FileSystemItemAdmin(admin.ModelAdmin):
         return obj.get_visibility_display()
     visibility_display.short_description = "Visibility"
     
-    def path_preview(self, obj):
-        if len(obj.path) > 50:
-            return f"{obj.path[:47]}..."
-        return obj.path
-    path_preview.short_description = "Path"
+    def storage_info(self, obj):
+        if obj.storage:
+            return f"{obj.storage.original_filename} ({obj.storage.extension})"
+        return "-"
+    storage_info.short_description = "Storage"
+    
+    def thumbnail_info(self, obj):
+        if obj.thumbnail:
+            return f"{obj.thumbnail.thumbnail_size} ({obj.thumbnail.width}×{obj.thumbnail.height})"
+        return "No thumbnail"
+    thumbnail_info.short_description = "Thumbnail"
     
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('owner', 'parent').prefetch_related('shared_users', 'shared_groups')
+        return super().get_queryset(request).select_related('owner', 'parent', 'storage', 'thumbnail').prefetch_related('shared_users', 'shared_groups')
     
-    actions = ['mark_public', 'mark_user', 'mark_group', 'mark_private', 'refresh_metadata']
+    actions = ['mark_public', 'mark_user', 'mark_group', 'mark_private']
     
     def mark_public(self, request, queryset):
         updated = queryset.update(visibility='public')
@@ -88,17 +158,6 @@ class FileSystemItemAdmin(admin.ModelAdmin):
         updated = queryset.update(visibility='private')
         self.message_user(request, f"{updated} items marked as private.")
     mark_private.short_description = "Mark selected items as private"
-    
-    def refresh_metadata(self, request, queryset):
-        updated = 0
-        for item in queryset:
-            try:
-                item.update_from_filesystem()
-                updated += 1
-            except Exception:
-                pass
-        self.message_user(request, f"Metadata refreshed for {updated} items.")
-    refresh_metadata.short_description = "Refresh metadata from filesystem"
 
 
 @admin.register(FileAccessPermission)

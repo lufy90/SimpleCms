@@ -17,7 +17,7 @@ from pathlib import Path
 
 from .models import (
     FileSystemItem, FileTag, FileTagRelation, FileAccessLog, 
-    FileAccessPermission, FilePermissionRequest
+    FileAccessPermission, FilePermissionRequest, FileStorage, FileThumbnail
 )
 from .serializers import (
     FileSystemItemSerializer, FileSystemItemCreateSerializer, FileSystemItemUpdateSerializer,
@@ -121,7 +121,11 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         if not file_item.can_access(request.user, 'read'):
             return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
         
-        if not os.path.exists(file_item.path):
+        if not file_item.storage:
+            return Response({'error': 'File storage not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        file_path = file_item.storage.get_file_path()
+        if not os.path.exists(file_path):
             return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
         
         # Log the download
@@ -134,7 +138,7 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         )
         
         try:
-            response = FileResponse(open(file_item.path, 'rb'))
+            response = FileResponse(open(file_path, 'rb'))
             response['Content-Disposition'] = f'attachment; filename="{file_item.name}"'
             return response
         except Exception as e:
@@ -363,24 +367,17 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
                 except FileSystemItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
             
-            # Build the full path
+            # Check if directory already exists in database
             if parent_directory:
-                full_path = os.path.join(parent_directory.path, name)
+                if FileSystemItem.objects.filter(parent=parent_directory, name=name, item_type='directory').exists():
+                    return Response({'error': 'Directory already exists'}, status=status.HTTP_409_CONFLICT)
             else:
-                # Root level directory - use get_safe_path for security
-                full_path = file_path_manager.get_safe_path(name)
+                if FileSystemItem.objects.filter(parent__isnull=True, name=name, item_type='directory').exists():
+                    return Response({'error': 'Directory already exists'}, status=status.HTTP_409_CONFLICT)
             
-            # Check if directory already exists
-            if os.path.exists(full_path):
-                return Response({'error': 'Directory already exists'}, status=status.HTTP_409_CONFLICT)
-            
-            # Create the directory on filesystem
-            os.makedirs(full_path, exist_ok=True)
-            
-            # Create database record
+            # Create database record (directories don't need physical storage)
             directory_item = FileSystemItem.objects.create(
                 name=name,
-                path=full_path,
                 item_type='directory',
                 parent=parent_directory,
                 owner=request.user,
@@ -443,7 +440,7 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
             'parent': {
                 'id': file_item.id,
                 'name': file_item.name,
-                'relative_path': file_item.get_relative_path()
+                'item_type': file_item.item_type
             },
             'children': serializer.data,
             'total_count': len(serializer.data)
@@ -517,36 +514,108 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         """Recursively scan directory and add items to database"""
         scanned_count = 0
         
-        for root, dirs, files in os.walk(directory_path):
-            # Add directories
-            for dir_name in dirs:
-                dir_path = os.path.join(root, dir_name)
-                if not FileSystemItem.objects.filter(path=dir_path).exists():
-                    FileSystemItem.objects.create(
-                        name=dir_name,
-                        path=dir_path,
-                        item_type='directory',
-                        owner=user
-                    )
-                    scanned_count += 1
-            
-            # Add files
-            for file_name in files:
-                file_path = os.path.join(root, file_name)
-                if not FileSystemItem.objects.filter(path=file_path).exists():
-                    file_item = FileSystemItem.objects.create(
-                        name=file_name,
-                        path=file_path,
-                        item_type='file',
-                        owner=user
-                    )
+        try:
+            # Get the relative path from the scan root
+            scan_root = directory_path
+            for root, dirs, files in os.walk(directory_path):
+                # Calculate relative path from scan root
+                rel_path = os.path.relpath(root, scan_root) if root != scan_root else ""
+                
+                # Add directories
+                for dir_name in dirs:
+                    # Check if directory already exists by name and parent
+                    parent_dir = None
+                    if rel_path:
+                        # Find parent directory in database
+                        parent_parts = rel_path.split(os.sep)
+                        current_parent = None
+                        for part in parent_parts:
+                            if current_parent:
+                                current_parent = FileSystemItem.objects.filter(
+                                    parent=current_parent, 
+                                    name=part, 
+                                    item_type='directory'
+                                ).first()
+                            else:
+                                current_parent = FileSystemItem.objects.filter(
+                                    parent__isnull=True, 
+                                    name=part, 
+                                    item_type='directory'
+                                ).first()
+                        parent_dir = current_parent
                     
-                    try:
-                        file_item.update_from_filesystem()
-                    except Exception as e:
-                        print(f'Error updating file metadata: {e}')
+                    if not FileSystemItem.objects.filter(parent=parent_dir, name=dir_name, item_type='directory').exists():
+                        FileSystemItem.objects.create(
+                            name=dir_name,
+                            item_type='directory',
+                            parent=parent_dir,
+                            owner=user
+                        )
+                        scanned_count += 1
+                
+                # Add files
+                for file_name in files:
+                    file_path = os.path.join(root, file_name)
                     
-                    scanned_count += 1
+                    # Find parent directory
+                    parent_dir = None
+                    if rel_path:
+                        parent_parts = rel_path.split(os.sep)
+                        current_parent = None
+                        for part in parent_parts:
+                            if current_parent:
+                                current_parent = FileSystemItem.objects.filter(
+                                    parent=current_parent, 
+                                    name=part, 
+                                    item_type='directory'
+                                ).first()
+                            else:
+                                current_parent = FileSystemItem.objects.filter(
+                                    parent__isnull=True, 
+                                    name=part, 
+                                    item_type='directory'
+                                ).first()
+                        parent_dir = current_parent
+                    
+                    # Check if file already exists by name and parent
+                    if not FileSystemItem.objects.filter(parent=parent_dir, name=file_name, item_type='file').exists():
+                        # Create FileStorage record
+                        file_info = file_path_manager.get_file_info(file_path)
+                        if file_info:
+                            # Generate UUID filename and copy file
+                            new_uuid_filename = file_path_manager.generate_uuid_filename(file_name)
+                            new_file_path, new_relative_path = file_path_manager.get_upload_path(file_name, rel_path)
+                            
+                            # Copy file to new location
+                            import shutil
+                            shutil.copy2(file_path, new_file_path)
+                            
+                            # Create FileStorage record
+                            file_storage = FileStorage.objects.create(
+                                original_filename=file_name,
+                                file_path=new_relative_path,
+                                file_size=file_info['size'],
+                                mime_type=file_info['mime_type'],
+                                extension=file_info['extension'],
+                                checksum=''  # Will be calculated below
+                            )
+                            
+                            # Calculate and update checksum
+                            file_storage.checksum = file_storage.calculate_checksum()
+                            file_storage.save()
+                            
+                            # Create FileSystemItem record
+                            file_item = FileSystemItem.objects.create(
+                                name=file_name,
+                                item_type='file',
+                                parent=parent_dir,
+                                storage=file_storage,
+                                owner=user
+                            )
+                            
+                            scanned_count += 1
+        except Exception as e:
+            print(f'Error scanning directory {directory_path}: {e}')
         
         return scanned_count
     
@@ -749,7 +818,7 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
 
 
 class FileUploadView(generics.CreateAPIView):
-    """Handle file uploads"""
+    """Handle file uploads with UUID-based storage"""
     parser_classes = (MultiPartParser, FormParser)
     permission_classes = [IsAuthenticated]
     serializer_class = FileUploadSerializer
@@ -782,45 +851,68 @@ class FileUploadView(generics.CreateAPIView):
             final_parent_directory = parent_directory
             if relative_path:
                 # Create directory structure for the relative path
-                final_parent_directory = self._ensure_directory_structure(
+                # Use safe method to handle concurrent uploads with database constraints
+                final_parent_directory = self._get_or_create_directory_path_safe(
                     relative_path, parent_directory, request.user, visibility
                 )
             
-            # Get safe upload path using the path manager
-            if final_parent_directory:
-                file_path = file_path_manager.get_upload_path(uploaded_file.name, final_parent_directory.get_relative_path())
-            else:
-                # Upload to root
-                file_path = file_path_manager.get_upload_path(uploaded_file.name, '')
+            # Get safe upload path using the path manager (now returns tuple)
+            # In the new UUID-based system, all files go to the root upload directory
+            # The relative_path is only used for database organization
+            file_path, relative_path_for_db = file_path_manager.get_upload_path(uploaded_file.name, relative_path)
+            
+            # Extract just the UUID filename for storage in FileStorage.file_path
+            # The file_path field should only contain the filename, not the full relative path
+            uuid_filename = os.path.basename(file_path)
             
             # Save file to destination
             with open(file_path, 'wb+') as destination:
                 for chunk in uploaded_file.chunks():
                     destination.write(chunk)
             
-            # Create database record
+            # Get file information
+            file_info = file_path_manager.get_file_info(file_path)
+            
+            # Create FileStorage record
+            file_storage = FileStorage.objects.create(
+                original_filename=uploaded_file.name,
+                file_path=uuid_filename,  # Store only the UUID filename, not the full relative path
+                file_size=file_info['size'],
+                mime_type=file_info['mime_type'],
+                extension=file_info['extension'],
+                checksum=file_info.get('checksum', '')  # Will be calculated below
+            )
+            
+            # Calculate and update checksum
+            file_storage.checksum = file_storage.calculate_checksum()
+            file_storage.save()
+            
+            # Create FileSystemItem record
             file_item = FileSystemItem.objects.create(
                 name=uploaded_file.name,
-                path=file_path,  # Absolute path for internal use
-                relative_path=file_path_manager.get_relative_path(file_path),  # Relative path for display
                 item_type='file',
                 parent=final_parent_directory,
+                storage=file_storage,
                 owner=request.user,
                 visibility=visibility
             )
             
+            # Generate thumbnail if it's an image
+            if file_info['mime_type'].startswith('image/'):
+                thumbnail = self._generate_thumbnail(file_storage)
+                if thumbnail:
+                    file_item.thumbnail = thumbnail
+                    file_item.save()
+            
             # Add shared users if visibility is 'user'
             if visibility == 'user' and shared_users:
-                users = User.objects.filter(id__in=shared_users)  # Fixed: was Group.objects
+                users = User.objects.filter(id__in=shared_users)
                 file_item.shared_users.set(users)
             
             # Add shared groups if visibility is 'group'
             if visibility == 'group' and shared_groups:
                 groups = Group.objects.filter(id__in=shared_groups)
-                file_item.shared_users.set(groups)
-            
-            # Update file metadata
-            file_item.update_from_filesystem()
+                file_item.shared_groups.set(groups)
             
             # Add tags
             for tag_name in tags:
@@ -841,6 +933,64 @@ class FileUploadView(generics.CreateAPIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+    def _generate_thumbnail(self, file_storage):
+        """Generate thumbnail for image files"""
+        try:
+            from PIL import Image
+            import io
+            
+            # Open the image
+            image_path = file_storage.get_file_path()
+            with Image.open(image_path) as img:
+                # Convert to RGB if necessary
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    img = img.convert('RGB')
+                
+                # Generate different thumbnail sizes
+                thumbnail_sizes = [
+                    ('150x150', 150, 150),
+                    ('300x300', 300, 300),
+                    ('600x600', 600, 600)
+                ]
+                
+                # Create the first thumbnail (150x150) as default
+                size_name, width, height = thumbnail_sizes[0]
+                
+                # Create thumbnail
+                img.thumbnail((width, height), Image.Resampling.LANCZOS)
+                
+                # Save thumbnail
+                thumbnail_path, relative_path_for_db = file_path_manager.get_thumbnail_path(
+                    str(file_storage.uuid), size_name, file_storage.extension
+                )
+                
+                # Save thumbnail to filesystem
+                img.save(thumbnail_path, 'JPEG', quality=85)
+                
+                # Get thumbnail file info
+                thumb_info = file_path_manager.get_file_info(thumbnail_path)
+                
+                # Create FileThumbnail record
+                thumbnail = FileThumbnail.objects.create(
+                    original_file=file_storage,
+                    thumbnail_path=relative_path_for_db,
+                    thumbnail_size=size_name,
+                    width=img.width,
+                    height=img.height,
+                    file_size=thumb_info['size']
+                )
+                
+                return thumbnail
+                
+        except ImportError:
+            # PIL not available, skip thumbnail generation
+            pass
+        except Exception as e:
+            # Log error but don't fail the upload
+            print(f"Thumbnail generation failed: {e}")
+        
+        return None
+    
     def _get_client_ip(self, request):
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
@@ -849,60 +999,91 @@ class FileUploadView(generics.CreateAPIView):
             ip = request.META.get('REMOTE_ADDR')
         return ip
     
-    def _ensure_directory_structure(self, relative_path, parent_directory, user, visibility):
-        """Ensure directory structure exists, creating directories if necessary"""
+
+    
+    def _find_deepest_existing_directory(self, start_parent, path_parts):
+        """Find the deepest existing directory in a path without creating anything"""
+        current = start_parent
+        for part in path_parts:
+            if current:
+                next_dir = FileSystemItem.objects.filter(
+                    name=part,
+                    parent=current,
+                    item_type='directory'
+                ).first()
+                if next_dir:
+                    current = next_dir
+                else:
+                    break  # Stop at first missing directory
+            else:
+                break
+        
+        return current
+    
+    def _get_or_create_directory_path_safe(self, relative_path, parent_directory, user, visibility):
+        """Get or create directory path with database-level safety
+        
+        This method handles race conditions by using get_or_create with proper
+        error handling. It ensures that multiple concurrent uploads to the same
+        directory path will not create duplicate directories.
+        """
+        from django.core.exceptions import ValidationError
+        from django.db import IntegrityError, transaction
+        
         if not relative_path:
             return parent_directory
         
-        path_parts = relative_path.split('/')
+        path_parts = [part for part in relative_path.split('/') if part]
+        if not path_parts:
+            return parent_directory
+        
         current_parent = parent_directory
         
         for part in path_parts:
-            if not part:  # Skip empty parts
-                continue
-            
-            # Check if directory already exists
-            existing_dir = None
-            if current_parent:
-                existing_dir = FileSystemItem.objects.filter(
-                    name=part,
-                    parent=current_parent,
-                    item_type='directory'
-                ).first()
-            else:
-                existing_dir = FileSystemItem.objects.filter(
-                    name=part,
-                    parent__isnull=True,
-                    item_type='directory'
-                ).first()
-            
-            if not existing_dir:
-                # Create the directory
-                if current_parent:
-                    dir_path = file_path_manager.get_create_path(part, current_parent.get_relative_path())
-                else:
-                    dir_path = file_path_manager.get_create_path(part, '')
-                
-                file_path_manager.ensure_directory_exists(dir_path)
-                
-                existing_dir = FileSystemItem.objects.create(
-                    name=part,
-                    path=dir_path,
-                    relative_path=file_path_manager.get_relative_path(dir_path),
-                    item_type='directory',
-                    parent=current_parent,
-                    owner=user,
-                    visibility=visibility
-                )
+            # Use get_or_create with atomic transaction to prevent race conditions
+            with transaction.atomic():
+                try:
+                    # First try to get existing directory
+                    existing_dir = FileSystemItem.objects.get(
+                        name=part,
+                        parent=current_parent,
+                        item_type='directory',
+                        owner=user,
+                        is_deleted=False
+                    )
+                except FileSystemItem.DoesNotExist:
+                    # Directory doesn't exist, create it
+                    try:
+                        existing_dir = FileSystemItem.objects.create(
+                            name=part,
+                            parent=current_parent,
+                            item_type='directory',
+                            owner=user,
+                            visibility=visibility
+                        )
+                    except ValidationError:
+                        # Another thread created it between our check and create
+                        # Try to get it again
+                        existing_dir = FileSystemItem.objects.get(
+                            name=part,
+                            parent=current_parent,
+                            item_type='directory',
+                            owner=user,
+                            is_deleted=False
+                        )
+                    except IntegrityError:
+                        # Database constraint violation, try to get existing
+                        existing_dir = FileSystemItem.objects.get(
+                            name=part,
+                            parent=current_parent,
+                            item_type='directory',
+                            owner=user,
+                            is_deleted=False
+                        )
             
             current_parent = existing_dir
         
         return current_parent
-
-
-# DirectoryUploadView removed - functionality now integrated into FileUploadView
-    
-    # All DirectoryUploadView methods removed
 
 
 class FileOperationView(generics.CreateAPIView):
@@ -1001,9 +1182,6 @@ class FileOperationView(generics.CreateAPIView):
                 destination_dir = None
                 # Generate unique name for root directory first
                 new_name = self._generate_unique_name_root(file_item.name)
-                root_path = file_path_manager.get_safe_path('')
-                new_path = os.path.join(root_path, new_name)
-                relative_path = new_name
 
             else:
                 # Get destination directory
@@ -1016,47 +1194,75 @@ class FileOperationView(generics.CreateAPIView):
                 if not destination_dir.can_access(user, 'write'):
                     return False, 'No write permission to destination directory'
                 
-                # Generate new path
+                # Generate new name
                 new_name = self._generate_unique_name(file_item.name, destination_dir)
-                new_path = os.path.join(destination_dir.path, new_name)
-                relative_path = os.path.join(destination_dir.get_relative_path(), new_name)
-            
-            # Copy file system
-            # Ensure we have the correct absolute path
-            source_path = file_item.path
-            
-            if not os.path.isabs(source_path):
-                # If path is relative, try to construct absolute path
-                if file_item.parent:
-                    source_path = os.path.join(file_item.parent.path, file_item.name)
-                else:
-                    # Root level file
-                    source_path = os.path.join(file_path_manager.get_safe_path(''), file_item.name)
             
             if file_item.item_type == 'file':
+                # For files, we need to copy the physical file and create new storage
+                if not file_item.storage:
+                    return False, 'File storage not found'
+                
+                # Copy physical file with new UUID
+                source_path = file_item.storage.get_file_path()
+                if not os.path.exists(source_path):
+                    return False, 'Source file not found'
+                
+                # Generate new UUID filename and copy file
+                new_uuid_filename = file_path_manager.generate_uuid_filename(new_name)
+                if destination_dir:
+                    new_file_path, new_relative_path = file_path_manager.get_upload_path(
+                        new_name, destination_dir.get_relative_path()
+                    )
+                else:
+                    new_file_path, new_relative_path = file_path_manager.get_upload_path(new_name, '')
+                
                 import shutil
-                shutil.copy2(source_path, new_path)
+                shutil.copy2(source_path, new_file_path)
+                
+                # Get file info for new storage
+                file_info = file_path_manager.get_file_info(new_file_path)
+                
+                # Create new FileStorage record
+                new_storage = FileStorage.objects.create(
+                    original_filename=new_name,
+                    file_path=new_relative_path,
+                    file_size=file_info['size'],
+                    mime_type=file_info['mime_type'],
+                    extension=file_info['extension'],
+                    checksum=''  # Will be calculated below
+                )
+                
+                # Calculate and update checksum
+                new_storage.checksum = new_storage.calculate_checksum()
+                new_storage.save()
+                
+                # Create new database record
+                new_file_item = FileSystemItem.objects.create(
+                    name=new_name, 
+                    item_type=file_item.item_type,
+                    parent=destination_dir,
+                    storage=new_storage,
+                    owner=user,
+                    visibility=file_item.visibility
+                )
+                
+                # Copy permissions and sharing
+                new_file_item.shared_users.set(file_item.shared_users.all())
+                new_file_item.shared_groups.set(file_item.shared_groups.all())
+                
             elif file_item.item_type == 'directory':
-                import shutil
-                shutil.copytree(source_path, new_path)
-            
-            # Create new database record
-            new_file_item = FileSystemItem.objects.create(
-                name=new_name,
-                path=new_path,
-                relative_path=relative_path,
-                item_type=file_item.item_type,
-                parent=destination_dir,
-                size=file_item.size,
-                mime_type=file_item.mime_type,
-                extension=file_item.extension,
-                owner=user,
-                visibility=file_item.visibility
-            )
-            
-            # Copy permissions and sharing
-            new_file_item.shared_users.set(file_item.shared_users.all())
-            new_file_item.shared_groups.set(file_item.shared_groups.all())
+                # For directories, just create the logical structure
+                new_file_item = FileSystemItem.objects.create(
+                    name=new_name,
+                    item_type=file_item.item_type,
+                    parent=destination_dir,
+                    owner=user,
+                    visibility=file_item.visibility
+                )
+                
+                # Copy permissions and sharing
+                new_file_item.shared_users.set(file_item.shared_users.all())
+                new_file_item.shared_groups.set(file_item.shared_groups.all())
             
             return True, None
             
@@ -1072,9 +1278,7 @@ class FileOperationView(generics.CreateAPIView):
                 destination_dir = None
                 # Generate unique name for root directory first
                 new_name = self._generate_unique_name_root(file_item.name)
-                root_path = file_path_manager.get_safe_path('')
-                new_path = os.path.join(root_path, new_name)
-                relative_path = new_name
+
 
             else:
                 # Get destination directory
@@ -1091,30 +1295,20 @@ class FileOperationView(generics.CreateAPIView):
                 if not file_item.can_delete(user):
                     return False, 'No permission to move file from current location'
                 
-                # Generate new path
+                # Generate new name
                 new_name = self._generate_unique_name(file_item.name, destination_dir)
-                new_path = os.path.join(destination_dir.path, new_name)
-                relative_path = os.path.join(destination_dir.get_relative_path(), new_name)
             
-            # Move file system
-            import shutil
-            
-            # Ensure we have the correct absolute path
-            source_path = file_item.path
-            
-            if not os.path.isabs(source_path):
-                # If path is relative, try to construct absolute path
-                if file_item.parent:
-                    source_path = os.path.join(file_item.parent.path, file_item.name)
-                else:
-                    # Root level file
-                    source_path = os.path.join(file_path_manager.get_safe_path(''), file_item.name)
-            shutil.move(source_path, new_path)
+            if file_item.item_type == 'file':
+                # For files, we only update the database - no physical file movement
+                # The physical file stays in its original UUID-based location
+                if not file_item.storage:
+                    return False, 'File storage not found'
+                
+                # No physical file movement needed - just update database
+                pass
             
             # Update database record
             file_item.name = new_name
-            file_item.path = new_path
-            file_item.relative_path = relative_path
             file_item.parent = destination_dir
             file_item.save()
             

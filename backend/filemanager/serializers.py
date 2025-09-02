@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import FileSystemItem, FileTag, FileTagRelation, FileAccessLog, FileAccessPermission, FilePermissionRequest
+from .models import FileSystemItem, FileStorage, FileThumbnail, FileTag, FileTagRelation, FileAccessLog, FileAccessPermission, FilePermissionRequest
 from django.contrib.auth.models import User, Group
 from django.db import models
 from django.utils import timezone
@@ -29,6 +29,20 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'groups']
+
+
+class FileStorageSerializer(serializers.ModelSerializer):
+    """Serializer for FileStorage model"""
+    class Meta:
+        model = FileStorage
+        fields = ['uuid', 'original_filename', 'file_size', 'mime_type', 'extension', 'checksum', 'created_at']
+
+
+class FileThumbnailSerializer(serializers.ModelSerializer):
+    """Serializer for FileThumbnail model"""
+    class Meta:
+        model = FileThumbnail
+        fields = ['uuid', 'thumbnail_size', 'width', 'height', 'file_size', 'created_at']
 
 
 class FileTagSerializer(serializers.ModelSerializer):
@@ -91,16 +105,34 @@ class FileSystemItemSerializer(serializers.ModelSerializer):
     can_admin = serializers.SerializerMethodField()
     effective_permissions = serializers.SerializerMethodField()
     
+    # New fields for UUID-based system
+    storage = FileStorageSerializer(read_only=True)
+    thumbnail = FileThumbnailSerializer(read_only=True)
+    
     class Meta:
         model = FileSystemItem
         fields = [
-            'id', 'name', 'relative_path', 'item_type', 'parent', 'parents', 'size', 'mime_type', 
-            'extension', 'created_at', 'updated_at', 'last_modified', 
+            'id', 'name', 'item_type', 'parent', 'parents', 'created_at', 'updated_at',
             'owner', 'visibility', 'shared_users', 'shared_groups', 'children_count', 'tags', 
             'file_info', 'permissions', 'can_read', 'can_write', 'can_delete', 
-            'can_share', 'can_admin', 'effective_permissions'
+            'can_share', 'can_admin', 'effective_permissions', 'storage', 'thumbnail'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'owner', 'relative_path']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'owner', 'children_count', 
+                           'tags', 'file_info', 'permissions', 'can_read', 'can_write', 
+                           'can_delete', 'can_share', 'can_admin', 'effective_permissions']
+    
+    def get_parents(self, obj):
+        """Recursively build parent hierarchy for breadcrumb navigation"""
+        parents = []
+        current_item = obj
+        while current_item.parent:
+            parents.append({
+                'id': current_item.parent.id,
+                'name': current_item.parent.name,
+                'item_type': current_item.parent.item_type
+            })
+            current_item = current_item.parent
+        return parents[::-1] # Reverse to show from root to current
     
     def get_children_count(self, obj):
         if obj.item_type == 'directory':
@@ -112,8 +144,15 @@ class FileSystemItemSerializer(serializers.ModelSerializer):
         return FileTagRelationSerializer(tag_relations, many=True).data
     
     def get_file_info(self, obj):
-        if obj.item_type == 'file':
-            return obj.get_file_info()
+        """Get file information from storage"""
+        if obj.storage:
+            return {
+                'size': obj.storage.file_size,
+                'mime_type': obj.storage.mime_type,
+                'extension': obj.storage.extension,
+                'checksum': obj.storage.checksum,
+                'uuid': str(obj.storage.uuid)
+            }
         return None
     
     def get_permissions(self, obj):
@@ -173,34 +212,13 @@ class FileSystemItemSerializer(serializers.ModelSerializer):
             return list(obj.get_effective_permissions(request.user))
         return []
     
-    def get_parents(self, obj):
-        """Recursively build parent hierarchy for breadcrumb navigation"""
-        parents = []
-        current_item = obj
-        while current_item.parent:
-            parents.append({
-                'id': current_item.parent.id,
-                'name': current_item.parent.name,
-                'relative_path': current_item.parent.relative_path
-            })
-            current_item = current_item.parent
-        return parents[::-1] # Reverse to show from root to current
-    
-    def validate_path(self, value):
-        """Validate that the path is accessible and safe"""
-        import os
-        
-        # Check if path exists
-        if not os.path.exists(value):
-            raise serializers.ValidationError("Path does not exist")
-        
-        return value
+
 
 
 class FileSystemItemCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = FileSystemItem
-        fields = ['name', 'path', 'item_type', 'parent', 'visibility']
+        fields = ['name', 'item_type', 'parent', 'visibility']
     
     def create(self, validated_data):
         # Set the current user as owner
@@ -238,7 +256,8 @@ class FileVisibilityUpdateSerializer(serializers.ModelSerializer):
 
 
 class FileAccessLogSerializer(serializers.ModelSerializer):
-    file = FileSystemItemSerializer(read_only=True)
+    """Serializer for file access logs"""
+    file = serializers.PrimaryKeyRelatedField(read_only=True)  # Avoid circular import
     user = UserSerializer(read_only=True)
     
     class Meta:
@@ -250,15 +269,10 @@ class DirectoryTreeSerializer(serializers.Serializer):
     """Serializer for directory tree structure"""
     id = serializers.IntegerField()
     name = serializers.CharField()
-    path = serializers.CharField()
     item_type = serializers.CharField()
     parent = serializers.IntegerField(required=False)
     parents = serializers.ListField(child=serializers.DictField(), required=False)
     children = serializers.ListField(child=serializers.DictField(), required=False)
-    size = serializers.IntegerField(required=False)
-    mime_type = serializers.CharField(required=False)
-    extension = serializers.CharField(required=False)
-    last_modified = serializers.DateTimeField(required=False)
     visibility = serializers.CharField(required=False)
 
 
@@ -308,8 +322,7 @@ class DeletedFileSerializer(serializers.ModelSerializer):
     class Meta:
         model = FileSystemItem
         fields = [
-            'id', 'name', 'path', 'item_type', 'parent', 'size', 'mime_type', 
-            'extension', 'created_at', 'updated_at', 'last_modified', 'owner', 
+            'id', 'name', 'item_type', 'parent', 'created_at', 'updated_at', 'owner', 
             'visibility', 'is_deleted', 'deleted_at', 'deleted_by'
         ]
         read_only_fields = ['is_deleted', 'deleted_at', 'deleted_by']

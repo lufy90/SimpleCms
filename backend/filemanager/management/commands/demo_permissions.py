@@ -297,13 +297,11 @@ class Command(BaseCommand):
         """Clean up demo data"""
         # Remove files from filesystem
         for file_item in files.values():
-            if os.path.exists(file_item.path):
-                os.remove(file_item.path)
+            if file_item.storage and os.path.exists(file_item.storage.get_file_path()):
+                os.remove(file_item.storage.get_file_path())
         
-        # Remove demo directory
-        temp_dir = os.path.dirname(list(files.values())[0].path)
-        if os.path.exists(temp_dir):
-            os.rmdir(temp_dir)
+        # Remove demo directory (if it exists)
+        # Note: In new UUID-based system, directories don't have physical storage
         
         # Remove database records
         for file_item in files.values():
