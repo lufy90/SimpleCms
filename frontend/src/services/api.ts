@@ -108,6 +108,9 @@ export const filesAPI = {
   update: (id: number, data: { name?: string; visibility?: string }) =>
     api.put(`/api/files/${id}/`, data),
 
+  patch: (id: number, data: { name?: string; visibility?: string }) =>
+    api.patch(`/api/files/${id}/`, data),
+
   delete: (id: number) => api.delete(`/api/files/${id}/`),
 
   download: (id: number) => api.get(`/api/files/${id}/download/`, { responseType: 'blob' }),

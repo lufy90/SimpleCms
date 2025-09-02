@@ -152,30 +152,30 @@ class FileSystemItem(models.Model):
             models.Index(fields=['is_deleted']),
         ]
         # Note: SQLite doesn't handle NULL values in unique constraints properly
-        # We'll handle uniqueness validation in the model's clean() method
+        # We'll handle uniqueness validation for both files and directories in the model's clean() method
     
     def __str__(self):
         status = " [DELETED]" if self.is_deleted else ""
         return f"{self.name} ({self.item_type}){status}"
     
     def clean(self):
-        """Custom validation for directory uniqueness"""
+        """Custom validation for file and directory name uniqueness"""
         from django.core.exceptions import ValidationError
         
-        if self.item_type == 'directory':
-            # Check for duplicate directory names within the same parent and owner
-            existing = FileSystemItem.objects.filter(
-                name=self.name,
-                parent=self.parent,
-                item_type='directory',
-                owner=self.owner,
-                is_deleted=False
-            ).exclude(pk=self.pk)
-            
-            if existing.exists():
-                raise ValidationError({
-                    'name': f'A directory with this name already exists in this location for this user.'
-                })
+        # Check for duplicate names within the same parent and owner
+        existing = FileSystemItem.objects.filter(
+            name=self.name,
+            parent=self.parent,
+            item_type=self.item_type,
+            owner=self.owner,
+            is_deleted=False
+        ).exclude(pk=self.pk)
+        
+        if existing.exists():
+            item_type_name = 'directory' if self.item_type == 'directory' else 'file'
+            raise ValidationError({
+                'name': f'A {item_type_name} with this name already exists in this location for this user.'
+            })
     
     def save(self, *args, **kwargs):
         """Override save to call clean()"""
@@ -220,11 +220,14 @@ class FileSystemItem(models.Model):
         """Update model from actual file system"""
         if self.storage and os.path.exists(self.storage.get_file_path()):
             stat = os.stat(self.storage.get_file_path())
-            self.storage.last_modified = timezone.datetime.fromtimestamp(stat.st_mtime, tz=dt_timezone.utc)
             
             if self.item_type == 'file':
                 self.storage.file_size = stat.st_size
-                self.storage.mime_type, _ = mimetypes.guess_type(self.storage.get_file_path())
+                
+                # Get mime type, fallback to 'application/octet-stream' if None
+                mime_type, _ = mimetypes.guess_type(self.storage.get_file_path())
+                self.storage.mime_type = mime_type or 'application/octet-stream'
+                
                 self.storage.extension = Path(self.storage.original_filename).suffix.lower()
                 
                 # Update checksum

@@ -3,6 +3,7 @@ from .models import FileSystemItem, FileStorage, FileThumbnail, FileTag, FileTag
 from django.contrib.auth.models import User, Group
 from django.db import models
 from django.utils import timezone
+from pathlib import Path
 
 
 class PaginationSerializer(serializers.Serializer):
@@ -232,9 +233,22 @@ class FileSystemItemUpdateSerializer(serializers.ModelSerializer):
         fields = ['name', 'visibility']
     
     def update(self, instance, validated_data):
-        # Update file system metadata
-        instance.update_from_filesystem()
-        return super().update(instance, validated_data)
+        # First update the instance with new data
+        updated_instance = super().update(instance, validated_data)
+        
+        # If we're renaming a file, update the storage metadata accordingly
+        if 'name' in validated_data and instance.item_type == 'file' and instance.storage:
+            # Update the original_filename in storage to match the new name
+            instance.storage.original_filename = validated_data['name']
+            # Update extension based on new name
+            instance.storage.extension = Path(validated_data['name']).suffix.lower()
+            instance.storage.save()
+        
+        # For rename operations, we don't need to call update_from_filesystem()
+        # as it would try to refresh metadata that doesn't need refreshing
+        # Only call it for other types of updates if needed
+        
+        return updated_instance
 
 
 class FileVisibilityUpdateSerializer(serializers.ModelSerializer):

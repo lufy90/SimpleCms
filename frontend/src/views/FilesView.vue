@@ -194,6 +194,10 @@
                     <el-icon><Share /></el-icon>
                     Share
                   </el-dropdown-item>
+                  <el-dropdown-item command="rename" :disabled="!file.can_write">
+                    <el-icon><Edit /></el-icon>
+                    Rename
+                  </el-dropdown-item>
                   <el-dropdown-item command="delete" divided>
                     <el-icon><Delete /></el-icon>
                     Delete
@@ -318,6 +322,10 @@
                     <el-dropdown-item command="share" :disabled="!row.can_share">
                       <el-icon><Share /></el-icon>
                       Share
+                    </el-dropdown-item>
+                    <el-dropdown-item command="rename" :disabled="!row.can_write">
+                      <el-icon><Edit /></el-icon>
+                      Rename
                     </el-dropdown-item>
                     <el-dropdown-item command="delete" divided>
                       <el-icon><Delete /></el-icon>
@@ -606,6 +614,101 @@
       </div>
     </template>
   </el-dialog>
+
+  <!-- Rename Dialog -->
+  <el-dialog
+    v-model="renameDialogVisible"
+    :title="`Rename ${selectedFileForRename?.item_type === 'directory' ? 'Folder' : 'File'}`"
+    width="500px"
+    :close-on-click-modal="false"
+  >
+    <el-form :model="renameForm" label-width="80px">
+      <el-form-item label="Name">
+        <el-input
+          v-model="renameForm.name"
+          :placeholder="`Enter new ${selectedFileForRename?.item_type === 'directory' ? 'folder' : 'file'} name`"
+          @keyup.enter="handleRename"
+          ref="renameInputRef"
+        />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="renameDialogVisible = false">Cancel</el-button>
+        <el-button
+          type="primary"
+          @click="handleRename"
+          :disabled="!renameForm.name.trim() || renameForm.name === selectedFileForRename?.name"
+        >
+          Rename
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
+
+  <!-- Upload Conflict Dialog -->
+  <el-dialog
+    v-model="conflictDialogVisible"
+    title="File Conflict Detected"
+    width="600px"
+    :close-on-click-modal="false"
+  >
+    <div v-if="conflictData" class="conflict-content">
+      <div class="conflict-info">
+        <el-alert
+          title="File already exists"
+          type="warning"
+          :closable="false"
+          show-icon
+        >
+          <template #default>
+            <p>A file with the name <strong>{{ conflictData.fileName }}</strong> already exists in this location.</p>
+            <p v-if="conflictData.relativePath">Path: <code>{{ conflictData.relativePath }}/{{ conflictData.fileName }}</code></p>
+          </template>
+        </el-alert>
+      </div>
+
+      <div class="conflict-options">
+        <h4>How would you like to resolve this conflict?</h4>
+        
+        <el-radio-group v-model="conflictData.resolveAction" class="conflict-radio-group">
+          <el-radio value="rename" class="conflict-radio">
+            <div class="radio-content">
+              <div class="radio-title">Rename the uploaded file</div>
+              <div class="radio-description">Keep the existing file and rename the new one</div>
+              <el-input
+                v-if="conflictData.resolveAction === 'rename'"
+                v-model="conflictData.newName"
+                placeholder="Enter new filename"
+                style="margin-top: 8px; width: 300px"
+                @keyup.enter="handleConflictResolve"
+              />
+            </div>
+          </el-radio>
+          
+          <el-radio value="overwrite" class="conflict-radio">
+            <div class="radio-content">
+              <div class="radio-title">Overwrite the existing file</div>
+              <div class="radio-description">Replace the existing file with the new one</div>
+            </div>
+          </el-radio>
+        </el-radio-group>
+      </div>
+    </div>
+    
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="handleConflictSkip">Skip This File</el-button>
+        <el-button
+          type="primary"
+          @click="handleConflictResolve"
+          :disabled="!conflictData?.resolveAction || (conflictData.resolveAction === 'rename' && !conflictData.newName.trim())"
+        >
+          Continue
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -630,6 +733,7 @@ import {
   More,
   Download,
   Share,
+  Edit,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -674,6 +778,30 @@ const selectedFileForSharing = ref<FileSystemItem | null>(null)
 // Details dialog
 const detailsDialogVisible = ref(false)
 const selectedFileForDetails = ref<FileSystemItem | null>(null)
+
+// Rename dialog
+const renameDialogVisible = ref(false)
+const selectedFileForRename = ref<FileSystemItem | null>(null)
+const renameForm = ref({
+  name: ''
+})
+
+// Upload conflict dialog
+const conflictDialogVisible = ref(false)
+const conflictData = ref<{
+  fileName: string
+  relativePath: string
+  existingFile: FileSystemItem | null
+  newFile: File
+  resolveAction: 'rename' | 'overwrite' | null
+  newName: string
+} | null>(null)
+const pendingUploads = ref<Array<{
+  file: File
+  relativePath: string
+  resolveAction: 'rename' | 'overwrite' | 'skip'
+  newName?: string
+}>>([])
 
 // Tree selector configuration for el-tree-select
 const treeSelectProps = {
@@ -746,6 +874,7 @@ const buildDirectoryTree = async (directories: any[]): Promise<any[]> => {
 
 // Tree refs
 const listTableRef = ref()
+const renameInputRef = ref()
 
 // Upload configuration
 const uploadAction = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/upload/`
@@ -953,6 +1082,7 @@ const uploadAllFiles = async (files: File[]) => {
   const batchSize = 3
   let uploadedCount = 0
   let failedCount = 0
+  let skippedCount = 0
 
   // Initialize progress for all files
   files.forEach((file) => {
@@ -963,61 +1093,76 @@ const uploadAllFiles = async (files: File[]) => {
     })
   })
 
-  for (let i = 0; i < files.length; i += batchSize) {
-    const batch = files.slice(i, i + batchSize)
+  // Process files one by one to handle conflicts
+  for (let i = 0; i < files.length; i++) {
+    let file = files[i]
+    
+    try {
+      // Get the relative path for this file
+      const pathParts = file.webkitRelativePath.split('/')
+      const fileName = pathParts.pop()! // Remove filename
+      const relativePath = pathParts.join('/') // Keep directory path
 
-    const batchPromises = batch.map(async (file, batchIndex) => {
-      const globalIndex = i + batchIndex
-      try {
-        // Get the relative path for this file
-        const pathParts = file.webkitRelativePath.split('/')
-        const fileName = pathParts.pop()! // Remove filename
-        const relativePath = pathParts.join('/') // Keep directory path
-
-        // Create FormData for upload
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('visibility', uploadForm.value.visibility)
-        if (currentDirectory.value?.id) {
-          formData.append('parent_id', currentDirectory.value.id.toString())
+      // Check for conflicts before uploading
+      const conflictResult = await checkForConflict(fileName, relativePath)
+      
+      if (conflictResult.hasConflict) {
+        // Show conflict dialog and wait for user decision
+        const resolution = await showConflictDialog(file, fileName, relativePath, conflictResult.existingFile)
+        
+        if (resolution.action === 'skip') {
+          uploadProgress.value[i].status = 'error'
+          uploadProgress.value[i].error = 'Skipped due to conflict'
+          skippedCount++
+          continue
         }
-        if (relativePath) {
-          formData.append('relative_path', relativePath)
+        
+        // Update file name if renaming
+        if (resolution.action === 'rename' && resolution.newName) {
+          // Create a new File object with the new name
+          file = new File([file], resolution.newName, { type: file.type })
         }
-
-        // Upload the file - backend will handle directory creation
-        await uploadAPI.upload(formData)
-
-        // Update progress
-        uploadProgress.value[globalIndex].status = 'success'
-        uploadProgress.value[globalIndex].percentage = 100
-        uploadedCount++
-
-        return true
-      } catch (error: any) {
-        // Update progress with error
-        uploadProgress.value[globalIndex].status = 'error'
-        uploadProgress.value[globalIndex].error =
-          error.response?.data?.error || error.message || 'Upload failed'
-        failedCount++
-        return false
       }
-    })
 
-    // Wait for batch to complete
-    await Promise.all(batchPromises)
+      // Create FormData for upload
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('visibility', uploadForm.value.visibility)
+      if (currentDirectory.value?.id) {
+        formData.append('parent_id', currentDirectory.value.id.toString())
+      }
+      if (relativePath) {
+        formData.append('relative_path', relativePath)
+      }
 
-    // Small delay between batches
-    if (i + batchSize < files.length) {
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      // Upload the file - backend will handle directory creation
+      await uploadAPI.upload(formData)
+
+      // Update progress
+      uploadProgress.value[i].status = 'success'
+      uploadProgress.value[i].percentage = 100
+      uploadedCount++
+
+    } catch (error: any) {
+      // Update progress with error
+      uploadProgress.value[i].status = 'error'
+      uploadProgress.value[i].error =
+        error.response?.data?.error || error.message || 'Upload failed'
+      failedCount++
+    }
+
+    // Small delay between uploads
+    if (i < files.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200))
     }
   }
 
   // Show final results
-  if (failedCount === 0) {
+  const totalProcessed = uploadedCount + failedCount + skippedCount
+  if (failedCount === 0 && skippedCount === 0) {
     ElMessage.success(`All ${files.length} files uploaded successfully!`)
   } else {
-    ElMessage.warning(`${uploadedCount} files uploaded, ${failedCount} failed.`)
+    ElMessage.warning(`${uploadedCount} uploaded, ${failedCount} failed, ${skippedCount} skipped.`)
   }
 }
 
@@ -1269,6 +1414,14 @@ const handleFileAction = async (command: string, file: any) => {
   } else if (command === 'details') {
     selectedFileForDetails.value = file
     detailsDialogVisible.value = true
+  } else if (command === 'rename') {
+    selectedFileForRename.value = file
+    renameForm.value.name = file.name
+    renameDialogVisible.value = true
+    // Focus the input after dialog opens
+    nextTick(() => {
+      renameInputRef.value?.focus()
+    })
   }
 }
 
@@ -1279,6 +1432,159 @@ const handlePermissionsUpdated = () => {
   } else {
     filesStore.fetchChildren()
   }
+}
+
+const handleRename = async () => {
+  if (!selectedFileForRename.value || !renameForm.value.name.trim()) {
+    return
+  }
+
+  const newName = renameForm.value.name.trim()
+  const oldName = selectedFileForRename.value.name
+
+  // Don't rename if the name hasn't changed
+  if (newName === oldName) {
+    renameDialogVisible.value = false
+    return
+  }
+
+  try {
+    // Call the API to rename the file
+    await filesAPI.patch(selectedFileForRename.value.id, { name: newName })
+    
+    ElMessage.success(`${selectedFileForRename.value.item_type === 'directory' ? 'Folder' : 'File'} renamed successfully`)
+    
+    // Close the dialog
+    renameDialogVisible.value = false
+    
+    // Refresh the file list to show the updated name
+    await refreshFiles()
+  } catch (error: any) {
+    console.error('Rename error:', error)
+    ElMessage.error(
+      `Rename failed: ${error.response?.data?.error || error.message || 'Unknown error'}`
+    )
+  }
+}
+
+// Conflict detection and resolution functions
+const checkForConflict = async (fileName: string, relativePath: string) => {
+  try {
+    // If there's a relative path, we need to navigate to that subdirectory
+    let targetDirectoryId = currentDirectory.value?.id
+    
+    if (relativePath) {
+      // Find or create the target directory
+      targetDirectoryId = await findOrCreateDirectory(relativePath, currentDirectory.value?.id)
+    }
+    
+    // Get directory contents to check for conflicts
+    const response = await filesAPI.listChildren(targetDirectoryId)
+    const children = response.data.children || []
+    
+    // Find existing file with the same name
+    const existingFile = children.find((item: any) => 
+      item.name === fileName && item.item_type === 'file'
+    )
+    
+    return {
+      hasConflict: !!existingFile,
+      existingFile: existingFile || null
+    }
+  } catch (error) {
+    console.error('Error checking for conflicts:', error)
+    return { hasConflict: false, existingFile: null }
+  }
+}
+
+const findOrCreateDirectory = async (relativePath: string, parentId?: number): Promise<number | undefined> => {
+  try {
+    const pathParts = relativePath.split('/').filter(part => part.length > 0)
+    let currentParentId = parentId
+    
+    for (const dirName of pathParts) {
+      // Check if directory exists
+      const response = await filesAPI.listChildren(currentParentId)
+      const children = response.data.children || []
+      
+      let existingDir = children.find((item: any) => 
+        item.name === dirName && item.item_type === 'directory'
+      )
+      
+      if (!existingDir) {
+        // Create directory if it doesn't exist
+        const createResponse = await filesAPI.createDirectory({
+          name: dirName,
+          parent_id: currentParentId,
+          visibility: uploadForm.value.visibility
+        })
+        existingDir = createResponse.data
+      }
+      
+      currentParentId = existingDir.id
+    }
+    
+    return currentParentId
+  } catch (error) {
+    console.error('Error finding or creating directory:', error)
+    return parentId
+  }
+}
+
+const showConflictDialog = (file: File, fileName: string, relativePath: string, existingFile: any): Promise<{action: 'rename' | 'overwrite' | 'skip', newName?: string}> => {
+  return new Promise((resolve) => {
+    conflictData.value = {
+      fileName,
+      relativePath,
+      existingFile,
+      newFile: file,
+      resolveAction: null,
+      newName: generateUniqueFileName(fileName)
+    }
+    
+    conflictDialogVisible.value = true
+    
+    // Store the resolve function to be called by dialog handlers
+    ;(conflictData.value as any).resolve = resolve
+  })
+}
+
+const generateUniqueFileName = (originalName: string): string => {
+  const lastDotIndex = originalName.lastIndexOf('.')
+  if (lastDotIndex === -1) {
+    return `${originalName} (1)`
+  }
+  
+  const nameWithoutExt = originalName.substring(0, lastDotIndex)
+  const extension = originalName.substring(lastDotIndex)
+  return `${nameWithoutExt} (1)${extension}`
+}
+
+const handleConflictResolve = () => {
+  if (!conflictData.value) return
+  
+  const resolve = (conflictData.value as any).resolve
+  if (resolve) {
+    resolve({
+      action: conflictData.value.resolveAction!,
+      newName: conflictData.value.resolveAction === 'rename' ? conflictData.value.newName : undefined
+    })
+  }
+  
+  conflictDialogVisible.value = false
+  conflictData.value = null
+}
+
+const handleConflictSkip = () => {
+  if (!conflictData.value) return
+  
+  const resolve = (conflictData.value as any).resolve
+  if (resolve) {
+    resolve({ action: 'skip' })
+  }
+  
+  conflictDialogVisible.value = false
+  conflictData.value = null
 }
 
 const downloadFile = async (file: any) => {
@@ -2032,5 +2338,62 @@ watch(
 .destination-tree-select :deep(.el-input__wrapper.is-focus) {
   border-color: #409eff;
   box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+/* Conflict Dialog Styles */
+.conflict-content {
+  padding: 16px 0;
+}
+
+.conflict-info {
+  margin-bottom: 24px;
+}
+
+.conflict-options h4 {
+  margin: 0 0 16px 0;
+  color: #303133;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.conflict-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.conflict-radio {
+  width: 100%;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.conflict-radio:hover {
+  border-color: #409eff;
+  background-color: #f0f9ff;
+}
+
+.conflict-radio.is-checked {
+  border-color: #409eff;
+  background-color: #f0f9ff;
+}
+
+.radio-content {
+  width: 100%;
+}
+
+.radio-title {
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 4px;
+}
+
+.radio-description {
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.4;
 }
 </style>
