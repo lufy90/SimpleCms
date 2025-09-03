@@ -398,25 +398,6 @@ class FileAccessLogSerializer(serializers.ModelSerializer):
         fields = ['id', 'file', 'user', 'action', 'ip_address', 'user_agent', 'timestamp']
 
 
-class DirectoryTreeSerializer(serializers.Serializer):
-    """Serializer for directory tree structure"""
-    id = serializers.IntegerField()
-    name = serializers.CharField()
-    item_type = serializers.CharField()
-    parent = serializers.IntegerField(required=False)
-    parents = serializers.ListField(child=serializers.DictField(), required=False)
-    children = serializers.ListField(child=serializers.DictField(), required=False)
-    visibility = serializers.CharField(required=False)
-
-
-class FileSearchSerializer(serializers.Serializer):
-    """Serializer for file search results"""
-    query = serializers.CharField()
-    results = FileItemSerializer(many=True)
-    total_count = serializers.IntegerField()
-    search_time = serializers.FloatField()
-    pagination = PaginationSerializer(required=False)
-
 
 class FileUploadSerializer(serializers.Serializer):
     """Serializer for file uploads"""

@@ -1,19 +1,17 @@
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.shortcuts import get_object_or_404
 from django.db.models import Q
-from django.http import FileResponse, Http404
-from django.utils import timezone
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
+from django.http import FileResponse
+
 from django.contrib.auth.models import Group, User
 import os
 import shutil
 import time
-from pathlib import Path
 
 from .models import (
     FileItem, FileTag, FileTagRelation, FileAccessLog, 
@@ -22,16 +20,13 @@ from .models import (
 from .serializers import (
     FileItemSerializer, FileItemCreateSerializer, FileItemUpdateSerializer,
     FileTagSerializer, FileTagRelationSerializer, FileAccessLogSerializer,
-    DirectoryTreeSerializer, FileSearchSerializer, FileUploadSerializer, FileOperationSerializer,
+    FileUploadSerializer, FileOperationSerializer,
     FileAccessPermissionSerializer, FileAccessPermissionCreateSerializer,
     FileVisibilityUpdateSerializer, FilePermissionRequestSerializer,
     FilePermissionRequestCreateSerializer, FilePermissionRequestReviewSerializer,
     DeletedFileSerializer, FileRestoreSerializer, FileHardDeleteSerializer,
     UserSerializer, GroupSerializer,
-    # DirectoryUploadSerializer removed
-)
-from .pagination import (
-    FileItemPagination, FileAccessLogPagination, FileTagPagination
+    FileContentUpdateSerializer
 )
 from .pagination import (
     FileItemPagination, FileAccessLogPagination, FileTagPagination
@@ -250,7 +245,7 @@ class FileItemViewSet(viewsets.ModelViewSet):
         
         # Search in database first
         queryset = FileItem.objects.filter(
-            Q(name__icontains=query) | Q(path__icontains=query)
+            Q(name__icontains=query)
         )
         
         # Apply permission filtering
@@ -631,7 +626,6 @@ class FileItemViewSet(viewsets.ModelViewSet):
                             new_file_path, new_relative_path = file_path_manager.get_upload_path(file_name, rel_path)
                             
                             # Copy file to new location
-                            import shutil
                             shutil.copy2(file_path, new_file_path)
                             
                             # Create FileStorage record
@@ -877,7 +871,6 @@ class FileItemViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
         
         # Use the FileContentUpdateSerializer
-        from filemanager.serializers import FileContentUpdateSerializer
         serializer = FileContentUpdateSerializer(file_item, data=request.data, partial=True)
         
         if serializer.is_valid():
@@ -1114,8 +1107,6 @@ class FileUploadView(generics.CreateAPIView):
         error handling. It ensures that multiple concurrent uploads to the same
         directory path will not create duplicate directories.
         """
-        from django.core.exceptions import ValidationError
-        from django.db import IntegrityError, transaction
         
         if not relative_path:
             return parent_directory
@@ -1303,7 +1294,6 @@ class FileOperationView(generics.CreateAPIView):
                 else:
                     new_file_path, new_relative_path = file_path_manager.get_upload_path(new_name, '')
                 
-                import shutil
                 shutil.copy2(source_path, new_file_path)
                 
                 # Get file info for new storage
