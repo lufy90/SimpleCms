@@ -140,5 +140,65 @@ class FilePathManager:
         return None
 
 
+def determine_file_sharing(parent_directory, requested_visibility, requested_shared_users, requested_shared_groups, user):
+    """
+    Determine file sharing based on parent directory and user preferences.
+    
+    Logic:
+    1. If user explicitly sets sharing (not 'private'), use their choice
+    2. If parent directory is shared, inherit its sharing permissions
+    3. Otherwise, default to 'private'
+    """
+    # If user explicitly requested sharing, use their choice
+    if requested_visibility != 'private':
+        return requested_visibility, requested_shared_users, requested_shared_groups
+    
+    # Check if parent directory is shared
+    if parent_directory and parent_directory.owner != user:
+        # User is creating file in someone else's directory
+        # Inherit the parent directory's sharing permissions
+        parent_visibility = parent_directory.visibility
+        
+        if parent_visibility == 'user':
+            # Inherit shared users from parent
+            shared_user_ids = list(parent_directory.shared_users.values_list('id', flat=True))
+            return 'user', shared_user_ids, []
+        
+        elif parent_visibility == 'group':
+            # Inherit shared groups from parent
+            shared_group_ids = list(parent_directory.shared_groups.values_list('id', flat=True))
+            return 'group', [], shared_group_ids
+        
+        elif parent_visibility == 'public':
+            # Make file public
+            return 'public', [], []
+    
+    # Check if parent directory has explicit permissions that include the user
+    if parent_directory:
+        # Check if user has access to parent through explicit permissions
+        user_permissions = parent_directory.access_permissions.filter(
+            user=user, is_active=True
+        ).exclude(permission_type='read')  # Exclude read-only permissions
+        
+        if user_permissions.exists():
+            # User has write/delete/share/admin permissions
+            # Inherit parent's sharing structure
+            parent_visibility = parent_directory.visibility
+            
+            if parent_visibility == 'user':
+                shared_user_ids = list(parent_directory.shared_users.values_list('id', flat=True))
+                return 'user', shared_user_ids, []
+            
+            elif parent_visibility == 'group':
+                shared_group_ids = list(parent_directory.shared_groups.values_list('id', flat=True))
+                return 'group', [], shared_group_ids
+            
+            elif parent_visibility == 'public':
+                return 'public', [], []
+    
+    # Default to private
+    return 'private', [], []
+
+
 # Global instance
 file_path_manager = FilePathManager()

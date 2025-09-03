@@ -3,7 +3,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import (
-    FileSystemItem, FileStorage, FileThumbnail, FileTag, FileTagRelation, FileAccessLog, 
+    FileItem, FileStorage, FileThumbnail, FileTag, FileTagRelation, FileAccessLog, 
     FileAccessPermission, FilePermissionRequest
 )
 from django.utils import timezone
@@ -71,8 +71,8 @@ class FileThumbnailAdmin(admin.ModelAdmin):
     file_size_display.short_description = "Size"
 
 
-@admin.register(FileSystemItem)
-class FileSystemItemAdmin(admin.ModelAdmin):
+@admin.register(FileItem)
+class FileItemAdmin(admin.ModelAdmin):
     list_display = ['name', 'item_type', 'size_display', 'owner', 'visibility_display', 'created_at', 'storage_info']
     list_filter = ['item_type', 'visibility', 'owner', 'created_at']
     search_fields = ['name']

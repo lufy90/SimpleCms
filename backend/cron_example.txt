@@ -1,0 +1,15 @@
+# Example cron jobs for permission cleanup
+# Add these to your crontab (crontab -e)
+
+# Deactivate expired permissions daily at 2 AM
+0 2 * * * cd /path/to/your/project && python manage.py cleanup_expired_permissions --force
+
+# Clean up old inactive permissions weekly on Sunday at 3 AM
+0 3 * * 0 cd /path/to/your/project && python manage.py cleanup_inactive_permissions --days 90 --force
+
+# Comprehensive cleanup monthly on the 1st at 4 AM
+0 4 1 * * cd /path/to/your/project && python manage.py cleanup_permissions --days 90 --force
+
+# For Celery-based cleanup (if using Celery):
+# 0 2 * * * cd /path/to/your/project && celery -A your_project call filemanager.tasks.cleanup_expired_permissions
+# 0 3 * * 0 cd /path/to/your/project && celery -A your_project call filemanager.tasks.cleanup_old_inactive_permissions --kwargs='{"days": 90, "batch_size": 1000}'

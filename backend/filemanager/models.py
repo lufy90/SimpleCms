@@ -9,7 +9,7 @@ import uuid
 import hashlib
 
 
-class FileSystemItemManager(models.Manager):
+class FileItemManager(models.Manager):
     """Custom manager to filter out deleted items by default"""
     
     def get_queryset(self):
@@ -98,7 +98,7 @@ class FileThumbnail(models.Model):
         return os.path.join(settings.FILE_MANAGER_ROOT, self.thumbnail_path)
 
 
-class FileSystemItem(models.Model):
+class FileItem(models.Model):
     """Logical file system structure (separated from physical storage)"""
     ITEM_TYPES = [
         ('file', 'File'),
@@ -140,7 +140,7 @@ class FileSystemItem(models.Model):
     shared_groups = models.ManyToManyField(Group, blank=True, related_name='shared_files')
     
     # Custom manager
-    objects = FileSystemItemManager()
+    objects = FileItemManager()
     
     class Meta:
         ordering = ['name']
@@ -163,7 +163,7 @@ class FileSystemItem(models.Model):
         from django.core.exceptions import ValidationError
         
         # Check for duplicate names within the same parent and owner
-        existing = FileSystemItem.objects.filter(
+        existing = FileItem.objects.filter(
             name=self.name,
             parent=self.parent,
             item_type=self.item_type,
@@ -239,8 +239,8 @@ class FileSystemItem(models.Model):
     def get_children(self):
         """Get immediate children (files and directories)"""
         if self.item_type == 'directory':
-            return FileSystemItem.objects.filter(parent=self)
-        return FileSystemItem.objects.none()
+            return FileItem.objects.filter(parent=self)
+        return FileItem.objects.none()
     
     def get_all_children(self):
         """Get all descendants recursively"""
@@ -252,7 +252,15 @@ class FileSystemItem(models.Model):
         return children
     
     def can_access(self, user, permission_type='read'):
-        """Check if user can access this file with given permission"""
+        """Check if user can access this file with given permission
+        
+        Priority order:
+        1. Superuser - full access
+        2. Owner - full access  
+        3. Explicit user permissions (FileAccessPermission)
+        4. Explicit group permissions (FileAccessPermission)
+        5. Visibility-based access (fallback)
+        """
         if not user.is_authenticated:
             return False
         
@@ -264,17 +272,17 @@ class FileSystemItem(models.Model):
         if self.owner == user:
             return True
         
-        # Check specific user permissions first
+        # Check explicit user permissions first (highest priority)
         user_permission = self.get_user_permission(user)
         if user_permission and user_permission.has_permission(permission_type):
             return True
         
-        # Check group permissions
+        # Check explicit group permissions
         group_permission = self.get_group_permission(user)
         if group_permission and group_permission.has_permission(permission_type):
             return True
         
-        # Check visibility-based access
+        # Fall back to visibility-based access only if no explicit permissions exist
         if self.visibility == 'public':
             return True  # Public files are readable by everyone
         
@@ -356,11 +364,14 @@ class FileSystemItem(models.Model):
         self.delete()
     
     def get_user_permission(self, user):
-        """Get specific permission for a user"""
-        try:
-            return self.access_permissions.get(user=user, group__isnull=True, is_active=True)
-        except FileAccessPermission.DoesNotExist:
-            return None
+        """Get the highest priority permission for a user"""
+        user_permissions = self.access_permissions.filter(
+            user=user, 
+            group__isnull=True, 
+            is_active=True
+        ).order_by('-priority')
+        
+        return user_permissions.first() if user_permissions.exists() else None
     
     def get_group_permission(self, user):
         """Get best group permission for a user"""
@@ -400,6 +411,71 @@ class FileSystemItem(models.Model):
             permissions.update(group_permission.get_permission_list())
         
         return permissions
+    
+    def update_visibility_from_sharing(self):
+        """Update visibility field based on current sharing status
+        
+        This ensures visibility accurately reflects the sharing state:
+        - 'private': No sharing, no explicit permissions
+        - 'user': Shared with specific users (via shared_users or explicit user permissions)
+        - 'group': Shared with groups (via shared_groups or explicit group permissions)  
+        - 'public': Publicly accessible
+        """
+        # Check if there are any explicit permissions
+        has_user_permissions = self.access_permissions.filter(
+            user__isnull=False, 
+            is_active=True
+        ).exists()
+        
+        has_group_permissions = self.access_permissions.filter(
+            group__isnull=False, 
+            is_active=True
+        ).exists()
+        
+        # Check shared_users and shared_groups
+        has_shared_users = self.shared_users.exists()
+        has_shared_groups = self.shared_groups.exists()
+        
+        # Determine visibility based on sharing status
+        if self.visibility == 'public':
+            # Keep public as is
+            pass
+        elif has_user_permissions or has_shared_users:
+            # Has user-level sharing
+            if self.visibility != 'user':
+                self.visibility = 'user'
+                self.save(update_fields=['visibility'])
+        elif has_group_permissions or has_shared_groups:
+            # Has group-level sharing
+            if self.visibility != 'group':
+                self.visibility = 'group'
+                self.save(update_fields=['visibility'])
+        else:
+            # No sharing - should be private
+            if self.visibility != 'private':
+                self.visibility = 'private'
+                self.save(update_fields=['visibility'])
+    
+    def get_sharing_status(self):
+        """Get detailed sharing status for display purposes"""
+        status = {
+            'visibility': self.visibility,
+            'has_explicit_permissions': False,
+            'user_permissions_count': 0,
+            'group_permissions_count': 0,
+            'shared_users_count': self.shared_users.count(),
+            'shared_groups_count': self.shared_groups.count(),
+        }
+        
+        # Count explicit permissions
+        user_perms = self.access_permissions.filter(user__isnull=False, is_active=True)
+        group_perms = self.access_permissions.filter(group__isnull=False, is_active=True)
+        
+        status['user_permissions_count'] = user_perms.count()
+        status['group_permissions_count'] = group_perms.count()
+        status['has_explicit_permissions'] = user_perms.exists() or group_perms.exists()
+        
+        return status
 
 
 class FileAccessPermission(models.Model):
@@ -420,7 +496,7 @@ class FileAccessPermission(models.Model):
         'admin': 5,
     }
     
-    file = models.ForeignKey(FileSystemItem, on_delete=models.CASCADE, related_name='access_permissions')
+    file = models.ForeignKey(FileItem, on_delete=models.CASCADE, related_name='access_permissions')
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='file_permissions')
     group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True, related_name='file_permissions')
     permission_type = models.CharField(max_length=10, choices=PERMISSION_TYPES)
@@ -493,6 +569,19 @@ class FileAccessPermission(models.Model):
         # Set priority based on permission type
         self.priority = self.PERMISSION_PRIORITY.get(self.permission_type, 1)
         super().save(*args, **kwargs)
+        
+        # Update file visibility to reflect sharing status
+        if hasattr(self, 'file') and self.file:
+            self.file.update_visibility_from_sharing()
+    
+    def delete(self, *args, **kwargs):
+        # Store file reference before deletion
+        file_item = self.file
+        super().delete(*args, **kwargs)
+        
+        # Update file visibility after permission deletion
+        if file_item:
+            file_item.update_visibility_from_sharing()
 
 
 class FileTag(models.Model):
@@ -507,7 +596,7 @@ class FileTag(models.Model):
 
 class FileTagRelation(models.Model):
     """Many-to-many relationship between files and tags"""
-    file = models.ForeignKey(FileSystemItem, on_delete=models.CASCADE, related_name='tag_relations')
+    file = models.ForeignKey(FileItem, on_delete=models.CASCADE, related_name='tag_relations')
     tag = models.ForeignKey(FileTag, on_delete=models.CASCADE, related_name='file_relations')
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -517,7 +606,7 @@ class FileTagRelation(models.Model):
 
 class FileAccessLog(models.Model):
     """Log of file access for analytics"""
-    file = models.ForeignKey(FileSystemItem, on_delete=models.CASCADE, related_name='access_logs')
+    file = models.ForeignKey(FileItem, on_delete=models.CASCADE, related_name='access_logs')
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     action = models.CharField(max_length=20, choices=[
         ('view', 'View'),
@@ -553,7 +642,7 @@ class FilePermissionRequest(models.Model):
         ('rejected', 'Rejected'),
     ]
     
-    file = models.ForeignKey(FileSystemItem, on_delete=models.CASCADE, related_name='permission_requests')
+    file = models.ForeignKey(FileItem, on_delete=models.CASCADE, related_name='permission_requests')
     requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='permission_requests')
     requested_permissions = models.CharField(max_length=100)  # Comma-separated permissions
     reason = models.TextField(blank=True)

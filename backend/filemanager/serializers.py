@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import FileSystemItem, FileStorage, FileThumbnail, FileTag, FileTagRelation, FileAccessLog, FileAccessPermission, FilePermissionRequest
+from .models import FileItem, FileStorage, FileThumbnail, FileTag, FileTagRelation, FileAccessLog, FileAccessPermission, FilePermissionRequest
 from django.contrib.auth.models import User, Group
 from django.db import models
 from django.utils import timezone
@@ -89,8 +89,8 @@ class FileAccessPermissionCreateSerializer(serializers.ModelSerializer):
         return data
 
 
-class FileSystemItemSerializer(serializers.ModelSerializer):
-    parent = serializers.PrimaryKeyRelatedField(queryset=FileSystemItem.objects.all(), required=False)
+class FileItemSerializer(serializers.ModelSerializer):
+    parent = serializers.PrimaryKeyRelatedField(queryset=FileItem.objects.all(), required=False)
     parents = serializers.SerializerMethodField()
     owner = UserSerializer(read_only=True)
     shared_users = UserSerializer(many=True, read_only=True)
@@ -109,21 +109,30 @@ class FileSystemItemSerializer(serializers.ModelSerializer):
     # New fields for UUID-based system
     storage = FileStorageSerializer(read_only=True)
     thumbnail = FileThumbnailSerializer(read_only=True)
+    sharing_status = serializers.SerializerMethodField()
     
     class Meta:
-        model = FileSystemItem
+        model = FileItem
         fields = [
             'id', 'name', 'item_type', 'parent', 'parents', 'created_at', 'updated_at',
             'owner', 'visibility', 'shared_users', 'shared_groups', 'children_count', 'tags', 
             'file_info', 'permissions', 'can_read', 'can_write', 'can_delete', 
-            'can_share', 'can_admin', 'effective_permissions', 'storage', 'thumbnail'
+            'can_share', 'can_admin', 'effective_permissions', 'storage', 'thumbnail', 'sharing_status'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'owner', 'children_count', 
                            'tags', 'file_info', 'permissions', 'can_read', 'can_write', 
                            'can_delete', 'can_share', 'can_admin', 'effective_permissions']
     
     def get_parents(self, obj):
-        """Recursively build parent hierarchy for breadcrumb navigation"""
+        """Build parent hierarchy for breadcrumb navigation - only for user's own files"""
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return []
+        
+        # Only show breadcrumb for user's own files to avoid exposing others' directory structure
+        if obj.owner != request.user:
+            return []
+        
         parents = []
         current_item = obj
         while current_item.parent:
@@ -213,12 +222,27 @@ class FileSystemItemSerializer(serializers.ModelSerializer):
             return list(obj.get_effective_permissions(request.user))
         return []
     
+    def get_sharing_status(self, obj):
+        """Get detailed sharing status for display purposes"""
+        return obj.get_sharing_status()
+    
+    def to_representation(self, instance):
+        """Override to hide parent field for non-owned files"""
+        data = super().to_representation(instance)
+        
+        # Only show parent field for user's own files to avoid exposing others' directory structure
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and instance.owner != request.user:
+            data['parent'] = None
+        
+        return data
+    
 
 
 
-class FileSystemItemCreateSerializer(serializers.ModelSerializer):
+class FileItemCreateSerializer(serializers.ModelSerializer):
     class Meta:
-        model = FileSystemItem
+        model = FileItem
         fields = ['name', 'item_type', 'parent', 'visibility']
     
     def create(self, validated_data):
@@ -227,9 +251,9 @@ class FileSystemItemCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class FileSystemItemUpdateSerializer(serializers.ModelSerializer):
+class FileItemUpdateSerializer(serializers.ModelSerializer):
     class Meta:
-        model = FileSystemItem
+        model = FileItem
         fields = ['name', 'visibility']
     
     def update(self, instance, validated_data):
@@ -251,6 +275,101 @@ class FileSystemItemUpdateSerializer(serializers.ModelSerializer):
         return updated_instance
 
 
+class FileContentUpdateSerializer(serializers.Serializer):
+    """Serializer for updating file content"""
+    file = serializers.FileField(required=True)
+    
+    def validate_file(self, value):
+        """Validate the uploaded file"""
+        # Check file size (using the same limit as upload)
+        from django.conf import settings
+        max_size = getattr(settings, 'MAX_UPLOAD_SIZE', 104857600)  # 100MB default
+        
+        if value.size > max_size:
+            raise serializers.ValidationError(f"File size exceeds maximum allowed size of {max_size} bytes")
+        
+        return value
+    
+    def validate(self, attrs):
+        """Validate the entire serializer data"""
+        # Check if the instance is a file (not directory)
+        if self.instance and self.instance.item_type != 'file':
+            raise serializers.ValidationError("Can only update content of files, not directories")
+        
+        # Check if the instance has storage
+        if self.instance and not self.instance.storage:
+            raise serializers.ValidationError("File has no storage record")
+        
+        return attrs
+    
+    def update(self, instance, validated_data):
+        """Update the file content"""
+        # Get the new file
+        new_file = validated_data['file']
+        
+        # Import required modules
+        from django.conf import settings
+        from filemanager.utils import FilePathManager
+        import os
+        import uuid
+        
+        # Initialize path manager
+        file_path_manager = FilePathManager()
+        
+        # Generate new UUID filename for the updated file
+        new_uuid_filename = file_path_manager.generate_uuid_filename(new_file.name)
+        new_file_path = os.path.join(str(file_path_manager.root_dir), new_uuid_filename)
+        
+        # Save the new file content
+        with open(new_file_path, 'wb+') as destination:
+            for chunk in new_file.chunks():
+                destination.write(chunk)
+        
+        # Get file information for the new file
+        file_info = file_path_manager.get_file_info(new_file_path)
+        
+        # Delete the old file
+        old_file_path = instance.storage.get_file_path()
+        if os.path.exists(old_file_path):
+            os.remove(old_file_path)
+        
+        # Delete old thumbnails
+        for thumb in instance.storage.thumbnails.all():
+            thumb_path = thumb.get_thumbnail_path()
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
+            thumb.delete()
+        
+        # Update the storage record
+        instance.storage.original_filename = new_file.name
+        instance.storage.file_path = new_uuid_filename
+        instance.storage.file_size = file_info['size']
+        instance.storage.mime_type = file_info['mime_type']
+        instance.storage.extension = file_info['extension']
+        instance.storage.checksum = ''  # Will be calculated below
+        instance.storage.save()
+        
+        # Calculate and update checksum
+        instance.storage.checksum = instance.storage.calculate_checksum()
+        instance.storage.save()
+        
+        # Generate new thumbnail if it's an image
+        if file_info['mime_type'].startswith('image/'):
+            from filemanager.views import FileUploadView
+            view = FileUploadView()
+            thumbnail = view._generate_thumbnail(instance.storage)
+            if thumbnail:
+                instance.thumbnail = thumbnail
+                instance.save()
+        
+        # Update the file item name if it changed
+        if new_file.name != instance.name:
+            instance.name = new_file.name
+            instance.save()
+        
+        return instance
+
+
 class FileVisibilityUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating file visibility and sharing"""
     shared_users = serializers.PrimaryKeyRelatedField(
@@ -265,7 +384,7 @@ class FileVisibilityUpdateSerializer(serializers.ModelSerializer):
     )
     
     class Meta:
-        model = FileSystemItem
+        model = FileItem
         fields = ['visibility', 'shared_users', 'shared_groups']
 
 
@@ -293,7 +412,7 @@ class DirectoryTreeSerializer(serializers.Serializer):
 class FileSearchSerializer(serializers.Serializer):
     """Serializer for file search results"""
     query = serializers.CharField()
-    results = FileSystemItemSerializer(many=True)
+    results = FileItemSerializer(many=True)
     total_count = serializers.IntegerField()
     search_time = serializers.FloatField()
     pagination = PaginationSerializer(required=False)
@@ -334,7 +453,7 @@ class DeletedFileSerializer(serializers.ModelSerializer):
     deleted_by = UserSerializer(read_only=True)
     
     class Meta:
-        model = FileSystemItem
+        model = FileItem
         fields = [
             'id', 'name', 'item_type', 'parent', 'created_at', 'updated_at', 'owner', 
             'visibility', 'is_deleted', 'deleted_at', 'deleted_by'
@@ -354,7 +473,7 @@ class FileHardDeleteSerializer(serializers.Serializer):
 
 class FilePermissionRequestSerializer(serializers.ModelSerializer):
     requester = UserSerializer(read_only=True)
-    file = FileSystemItemSerializer(read_only=True)
+    file = FileItemSerializer(read_only=True)
     
     class Meta:
         model = FilePermissionRequest

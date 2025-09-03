@@ -62,9 +62,9 @@ class EnhancedPageNumberPagination(PageNumberPagination):
         return self.page_size
 
 
-class FileSystemItemPagination(EnhancedPageNumberPagination):
+class FileItemPagination(EnhancedPageNumberPagination):
     """
-    Pagination specifically for FileSystemItem with optimized page size
+    Pagination specifically for FileItem with optimized page size
     """
     page_size = 25  # Smaller page size for file listings
     max_page_size = 500

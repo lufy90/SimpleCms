@@ -19,6 +19,7 @@
               v-for="permission in currentPermissions"
               :key="permission.id"
               class="permission-item"
+              :class="{ 'inactive-permission': !permission.is_active }"
             >
               <div class="permission-info">
                 <div class="target-info">
@@ -33,6 +34,7 @@
                   </span>
                   <el-tag size="small" :type="getPermissionTagType(permission.permission_type)">
                     {{ permission.permission_type }}
+                    <span v-if="!permission.is_active" class="inactive-indicator"> (Inactive)</span>
                   </el-tag>
                 </div>
                 <div class="permission-meta">
@@ -180,7 +182,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, UserFilled, Share, Delete } from '@element-plus/icons-vue'
 import { permissionsAPI, filesAPI } from '@/services/api'
-import type { FileSystemItem } from '@/stores/files'
+import type { FileItem } from '@/stores/files'
 
 interface Permission {
   id: number
@@ -227,7 +229,7 @@ interface ShareForm {
 
 const props = defineProps<{
   visible: boolean
-  file: FileSystemItem | null
+  file: FileItem | null
 }>()
 
 const emit = defineEmits<{
@@ -555,6 +557,18 @@ onMounted(() => {
   border: 1px solid #e4e7ed;
   border-radius: 6px;
   background-color: #fafafa;
+}
+
+.permission-item.inactive-permission {
+  opacity: 0.6;
+  background-color: #f5f5f5;
+  border-color: #d9d9d9;
+}
+
+.inactive-indicator {
+  color: #909399;
+  font-size: 11px;
+  font-style: italic;
 }
 
 .permission-info {

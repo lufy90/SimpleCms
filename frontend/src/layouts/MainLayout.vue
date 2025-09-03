@@ -3,13 +3,16 @@
     <!-- Sidebar -->
     <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
       <div class="sidebar-header">
-        <h3 v-if="!sidebarCollapsed" class="logo">
-          <el-icon><Folder /></el-icon>
-          File Manager
-        </h3>
-        <el-button v-else type="text" size="large" @click="toggleSidebar" class="sidebar-toggle">
-          <el-icon><Expand /></el-icon>
-        </el-button>
+        <div class="header-content">
+          <h3 v-if="!sidebarCollapsed" class="logo">
+            <el-icon><Folder /></el-icon>
+            File Manager
+          </h3>
+          <el-button type="text" size="large" @click="toggleSidebar" class="sidebar-toggle">
+            <el-icon v-if="sidebarCollapsed"><Expand /></el-icon>
+            <el-icon v-else><Fold /></el-icon>
+          </el-button>
+        </div>
       </div>
 
       <!-- Directory Tree -->
@@ -53,36 +56,12 @@
         </el-tree>
       </div>
 
-      <!-- Shared Files Section -->
-      <div class="shared-files-section" v-if="!sidebarCollapsed">
-        <div class="shared-files-header">
-          <h4>Shared Files</h4>
-        </div>
-        <div class="shared-files-menu">
-          <el-button
-            type="text"
-            size="small"
-            @click="navigateToSharedToMe"
-            class="shared-files-button"
-          >
-            <el-icon><User /></el-icon>
-            <span>Shared to Me</span>
-          </el-button>
-          <el-button
-            type="text"
-            size="small"
-            @click="navigateToSharedToMyGroup"
-            class="shared-files-button"
-          >
-            <el-icon><UserFilled /></el-icon>
-            <span>Shared to My Group</span>
-          </el-button>
-        </div>
-      </div>
+
 
       <!-- Dustbin Section -->
-      <div class="dustbin-section" v-if="!sidebarCollapsed">
-        <div class="dustbin-header">
+      <div class="dustbin-section">
+        <!-- Expanded view -->
+        <div v-if="!sidebarCollapsed" class="dustbin-header">
           <h4>Dustbin</h4>
           <el-badge
             :value="deletedFilesCount"
@@ -95,19 +74,26 @@
             </el-button>
           </el-badge>
         </div>
+        
+        <!-- Collapsed view -->
+        <div v-else class="dustbin-collapsed">
+          <el-badge
+            :value="deletedFilesCount"
+            :hidden="deletedFilesCount === 0"
+            class="dustbin-badge-collapsed"
+          >
+            <el-button type="text" size="large" @click="navigateToDustbin" class="dustbin-icon-button">
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </el-badge>
+        </div>
       </div>
 
-      <!-- Sidebar Toggle Button -->
-      <div class="sidebar-footer">
-        <el-button type="text" size="large" @click="toggleSidebar" class="sidebar-toggle">
-          <el-icon v-if="sidebarCollapsed"><Expand /></el-icon>
-          <el-icon v-else><Fold /></el-icon>
-        </el-button>
-      </div>
+
     </aside>
 
     <!-- Main Content -->
-    <div class="main-content" :class="{ 'content-expanded': sidebarCollapsed }">
+    <div class="main-content">
       <!-- Top Navigation -->
       <header class="top-nav">
         <div class="nav-left">
@@ -318,15 +304,7 @@ const navigateToDustbin = () => {
   router.push('/deleted-files')
 }
 
-const navigateToSharedToMe = () => {
-  console.log('Navigating to shared to me...')
-  router.push('shared-to-me')
-}
 
-const navigateToSharedToMyGroup = () => {
-  console.log('Navigating to shared to my group...')
-  router.push('shared-to-my-group')
-}
 
 // Lifecycle
 onMounted(async () => {
@@ -350,24 +328,32 @@ watch(
   display: flex;
   height: 100vh;
   overflow: hidden;
+  width: 100%;
 }
 
 .sidebar {
-  width: 280px;
+  width: 280px !important;
   background: #f5f7fa;
   border-right: 1px solid #e4e7ed;
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease;
+  transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
+  min-width: 280px;
+  max-width: 280px;
 }
 
 .sidebar-collapsed {
-  width: 60px;
+  width: 60px !important;
+  min-width: 60px !important;
+  max-width: 60px !important;
 }
 
 .sidebar-header {
   padding: 16px;
   border-bottom: 1px solid #e4e7ed;
+}
+
+.header-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -429,48 +415,39 @@ watch(
   font-size: 14px;
 }
 
-.shared-files-section {
-  padding: 16px;
-  border-top: 1px solid #e4e7ed;
-  background: #fafafa;
-}
-
-.shared-files-header {
+.dustbin-collapsed {
   display: flex;
+  justify-content: center;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
+  padding: 16px 8px;
 }
 
-.shared-files-header h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #606266;
-}
-
-.shared-files-menu {
+.dustbin-badge-collapsed {
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 8px;
 }
 
-.shared-files-button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.dustbin-icon-button {
   color: #909399;
-  font-size: 12px;
-  padding: 4px 8px;
+  padding: 8px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-.shared-files-button:hover {
+.dustbin-icon-button:hover {
   color: #409eff;
+  background-color: #f0f9ff;
 }
 
-.shared-files-button .el-icon {
-  font-size: 14px;
+.dustbin-icon-button .el-icon {
+  font-size: 18px;
 }
+
+
 
 .tree-header {
   display: flex;
@@ -546,26 +523,22 @@ watch(
   white-space: nowrap;
 }
 
-.sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid #e4e7ed;
-  display: flex;
-  justify-content: center;
-}
+
 
 .sidebar-toggle {
   color: #909399;
+  transition: color 0.2s;
+}
+
+.sidebar-toggle:hover {
+  color: #409eff;
 }
 
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  transition: margin-left 0.3s ease;
-}
-
-.content-expanded {
-  margin-left: 0;
+  min-width: 0; /* Allow flex item to shrink below content size */
 }
 
 .top-nav {
@@ -615,10 +588,19 @@ watch(
     top: 0;
     z-index: 1000;
     transform: translateX(-100%);
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 280px !important;
   }
 
   .sidebar.open {
     transform: translateX(0);
+  }
+
+  .sidebar-collapsed {
+    width: 60px !important;
+    min-width: 60px !important;
+    max-width: 60px !important;
   }
 
   .search-input {

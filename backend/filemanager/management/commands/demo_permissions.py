@@ -8,7 +8,7 @@ permission system works with user-specific sharing and granular permissions.
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.hashers import make_password
-from filemanager.models import FileSystemItem, FileAccessPermission
+from filemanager.models import FileItem, FileAccessPermission
 from pathlib import Path
 import os
 import tempfile
@@ -144,7 +144,7 @@ class Command(BaseCommand):
         with open(private_file_path, 'w') as f:
             f.write('This is a private document that only the owner can access.')
         
-        private_file = FileSystemItem.objects.create(
+        private_file = FileItem.objects.create(
             name='private_document.txt',
             path=private_file_path,
             item_type='file',
@@ -159,7 +159,7 @@ class Command(BaseCommand):
         with open(user_shared_path, 'w') as f:
             f.write('This project file is shared with specific users.')
         
-        user_shared_file = FileSystemItem.objects.create(
+        user_shared_file = FileItem.objects.create(
             name='user_shared_project.txt',
             path=user_shared_path,
             item_type='file',
@@ -175,7 +175,7 @@ class Command(BaseCommand):
         with open(group_shared_path, 'w') as f:
             f.write('This design file is shared with the designers group.')
         
-        group_shared_file = FileSystemItem.objects.create(
+        group_shared_file = FileItem.objects.create(
             name='group_shared_design.txt',
             path=group_shared_path,
             item_type='file',
@@ -191,7 +191,7 @@ class Command(BaseCommand):
         with open(public_path, 'w') as f:
             f.write('This is a public readme file that everyone can access.')
         
-        public_file = FileSystemItem.objects.create(
+        public_file = FileItem.objects.create(
             name='public_readme.txt',
             path=public_path,
             item_type='file',

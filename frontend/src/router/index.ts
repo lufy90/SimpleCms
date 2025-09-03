@@ -79,18 +79,7 @@ const router = createRouter({
           component: () => import('@/views/DeletedFilesView.vue'),
           meta: { title: 'Dustbin' },
         },
-        {
-          path: 'shared-to-me',
-          name: 'SharedToMe',
-          component: () => import('@/views/SharedToMeView.vue'),
-          meta: { title: 'Files Shared to Me' },
-        },
-        {
-          path: 'shared-to-my-group',
-          name: 'SharedToMyGroup',
-          component: () => import('@/views/SharedToMyGroupView.vue'),
-          meta: { title: 'Files Shared to My Group' },
-        },
+
         {
           path: 'profile',
           name: 'Profile',

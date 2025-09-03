@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth.models import User
 from django.db import transaction
-from filemanager.models import FileSystemItem
+from filemanager.models import FileItem
 import os
 import time
 from pathlib import Path
@@ -142,11 +142,11 @@ class Command(BaseCommand):
         try:
             if not dry_run:
                 # Check if directory already exists in database
-                if not FileSystemItem.objects.filter(path=dir_path).exists():
+                if not FileItem.objects.filter(path=dir_path).exists():
                     # Calculate relative path
                     relative_path = self._get_relative_path(dir_path)
                     
-                    FileSystemItem.objects.create(
+                    FileItem.objects.create(
                         name=os.path.basename(dir_path),
                         path=dir_path,
                         relative_path=relative_path,
@@ -166,11 +166,11 @@ class Command(BaseCommand):
         try:
             if not dry_run:
                 # Check if file already exists in database
-                if not FileSystemItem.objects.filter(path=file_path).exists():
+                if not FileItem.objects.filter(path=file_path).exists():
                     # Calculate relative path
                     relative_path = self._get_relative_path(file_path)
                     
-                    file_item = FileSystemItem.objects.create(
+                    file_item = FileItem.objects.create(
                         name=os.path.basename(file_path),
                         path=file_path,
                         relative_path=relative_path,

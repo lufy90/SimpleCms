@@ -714,7 +714,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { useFilesStore, type FileSystemItem } from '@/stores/files'
+import { useFilesStore, type FileItem } from '@/stores/files'
 import { uploadAPI, filesAPI } from '@/services/api'
 import {
   Grid,
@@ -773,15 +773,15 @@ const operationType = ref<'copy' | 'move'>('copy')
 
 // Share dialog
 const shareDialogVisible = ref(false)
-const selectedFileForSharing = ref<FileSystemItem | null>(null)
+const selectedFileForSharing = ref<FileItem | null>(null)
 
 // Details dialog
 const detailsDialogVisible = ref(false)
-const selectedFileForDetails = ref<FileSystemItem | null>(null)
+const selectedFileForDetails = ref<FileItem | null>(null)
 
 // Rename dialog
 const renameDialogVisible = ref(false)
-const selectedFileForRename = ref<FileSystemItem | null>(null)
+const selectedFileForRename = ref<FileItem | null>(null)
 const renameForm = ref({
   name: ''
 })
@@ -791,7 +791,7 @@ const conflictDialogVisible = ref(false)
 const conflictData = ref<{
   fileName: string
   relativePath: string
-  existingFile: FileSystemItem | null
+  existingFile: FileItem | null
   newFile: File
   resolveAction: 'rename' | 'overwrite' | null
   newName: string
@@ -1108,12 +1108,35 @@ const uploadAllFiles = async (files: File[]) => {
       
       if (conflictResult.hasConflict) {
         // Show conflict dialog and wait for user decision
-        const resolution = await showConflictDialog(file, fileName, relativePath, conflictResult.existingFile)
+        const resolution = await showConflictDialog(file, fileName, relativePath, conflictResult.existingFile, conflictResult.existingFiles)
         
         if (resolution.action === 'skip') {
           uploadProgress.value[i].status = 'error'
           uploadProgress.value[i].error = 'Skipped due to conflict'
           skippedCount++
+          continue
+        }
+        
+        // Handle overwrite action - use PATCH request to update existing file
+        if (resolution.action === 'overwrite' && conflictResult.existingFile) {
+          console.log('Overwriting existing file:', {
+            fileId: conflictResult.existingFile.id,
+            fileName: file.name,
+            fileSize: file.size
+          })
+          
+          // Use the store's updateFileContent method which makes a PATCH request
+          const success = await filesStore.updateFileContent(conflictResult.existingFile.id, file)
+          
+          if (success) {
+            uploadProgress.value[i].status = 'success'
+            uploadProgress.value[i].percentage = 100
+            uploadedCount++
+          } else {
+            uploadProgress.value[i].status = 'error'
+            uploadProgress.value[i].error = 'Failed to overwrite file'
+            failedCount++
+          }
           continue
         }
         
@@ -1124,7 +1147,7 @@ const uploadAllFiles = async (files: File[]) => {
         }
       }
 
-      // Create FormData for upload
+      // Create FormData for upload (only for new files or renamed files)
       const formData = new FormData()
       formData.append('file', file)
       formData.append('visibility', uploadForm.value.visibility)
@@ -1136,6 +1159,11 @@ const uploadAllFiles = async (files: File[]) => {
       }
 
       // Upload the file - backend will handle directory creation
+      console.log('Uploading new file via POST request:', {
+        fileName: file.name,
+        fileSize: file.size,
+        relativePath
+      })
       await uploadAPI.upload(formData)
 
       // Update progress
@@ -1487,13 +1515,17 @@ const checkForConflict = async (fileName: string, relativePath: string) => {
       item.name === fileName && item.item_type === 'file'
     )
     
+    // Get all existing files in the directory for unique name generation
+    const existingFiles = children.filter((item: any) => item.item_type === 'file')
+    
     return {
       hasConflict: !!existingFile,
-      existingFile: existingFile || null
+      existingFile: existingFile || null,
+      existingFiles: existingFiles
     }
   } catch (error) {
     console.error('Error checking for conflicts:', error)
-    return { hasConflict: false, existingFile: null }
+    return { hasConflict: false, existingFile: null, existingFiles: [] }
   }
 }
 
@@ -1531,7 +1563,7 @@ const findOrCreateDirectory = async (relativePath: string, parentId?: number): P
   }
 }
 
-const showConflictDialog = (file: File, fileName: string, relativePath: string, existingFile: any): Promise<{action: 'rename' | 'overwrite' | 'skip', newName?: string}> => {
+const showConflictDialog = (file: File, fileName: string, relativePath: string, existingFile: any, existingFiles: FileItem[]): Promise<{action: 'rename' | 'overwrite' | 'skip', newName?: string}> => {
   return new Promise((resolve) => {
     conflictData.value = {
       fileName,
@@ -1539,7 +1571,7 @@ const showConflictDialog = (file: File, fileName: string, relativePath: string, 
       existingFile,
       newFile: file,
       resolveAction: null,
-      newName: generateUniqueFileName(fileName)
+      newName: generateUniqueFileName(fileName, existingFiles)
     }
     
     conflictDialogVisible.value = true
@@ -1549,15 +1581,40 @@ const showConflictDialog = (file: File, fileName: string, relativePath: string, 
   })
 }
 
-const generateUniqueFileName = (originalName: string): string => {
+const generateUniqueFileName = (originalName: string, existingFiles: FileItem[]): string => {
   const lastDotIndex = originalName.lastIndexOf('.')
+  let nameWithoutExt: string
+  let extension: string
+  
   if (lastDotIndex === -1) {
-    return `${originalName} (1)`
+    nameWithoutExt = originalName
+    extension = ''
+  } else {
+    nameWithoutExt = originalName.substring(0, lastDotIndex)
+    extension = originalName.substring(lastDotIndex)
   }
   
-  const nameWithoutExt = originalName.substring(0, lastDotIndex)
-  const extension = originalName.substring(lastDotIndex)
-  return `${nameWithoutExt} (1)${extension}`
+  // Check if the original name is already unique
+  const isOriginalUnique = !existingFiles.some(file => 
+    file.name === originalName && file.item_type === 'file'
+  )
+  
+  if (isOriginalUnique) {
+    return originalName
+  }
+  
+  // Find the next available number
+  let counter = 1
+  let newName: string
+  
+  do {
+    newName = `${nameWithoutExt} (${counter})${extension}`
+    counter++
+  } while (existingFiles.some(file => 
+    file.name === newName && file.item_type === 'file'
+  ))
+  
+  return newName
 }
 
 const handleConflictResolve = () => {

@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { filesAPI, uploadAPI, operationsAPI } from '@/services/api'
 import { toast } from 'vue3-toastify'
 
-export interface FileSystemItem {
+export interface FileItem {
   id: number
   name: string
   path: string
@@ -101,8 +101,8 @@ export interface PaginationInfo {
 
 export const useFilesStore = defineStore('files', () => {
   // State
-  const files = ref<FileSystemItem[]>([])
-  const currentDirectory = ref<FileSystemItem | null>(null)
+  const files = ref<FileItem[]>([])
+  const currentDirectory = ref<FileItem | null>(null)
   const directoryTree = ref<DirectoryTreeItem[]>([])
   const selectedFiles = ref<Set<number>>(new Set())
   const viewType = ref<'list' | 'grid' | 'details'>('grid')
@@ -310,6 +310,7 @@ export const useFilesStore = defineStore('files', () => {
     parentId?: number,
     visibility?: string,
     tags?: string[],
+    relativePath?: string,
   ) => {
     try {
       const formData = new FormData()
@@ -317,6 +318,10 @@ export const useFilesStore = defineStore('files', () => {
 
       if (parentId) {
         formData.append('parent_id', parentId.toString())
+      }
+
+      if (relativePath) {
+        formData.append('relative_path', relativePath)
       }
 
       if (visibility) {
@@ -336,6 +341,56 @@ export const useFilesStore = defineStore('files', () => {
     } catch (error: any) {
       toast.error('Upload failed')
       return false
+    }
+  }
+
+  const updateFileContent = async (fileId: number, file: File) => {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      await filesAPI.updateContent(fileId, formData)
+      toast.success('File content updated successfully')
+
+      // Refresh file list
+      if (currentDirectory.value) {
+        await fetchChildren(currentDirectory.value.id)
+      } else {
+        await fetchChildren()
+      }
+      return true
+    } catch (error: any) {
+      toast.error('File update failed')
+      return false
+    }
+  }
+
+  const checkForDuplicateFile = async (
+    fileName: string,
+    parentId?: number,
+    relativePath?: string,
+  ): Promise<FileItem | null> => {
+    try {
+      // Get current files in the directory
+      let currentFiles = files.value
+      if (currentDirectory.value?.id !== parentId) {
+        // Need to fetch files for the target directory
+        await fetchChildren(parentId)
+        currentFiles = files.value
+      }
+
+      // Check for exact filename match
+      const duplicate = currentFiles.find(
+        (file) => 
+          file.name === fileName && 
+          file.item_type === 'file' &&
+          file.parent === parentId
+      )
+
+      return duplicate || null
+    } catch (error) {
+      console.error('Error checking for duplicate file:', error)
+      return null
     }
   }
 
@@ -508,6 +563,8 @@ export const useFilesStore = defineStore('files', () => {
     fetchChildren,
     searchFiles,
     uploadFile,
+    updateFileContent,
+    checkForDuplicateFile,
     deleteFiles,
     copyFiles,
     moveFiles,

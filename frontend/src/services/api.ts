@@ -135,12 +135,7 @@ export const filesAPI = {
 
   scanDirectory: (path: string) => api.post('/api/files/scan_directory/', { path }),
 
-  // New dedicated endpoints for shared files
-  getSharedToMe: (params?: { page?: number; page_size?: number }) =>
-    api.get('/api/files/shared_to_me/', { params }),
 
-  getSharedToMyGroups: (params?: { page?: number; page_size?: number }) =>
-    api.get('/api/files/shared_to_my_groups/', { params }),
 
   // Recursive directory sharing
   shareRecursively: (
@@ -162,6 +157,14 @@ export const filesAPI = {
       permission_types?: string[]
     },
   ) => api.post(`/api/files/${fileId}/unshare_recursively/`, data),
+
+  // Update file content
+  updateContent: (fileId: number, formData: FormData) =>
+    api.patch(`/api/files/${fileId}/update_content/`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
 }
 
 // Upload API

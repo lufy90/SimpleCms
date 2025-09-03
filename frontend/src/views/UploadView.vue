@@ -36,11 +36,8 @@
         <el-form-item label="Files">
           <el-upload
             ref="uploadRef"
-            :action="uploadAction"
-            :headers="uploadHeaders"
-            :data="uploadData"
-            :on-success="handleUploadSuccess"
-            :on-error="handleUploadError"
+            :auto-upload="false"
+            :on-change="handleFileChange"
             :before-upload="beforeUpload"
             multiple
             drag
@@ -64,6 +61,59 @@
         </el-form-item>
       </el-form>
     </el-card>
+
+    <!-- Duplicate File Dialog -->
+    <el-dialog
+      v-model="duplicateDialogVisible"
+      title="Duplicate File Detected"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div class="duplicate-dialog">
+        <p>
+          A file named <strong>{{ duplicateFile?.name }}</strong> already exists in this location.
+        </p>
+        <p>What would you like to do?</p>
+        
+        <div class="file-info" v-if="duplicateFile">
+          <p><strong>Existing file:</strong></p>
+          <ul>
+            <li>Size: {{ formatFileSize(duplicateFile.size || 0) }}</li>
+            <li>Modified: {{ formatDate(duplicateFile.updated_at) }}</li>
+            <li>Owner: {{ duplicateFile.owner.username }}</li>
+          </ul>
+        </div>
+      </div>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="handleSkipFile">Skip</el-button>
+          <el-button @click="handleRenameFile">Rename</el-button>
+          <el-button type="primary" @click="handleOverwriteFile">Overwrite</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- Rename File Dialog -->
+    <el-dialog
+      v-model="renameDialogVisible"
+      title="Rename File"
+      width="400px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="renameForm" label-width="80px">
+        <el-form-item label="New Name">
+          <el-input v-model="renameForm.name" placeholder="Enter new filename" />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="renameDialogVisible = false">Cancel</el-button>
+          <el-button type="primary" @click="handleConfirmRename">Confirm</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -71,11 +121,14 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useFilesStore } from '@/stores/files'
 import { ArrowLeft, UploadFilled, Close } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { FileItem } from '@/stores/files'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const filesStore = useFilesStore()
 
 // State
 const uploadForm = ref({
@@ -85,36 +138,145 @@ const uploadForm = ref({
 
 const isUploading = ref(false)
 const uploadRef = ref()
-
-// Upload configuration
-const uploadAction = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/upload/`
-const uploadHeaders = computed(() => {
-  const token = document.cookie
-    .split('; ')
-    .find((row) => row.startsWith('access_token='))
-    ?.split('=')[1]
-  return {
-    Authorization: `Bearer ${token}`,
-  }
-})
-const uploadData = computed(() => ({
-  path: uploadForm.value.path,
-  visibility: uploadForm.value.visibility,
-}))
+const selectedFiles = ref<File[]>([])
+const duplicateDialogVisible = ref(false)
+const renameDialogVisible = ref(false)
+const duplicateFile = ref<FileItem | null>(null)
+const currentFile = ref<File | null>(null)
+const renameForm = ref({ name: '' })
 
 // Methods
-const handleUpload = () => {
-  if (uploadRef.value) {
-    uploadRef.value.submit()
+const handleFileChange = (file: any, fileList: any[]) => {
+  selectedFiles.value = fileList.map(f => f.raw)
+}
+
+const handleUpload = async () => {
+  if (selectedFiles.value.length === 0) {
+    ElMessage.warning('Please select files to upload')
+    return
+  }
+
+  isUploading.value = true
+  
+  try {
+    for (const file of selectedFiles.value) {
+      await processFileUpload(file)
+    }
+    
+    ElMessage.success('All files processed successfully')
+    selectedFiles.value = []
+    if (uploadRef.value) {
+      uploadRef.value.clearFiles()
+    }
+  } catch (error) {
+    console.error('Upload error:', error)
+  } finally {
+    isUploading.value = false
   }
 }
 
-const handleUploadSuccess = (response: any, file: any) => {
-  ElMessage.success(`${file.name} uploaded successfully`)
+const processFileUpload = async (file: File) => {
+  console.log('Processing file upload:', {
+    fileName: file.name,
+    fileSize: file.size,
+    relativePath: uploadForm.value.path
+  })
+
+  // Check for duplicate file
+  const duplicate = await filesStore.checkForDuplicateFile(
+    file.name,
+    undefined, // parentId - we'll handle this based on the path
+    uploadForm.value.path
+  )
+
+  if (duplicate) {
+    console.log('Duplicate found, showing dialog')
+    // Show duplicate dialog
+    duplicateFile.value = duplicate
+    currentFile.value = file
+    duplicateDialogVisible.value = true
+    
+    // Wait for user decision
+    return new Promise<void>((resolve) => {
+      const checkDialog = () => {
+        if (!duplicateDialogVisible.value) {
+          resolve()
+        } else {
+          setTimeout(checkDialog, 100)
+        }
+      }
+      checkDialog()
+    })
+  } else {
+    console.log('No duplicate found, proceeding with normal upload')
+    // No duplicate, proceed with normal upload
+    await filesStore.uploadFile(
+      file,
+      undefined, // parentId
+      uploadForm.value.visibility,
+      [], // tags
+      uploadForm.value.path
+    )
+  }
 }
 
-const handleUploadError = (error: any, file: any) => {
-  ElMessage.error(`${file.name} upload failed`)
+const handleSkipFile = () => {
+  ElMessage.info(`Skipped ${currentFile.value?.name}`)
+  duplicateDialogVisible.value = false
+}
+
+const handleRenameFile = () => {
+  renameForm.value.name = currentFile.value?.name || ''
+  renameDialogVisible.value = true
+}
+
+const handleConfirmRename = async () => {
+  if (!currentFile.value || !renameForm.value.name) return
+  
+  try {
+    // Create a new file with the renamed name
+    const renamedFile = new File([currentFile.value], renameForm.value.name, {
+      type: currentFile.value.type,
+      lastModified: currentFile.value.lastModified
+    })
+    
+    // Upload the renamed file
+    await filesStore.uploadFile(
+      renamedFile,
+      undefined,
+      uploadForm.value.visibility,
+      [],
+      uploadForm.value.path
+    )
+    
+    ElMessage.success(`${renameForm.value.name} uploaded successfully`)
+  } catch (error) {
+    ElMessage.error(`Failed to upload ${renameForm.value.name}`)
+  }
+  
+  renameDialogVisible.value = false
+  duplicateDialogVisible.value = false
+}
+
+const handleOverwriteFile = async () => {
+  if (!currentFile.value || !duplicateFile.value) return
+  
+  try {
+    console.log('Overwriting file:', {
+      fileId: duplicateFile.value.id,
+      fileName: currentFile.value.name,
+      fileSize: currentFile.value.size
+    })
+    
+    // Update the existing file's content using PATCH request
+    await filesStore.updateFileContent(duplicateFile.value.id, currentFile.value)
+    ElMessage.success(`${currentFile.value.name} overwritten successfully`)
+  } catch (error) {
+    console.error('Overwrite error:', error)
+    ElMessage.error(`Failed to overwrite ${currentFile.value.name}`)
+  }
+  
+  duplicateDialogVisible.value = false
 }
 
 const beforeUpload = (file: any) => {
@@ -123,6 +285,18 @@ const beforeUpload = (file: any) => {
 
 const handleClose = () => {
   router.go(-1)
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const formatDate = (dateString: string): string => {
+  return new Date(dateString).toLocaleString()
 }
 </script>
 
@@ -156,5 +330,41 @@ const handleClose = () => {
 
 .upload-area {
   width: 100%;
+}
+
+.duplicate-dialog {
+  margin-bottom: 20px;
+}
+
+.duplicate-dialog p {
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.file-info {
+  background-color: #f5f7fa;
+  padding: 15px;
+  border-radius: 6px;
+  margin-top: 15px;
+}
+
+.file-info p {
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.file-info ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.file-info li {
+  margin-bottom: 5px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 </style>

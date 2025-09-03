@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from . import views
 
 router = DefaultRouter()
-router.register(r'files', views.FileSystemItemViewSet, basename='filesystemitem')
+router.register(r'files', views.FileItemViewSet, basename='fileitem')
 router.register(r'tags', views.FileTagViewSet, basename='filetag')
 router.register(r'tag-relations', views.FileTagRelationViewSet, basename='filetagrelation')
 router.register(r'access-logs', views.FileAccessLogViewSet, basename='fileaccesslog')

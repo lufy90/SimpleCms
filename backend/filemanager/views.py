@@ -16,11 +16,11 @@ import time
 from pathlib import Path
 
 from .models import (
-    FileSystemItem, FileTag, FileTagRelation, FileAccessLog, 
+    FileItem, FileTag, FileTagRelation, FileAccessLog, 
     FileAccessPermission, FilePermissionRequest, FileStorage, FileThumbnail
 )
 from .serializers import (
-    FileSystemItemSerializer, FileSystemItemCreateSerializer, FileSystemItemUpdateSerializer,
+    FileItemSerializer, FileItemCreateSerializer, FileItemUpdateSerializer,
     FileTagSerializer, FileTagRelationSerializer, FileAccessLogSerializer,
     DirectoryTreeSerializer, FileSearchSerializer, FileUploadSerializer, FileOperationSerializer,
     FileAccessPermissionSerializer, FileAccessPermissionCreateSerializer,
@@ -31,40 +31,46 @@ from .serializers import (
     # DirectoryUploadSerializer removed
 )
 from .pagination import (
-    FileSystemItemPagination, FileAccessLogPagination, FileTagPagination
+    FileItemPagination, FileAccessLogPagination, FileTagPagination
 )
 from .pagination import (
-    FileSystemItemPagination, FileAccessLogPagination, FileTagPagination
+    FileItemPagination, FileAccessLogPagination, FileTagPagination
 )
-from .utils import file_path_manager
+from .utils import file_path_manager, determine_file_sharing
 
 
-class FileSystemItemViewSet(viewsets.ModelViewSet):
+class FileItemViewSet(viewsets.ModelViewSet):
     """ViewSet for managing file system items"""
-    queryset = FileSystemItem.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    pagination_class = FileSystemItemPagination
+    queryset = FileItem.objects.all()
+    permission_classes = [IsAuthenticated]
+    pagination_class = FileItemPagination
     
     def get_serializer_class(self):
         if self.action == 'create':
-            return FileSystemItemCreateSerializer
+            return FileItemCreateSerializer
         elif self.action in ['update', 'partial_update']:
-            return FileSystemItemUpdateSerializer
-        return FileSystemItemSerializer
+            return FileItemUpdateSerializer
+        return FileItemSerializer
     
     def get_queryset(self):
-        queryset = FileSystemItem.objects.all()
+        queryset = FileItem.objects.all()
         user = self.request.user
         
+        # Ensure user is authenticated (this should be handled by permission_classes, but double-check)
+        if not user.is_authenticated:
+            return FileItem.objects.none()
+        
         # Filter based on user permissions
-        if user.is_authenticated and not user.is_superuser:
+        if not user.is_superuser:
             # User can see: their own files, public files, files shared with them, and files shared with their groups
             user_groups = user.groups.all()
             queryset = queryset.filter(
                 Q(owner=user) |  # Own files
                 Q(visibility='public') |  # Public files
                 Q(visibility='user', shared_users=user) |  # User shared files
-                Q(visibility='group', shared_groups__in=user_groups)  # Group shared files
+                Q(visibility='group', shared_groups__in=user_groups) |  # Group shared files
+                Q(access_permissions__user=user, access_permissions__is_active=True) |  # Explicit user permissions
+                Q(access_permissions__group__in=user_groups, access_permissions__is_active=True)  # Explicit group permissions
             ).distinct()
         
         # Filter by item type
@@ -167,7 +173,7 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         # Update file metadata from filesystem
         file_item.update_from_filesystem()
         
-        return Response(FileSystemItemSerializer(file_item, context={'request': request}).data)
+        return Response(FileItemSerializer(file_item, context={'request': request}).data)
     
     @action(detail=True, methods=['put', 'patch'])
     def update_visibility(self, request, pk=None):
@@ -180,6 +186,9 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         serializer = FileVisibilityUpdateSerializer(file_item, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            
+            # Update visibility to reflect current sharing status
+            file_item.update_visibility_from_sharing()
             
             # Log the visibility change
             action_type = 'visibility_change'
@@ -196,7 +205,7 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
                 user_agent=request.META.get('HTTP_USER_AGENT', '')
             )
             
-            return Response(FileSystemItemSerializer(file_item, context={'request': request}).data)
+            return Response(FileItemSerializer(file_item, context={'request': request}).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['get'])
@@ -240,19 +249,24 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         start_time = time.time()
         
         # Search in database first
-        queryset = FileSystemItem.objects.filter(
+        queryset = FileItem.objects.filter(
             Q(name__icontains=query) | Q(path__icontains=query)
         )
         
         # Apply permission filtering
         user = request.user
-        if user.is_authenticated and not user.is_superuser:
+        if not user.is_authenticated:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        if not user.is_superuser:
             user_groups = user.groups.all()
             queryset = queryset.filter(
                 Q(owner=user) |  # Own files
                 Q(visibility='public') |  # Public files
                 Q(visibility='user', shared_users=user) |  # User shared files
-                Q(visibility='group', shared_groups__in=user_groups)  # Group shared files
+                Q(visibility='group', shared_groups__in=user_groups) |  # Group shared files
+                Q(access_permissions__user=user, access_permissions__is_active=True) |  # Explicit user permissions
+                Q(access_permissions__group__in=user_groups, access_permissions__is_active=True)  # Explicit group permissions
             ).distinct()
         
         # Apply filters
@@ -266,7 +280,7 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         
         search_time = time.time() - start_time
         
-        serializer = FileSystemItemSerializer(queryset, many=True, context={'request': request})
+        serializer = FileItemSerializer(queryset, many=True, context={'request': request})
         
         return Response({
             'query': query,
@@ -275,54 +289,7 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
             'search_time': search_time
         })
     
-    @action(detail=False, methods=['get'])
-    def shared_to_me(self, request):
-        """Get files shared directly to the current user"""
-        user = request.user
-        if not user.is_authenticated:
-            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        # Get files shared directly to the user through permissions
-        shared_files = FileSystemItem.objects.filter(
-            Q(access_permissions__user=user, access_permissions__is_active=True) |
-            Q(visibility='user', shared_users=user)
-        ).exclude(owner=user).distinct()
-        
-        # Apply pagination
-        page = self.paginate_queryset(shared_files)
-        if page is not None:
-            serializer = FileSystemItemSerializer(page, many=True, context={'request': request})
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = FileSystemItemSerializer(shared_files, many=True, context={'request': request})
-        return Response(serializer.data)
-    
-    @action(detail=False, methods=['get'])
-    def shared_to_my_groups(self, request):
-        """Get files shared to groups the current user belongs to"""
-        user = request.user
-        if not user.is_authenticated:
-            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        # Get user's groups
-        user_groups = user.groups.all()
-        if not user_groups.exists():
-            return Response({'results': []})
-        
-        # Get files shared to user's groups through permissions
-        shared_files = FileSystemItem.objects.filter(
-            Q(access_permissions__group__in=user_groups, access_permissions__is_active=True) |
-            Q(visibility='group', shared_groups__in=user_groups)
-        ).exclude(owner=user).distinct()
-        
-        # Apply pagination
-        page = self.paginate_queryset(shared_files)
-        if page is not None:
-            serializer = FileSystemItemSerializer(page, many=True, context={'request': request})
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = FileSystemItemSerializer(shared_files, many=True, context={'request': request})
-        return Response(serializer.data)
+
     
     @action(detail=False, methods=['post'])
     def scan_directory(self, request):
@@ -360,29 +327,44 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
             parent_directory = None
             if parent_id:
                 try:
-                    parent_directory = FileSystemItem.objects.get(id=parent_id, item_type='directory')
+                    parent_directory = FileItem.objects.get(id=parent_id, item_type='directory')
                     # Check if user can write to parent directory
                     if not parent_directory.can_write(request.user):
                         return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
-                except FileSystemItem.DoesNotExist:
+                except FileItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
             
             # Check if directory already exists in database
             if parent_directory:
-                if FileSystemItem.objects.filter(parent=parent_directory, name=name, item_type='directory').exists():
+                if FileItem.objects.filter(parent=parent_directory, name=name, item_type='directory').exists():
                     return Response({'error': 'Directory already exists'}, status=status.HTTP_409_CONFLICT)
             else:
-                if FileSystemItem.objects.filter(parent__isnull=True, name=name, item_type='directory').exists():
+                if FileItem.objects.filter(parent__isnull=True, name=name, item_type='directory').exists():
                     return Response({'error': 'Directory already exists'}, status=status.HTTP_409_CONFLICT)
             
+            # Determine directory visibility and sharing based on parent directory
+            dir_visibility, dir_shared_users, dir_shared_groups = determine_file_sharing(
+                parent_directory, visibility, [], [], request.user
+            )
+            
             # Create database record (directories don't need physical storage)
-            directory_item = FileSystemItem.objects.create(
+            directory_item = FileItem.objects.create(
                 name=name,
                 item_type='directory',
                 parent=parent_directory,
                 owner=request.user,
-                visibility=visibility
+                visibility=dir_visibility
             )
+            
+            # Add shared users if visibility is 'user'
+            if dir_visibility == 'user' and dir_shared_users:
+                users = User.objects.filter(id__in=dir_shared_users)
+                directory_item.shared_users.set(users)
+            
+            # Add shared groups if visibility is 'group'
+            if dir_visibility == 'group' and dir_shared_groups:
+                groups = Group.objects.filter(id__in=dir_shared_groups)
+                directory_item.shared_groups.set(groups)
             
             # Log the directory creation
             FileAccessLog.objects.create(
@@ -395,7 +377,7 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
             
             return Response({
                 'message': 'Directory created successfully',
-                'directory': FileSystemItemSerializer(directory_item, context={'request': request}).data
+                'directory': FileItemSerializer(directory_item, context={'request': request}).data
             }, status=status.HTTP_201_CREATED)
             
         except PermissionError as e:
@@ -417,24 +399,29 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
         
         # Get direct children (not recursive)
-        children = FileSystemItem.objects.filter(
+        children = FileItem.objects.filter(
             parent=file_item,
             is_active=True
         ).order_by('item_type', 'name')  # Directories first, then files, alphabetically
         
         # Apply permission filtering for children
         user = request.user
-        if user.is_authenticated and not user.is_superuser:
+        if not user.is_authenticated:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        if not user.is_superuser:
             user_groups = user.groups.all()
             children = children.filter(
                 Q(owner=user) |  # Own files
                 Q(visibility='public') |  # Public files
                 Q(visibility='user', shared_users=user) |  # User shared files
-                Q(visibility='group', shared_groups__in=user_groups)  # Group shared files
+                Q(visibility='group', shared_groups__in=user_groups) |  # Group shared files
+                Q(access_permissions__user=user, access_permissions__is_active=True) |  # Explicit user permissions
+                Q(access_permissions__group__in=user_groups, access_permissions__is_active=True)  # Explicit group permissions
             ).distinct()
         
         # Serialize children with full context
-        serializer = FileSystemItemSerializer(children, many=True, context={'request': request})
+        serializer = FileItemSerializer(children, many=True, context={'request': request})
         
         return Response({
             'parent': {
@@ -446,6 +433,38 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
             'total_count': len(serializer.data)
         })
 
+    def _get_orphaned_shared_items(self, user):
+        """Get items that user has access to but whose parents they don't have access to
+        
+        This handles the case where a user is shared with a deep directory
+        but doesn't have access to the parent directories.
+        """
+        if user.is_superuser:
+            return FileItem.objects.none()
+        
+        user_groups = user.groups.all()
+        
+        # Get all items the user has access to
+        accessible_items = FileItem.objects.filter(
+            Q(owner=user) |  # Own files
+            Q(visibility='public') |  # Public files
+            Q(visibility='user', shared_users=user) |  # User shared files
+            Q(visibility='group', shared_groups__in=user_groups) |  # Group shared files
+            Q(access_permissions__user=user, access_permissions__is_active=True) |  # Explicit user permissions
+            Q(access_permissions__group__in=user_groups, access_permissions__is_active=True)  # Explicit group permissions
+        ).distinct()
+        
+        # Filter out items that are already at root level
+        non_root_items = accessible_items.filter(parent__isnull=False)
+        
+        # Find items whose parents the user cannot access
+        orphaned_items = []
+        for item in non_root_items:
+            if item.parent and not item.parent.can_access(user, 'read'):
+                orphaned_items.append(item)
+        
+        return FileItem.objects.filter(id__in=[item.id for item in orphaned_items])
+
     @action(detail=False, methods=['get'])
     def list_children(self, request):
         """Get children by parent ID from query params, or list top-level files if no parent given"""
@@ -454,7 +473,7 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         if parent_id:
             # Get children of specific parent
             try:
-                parent_item = FileSystemItem.objects.get(id=parent_id)
+                parent_item = FileItem.objects.get(id=parent_id)
                 
                 # Check if it's a directory
                 if parent_item.item_type != 'directory':
@@ -465,36 +484,55 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
                     return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
                 
                 # Get direct children (not recursive)
-                children = FileSystemItem.objects.filter(
+                children = FileItem.objects.filter(
                     parent=parent_item
-                ).order_by('item_type', 'name')  # Directories first, then files, alphabetically
+                )  # Will be ordered later
                 
                 # Use full serializer for parent to include parents field
-                parent_serializer = FileSystemItemSerializer(parent_item, context={'request': request})
+                parent_serializer = FileItemSerializer(parent_item, context={'request': request})
                 parent_info = parent_serializer.data
-            except FileSystemItem.DoesNotExist:
+            except FileItem.DoesNotExist:
                 return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
         else:
             # List top-level files (no parent)
-            children = FileSystemItem.objects.filter(
+            children = FileItem.objects.filter(
                 parent__isnull=True
-            ).order_by('item_type', 'name')  # Directories first, then files, alphabetically
+            )  # Will be ordered later
             
             parent_info = None
         
         # Apply permission filtering for children
         user = request.user
-        if user.is_authenticated and not user.is_superuser:
+        if not user.is_authenticated:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        if not user.is_superuser:
             user_groups = user.groups.all()
             children = children.filter(
                 Q(owner=user) |  # Own files
                 Q(visibility='public') |  # Public files
                 Q(visibility='user', shared_users=user) |  # User shared files
-                Q(visibility='group', shared_groups__in=user_groups)  # Group shared files
+                Q(visibility='group', shared_groups__in=user_groups) |  # Group shared files
+                Q(access_permissions__user=user, access_permissions__is_active=True) |  # Explicit user permissions
+                Q(access_permissions__group__in=user_groups, access_permissions__is_active=True)  # Explicit group permissions
             ).distinct()
         
+        # If listing root directory, also include orphaned shared items
+        if parent_id is None:
+            orphaned_items = self._get_orphaned_shared_items(user)
+            # Get IDs from both querysets and combine them
+            children_ids = list(children.values_list('id', flat=True))
+            orphaned_ids = list(orphaned_items.values_list('id', flat=True))
+            all_ids = children_ids + orphaned_ids
+            
+            # Get all items with the combined IDs and order them
+            all_items = FileItem.objects.filter(id__in=all_ids).order_by('item_type', 'name')
+        else:
+            # For specific parent directories, just apply ordering
+            all_items = children.order_by('item_type', 'name')
+        
         # Serialize children with full context
-        serializer = FileSystemItemSerializer(children, many=True, context={'request': request})
+        serializer = FileItemSerializer(all_items, many=True, context={'request': request})
         
         response_data = {
             'children': serializer.data,
@@ -506,6 +544,12 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
         else:
             response_data['parent'] = None
             response_data['message'] = 'Listing top-level files and directories'
+            # Add info about orphaned items if any
+            if parent_id is None:
+                orphaned_count = len(self._get_orphaned_shared_items(user))
+                if orphaned_count > 0:
+                    response_data['orphaned_shared_count'] = orphaned_count
+                    response_data['message'] += f' (including {orphaned_count} shared items from inaccessible parent directories)'
         
         return Response(response_data)
 
@@ -531,21 +575,21 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
                         current_parent = None
                         for part in parent_parts:
                             if current_parent:
-                                current_parent = FileSystemItem.objects.filter(
+                                current_parent = FileItem.objects.filter(
                                     parent=current_parent, 
                                     name=part, 
                                     item_type='directory'
                                 ).first()
                             else:
-                                current_parent = FileSystemItem.objects.filter(
+                                current_parent = FileItem.objects.filter(
                                     parent__isnull=True, 
                                     name=part, 
                                     item_type='directory'
                                 ).first()
                         parent_dir = current_parent
                     
-                    if not FileSystemItem.objects.filter(parent=parent_dir, name=dir_name, item_type='directory').exists():
-                        FileSystemItem.objects.create(
+                    if not FileItem.objects.filter(parent=parent_dir, name=dir_name, item_type='directory').exists():
+                        FileItem.objects.create(
                             name=dir_name,
                             item_type='directory',
                             parent=parent_dir,
@@ -564,13 +608,13 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
                         current_parent = None
                         for part in parent_parts:
                             if current_parent:
-                                current_parent = FileSystemItem.objects.filter(
+                                current_parent = FileItem.objects.filter(
                                     parent=current_parent, 
                                     name=part, 
                                     item_type='directory'
                                 ).first()
                             else:
-                                current_parent = FileSystemItem.objects.filter(
+                                current_parent = FileItem.objects.filter(
                                     parent__isnull=True, 
                                     name=part, 
                                     item_type='directory'
@@ -578,7 +622,7 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
                         parent_dir = current_parent
                     
                     # Check if file already exists by name and parent
-                    if not FileSystemItem.objects.filter(parent=parent_dir, name=file_name, item_type='file').exists():
+                    if not FileItem.objects.filter(parent=parent_dir, name=file_name, item_type='file').exists():
                         # Create FileStorage record
                         file_info = file_path_manager.get_file_info(file_path)
                         if file_info:
@@ -604,8 +648,8 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
                             file_storage.checksum = file_storage.calculate_checksum()
                             file_storage.save()
                             
-                            # Create FileSystemItem record
-                            file_item = FileSystemItem.objects.create(
+                            # Create FileItem record
+                            file_item = FileItem.objects.create(
                                 name=file_name,
                                 item_type='file',
                                 parent=parent_dir,
@@ -782,9 +826,12 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
                     # Filter by specific permission types if provided
                     if permission_types:
                         permission_filter['permission_type__in'] = permission_types
+
+                    print(f"Permission filter: {permission_filter}")
                     
                     # Find and revoke permissions
                     permissions_to_revoke = FileAccessPermission.objects.filter(**permission_filter)
+                    print(f"Permissions to revoke: {permissions_to_revoke}")
                     
                     for permission in permissions_to_revoke:
                         permission.is_active = False
@@ -815,8 +862,45 @@ class FileSystemItemViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             return Response({'error': f'Failed to unshare recursively: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
+    
+    @action(detail=True, methods=['put', 'patch'], parser_classes=[MultiPartParser, FormParser])
+    def update_content(self, request, pk=None):
+        """Update file content"""
+        file_item = self.get_object()
+        
+        # Check if it's a file (not directory)
+        if file_item.item_type != 'file':
+            return Response({'error': 'Can only update content of files, not directories'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check write permissions
+        if not file_item.can_write(request.user):
+            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Use the FileContentUpdateSerializer
+        from filemanager.serializers import FileContentUpdateSerializer
+        serializer = FileContentUpdateSerializer(file_item, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            try:
+                updated_file = serializer.save()
+                
+                # Log the content update
+                FileAccessLog.objects.create(
+                    file=updated_file,
+                    user=request.user,
+                    action='edit',
+                    ip_address=self.get_client_ip(request),
+                    user_agent=request.META.get('HTTP_USER_AGENT', '')
+                )
+                
+                # Return the updated file data
+                return Response(FileItemSerializer(updated_file, context={'request': request}).data)
+                
+            except Exception as e:
+                return Response({'error': f'Failed to update file content: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 class FileUploadView(generics.CreateAPIView):
     """Handle file uploads with UUID-based storage"""
     parser_classes = (MultiPartParser, FormParser)
@@ -840,11 +924,11 @@ class FileUploadView(generics.CreateAPIView):
             parent_directory = None
             if parent_id:
                 try:
-                    parent_directory = FileSystemItem.objects.get(id=parent_id, item_type='directory')
+                    parent_directory = FileItem.objects.get(id=parent_id, item_type='directory')
                     # Check if user can write to parent directory
                     if not parent_directory.can_write(request.user):
                         return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
-                except FileSystemItem.DoesNotExist:
+                except FileItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
             
             # Handle relative path and create directories if needed
@@ -887,14 +971,19 @@ class FileUploadView(generics.CreateAPIView):
             file_storage.checksum = file_storage.calculate_checksum()
             file_storage.save()
             
-            # Create FileSystemItem record
-            file_item = FileSystemItem.objects.create(
+            # Determine file visibility and sharing based on parent directory
+            file_visibility, file_shared_users, file_shared_groups = determine_file_sharing(
+                final_parent_directory, visibility, shared_users, shared_groups, request.user
+            )
+            
+            # Create FileItem record
+            file_item = FileItem.objects.create(
                 name=uploaded_file.name,
                 item_type='file',
                 parent=final_parent_directory,
                 storage=file_storage,
                 owner=request.user,
-                visibility=visibility
+                visibility=file_visibility
             )
             
             # Generate thumbnail if it's an image
@@ -905,13 +994,13 @@ class FileUploadView(generics.CreateAPIView):
                     file_item.save()
             
             # Add shared users if visibility is 'user'
-            if visibility == 'user' and shared_users:
-                users = User.objects.filter(id__in=shared_users)
+            if file_visibility == 'user' and file_shared_users:
+                users = User.objects.filter(id__in=file_shared_users)
                 file_item.shared_users.set(users)
             
             # Add shared groups if visibility is 'group'
-            if visibility == 'group' and shared_groups:
-                groups = Group.objects.filter(id__in=shared_groups)
+            if file_visibility == 'group' and file_shared_groups:
+                groups = Group.objects.filter(id__in=file_shared_groups)
                 file_item.shared_groups.set(groups)
             
             # Add tags
@@ -928,7 +1017,7 @@ class FileUploadView(generics.CreateAPIView):
                 user_agent=request.META.get('HTTP_USER_AGENT', '')
             )
             
-            return Response(FileSystemItemSerializer(file_item, context={'request': request}).data, status=status.HTTP_201_CREATED)
+            return Response(FileItemSerializer(file_item, context={'request': request}).data, status=status.HTTP_201_CREATED)
             
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -999,14 +1088,12 @@ class FileUploadView(generics.CreateAPIView):
             ip = request.META.get('REMOTE_ADDR')
         return ip
     
-
-    
     def _find_deepest_existing_directory(self, start_parent, path_parts):
         """Find the deepest existing directory in a path without creating anything"""
         current = start_parent
         for part in path_parts:
             if current:
-                next_dir = FileSystemItem.objects.filter(
+                next_dir = FileItem.objects.filter(
                     name=part,
                     parent=current,
                     item_type='directory'
@@ -1044,17 +1131,17 @@ class FileUploadView(generics.CreateAPIView):
             with transaction.atomic():
                 try:
                     # First try to get existing directory
-                    existing_dir = FileSystemItem.objects.get(
+                    existing_dir = FileItem.objects.get(
                         name=part,
                         parent=current_parent,
                         item_type='directory',
                         owner=user,
                         is_deleted=False
                     )
-                except FileSystemItem.DoesNotExist:
+                except FileItem.DoesNotExist:
                     # Directory doesn't exist, create it
                     try:
-                        existing_dir = FileSystemItem.objects.create(
+                        existing_dir = FileItem.objects.create(
                             name=part,
                             parent=current_parent,
                             item_type='directory',
@@ -1064,7 +1151,7 @@ class FileUploadView(generics.CreateAPIView):
                     except ValidationError:
                         # Another thread created it between our check and create
                         # Try to get it again
-                        existing_dir = FileSystemItem.objects.get(
+                        existing_dir = FileItem.objects.get(
                             name=part,
                             parent=current_parent,
                             item_type='directory',
@@ -1073,7 +1160,7 @@ class FileUploadView(generics.CreateAPIView):
                         )
                     except IntegrityError:
                         # Database constraint violation, try to get existing
-                        existing_dir = FileSystemItem.objects.get(
+                        existing_dir = FileItem.objects.get(
                             name=part,
                             parent=current_parent,
                             item_type='directory',
@@ -1104,7 +1191,7 @@ class FileOperationView(generics.CreateAPIView):
         try:
             for file_id in file_ids:
                 try:
-                    file_item = FileSystemItem.objects.with_deleted().get(id=file_id)
+                    file_item = FileItem.objects.with_deleted().get(id=file_id)
                     
                     # Check permissions
                     if operation == 'delete' and not file_item.can_delete(request.user):
@@ -1149,7 +1236,7 @@ class FileOperationView(generics.CreateAPIView):
                         'error': error
                     })
                     
-                except FileSystemItem.DoesNotExist:
+                except FileItem.DoesNotExist:
                     results.append({
                         'id': file_id,
                         'name': 'Unknown',
@@ -1186,8 +1273,8 @@ class FileOperationView(generics.CreateAPIView):
             else:
                 # Get destination directory
                 try:
-                    destination_dir = FileSystemItem.objects.get(id=destination_id, item_type='directory')
-                except FileSystemItem.DoesNotExist:
+                    destination_dir = FileItem.objects.get(id=destination_id, item_type='directory')
+                except FileItem.DoesNotExist:
                     return False, 'Destination directory not found'
                 
                 # Check if user can write to destination
@@ -1237,7 +1324,7 @@ class FileOperationView(generics.CreateAPIView):
                 new_storage.save()
                 
                 # Create new database record
-                new_file_item = FileSystemItem.objects.create(
+                new_file_item = FileItem.objects.create(
                     name=new_name, 
                     item_type=file_item.item_type,
                     parent=destination_dir,
@@ -1252,7 +1339,7 @@ class FileOperationView(generics.CreateAPIView):
                 
             elif file_item.item_type == 'directory':
                 # For directories, just create the logical structure
-                new_file_item = FileSystemItem.objects.create(
+                new_file_item = FileItem.objects.create(
                     name=new_name,
                     item_type=file_item.item_type,
                     parent=destination_dir,
@@ -1283,8 +1370,8 @@ class FileOperationView(generics.CreateAPIView):
             else:
                 # Get destination directory
                 try:
-                    destination_dir = FileSystemItem.objects.get(id=destination_id, item_type='directory')
-                except FileSystemItem.DoesNotExist:
+                    destination_dir = FileItem.objects.get(id=destination_id, item_type='directory')
+                except FileItem.DoesNotExist:
                     return False, 'Destination directory not found'
                 
                 # Check if user can write to destination
@@ -1323,7 +1410,7 @@ class FileOperationView(generics.CreateAPIView):
         counter = 1
         new_name = original_name
         
-        while FileSystemItem.objects.filter(parent=destination_dir, name=new_name).exists():
+        while FileItem.objects.filter(parent=destination_dir, name=new_name).exists():
             if extension:
                 new_name = f"{base_name} ({counter}){extension}"
             else:
@@ -1338,7 +1425,7 @@ class FileOperationView(generics.CreateAPIView):
         counter = 1
         new_name = original_name
         
-        while FileSystemItem.objects.filter(parent__isnull=True, name=new_name).exists():
+        while FileItem.objects.filter(parent__isnull=True, name=new_name).exists():
             if extension:
                 new_name = f"{base_name} ({counter}){extension}"
             else:
@@ -1355,7 +1442,7 @@ class DeletedFilesViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Only show deleted files"""
-        return FileSystemItem.objects.deleted_only()
+        return FileItem.objects.deleted_only()
     
     def list(self, request, *args, **kwargs):
         """List all deleted files"""
@@ -1378,7 +1465,7 @@ class DeletedFilesViewSet(viewsets.ModelViewSet):
         
         for file_id in file_ids:
             try:
-                file_item = FileSystemItem.objects.deleted_only().get(id=file_id)
+                file_item = FileItem.objects.deleted_only().get(id=file_id)
                 
                 # Check permissions
                 if not file_item.can_access(request.user, 'write'):
@@ -1399,7 +1486,7 @@ class DeletedFilesViewSet(viewsets.ModelViewSet):
                     'error': None
                 })
                 
-            except FileSystemItem.DoesNotExist:
+            except FileItem.DoesNotExist:
                 results.append({
                     'id': file_id,
                     'name': 'Unknown',
@@ -1419,7 +1506,7 @@ class DeletedFilesViewSet(viewsets.ModelViewSet):
         
         for file_id in file_ids:
             try:
-                file_item = FileSystemItem.objects.deleted_only().get(id=file_id)
+                file_item = FileItem.objects.deleted_only().get(id=file_id)
                 
                 # Check permissions
                 if not file_item.can_delete(request.user):
@@ -1440,7 +1527,7 @@ class DeletedFilesViewSet(viewsets.ModelViewSet):
                     'error': None
                 })
                 
-            except FileSystemItem.DoesNotExist:
+            except FileItem.DoesNotExist:
                 results.append({
                     'id': file_id,
                     'name': 'Unknown',
@@ -1463,7 +1550,14 @@ class FileAccessPermissionViewSet(viewsets.ModelViewSet):
         return FileAccessPermissionSerializer
     
     def get_queryset(self):
-        queryset = FileAccessPermission.objects.all()
+        # Only show active permissions by default, unless include_inactive is requested
+        include_inactive = self.request.query_params.get('include_inactive', 'false').lower() == 'true'
+        
+        if include_inactive:
+            queryset = FileAccessPermission.objects.all()
+        else:
+            queryset = FileAccessPermission.objects.filter(is_active=True)
+        
         user = self.request.user
         
         # Filter by file if specified
@@ -1539,7 +1633,7 @@ class FileTagViewSet(viewsets.ModelViewSet):
     """ViewSet for managing file tags"""
     queryset = FileTag.objects.all()
     serializer_class = FileTagSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticated]
     pagination_class = FileTagPagination
 
 
@@ -1547,7 +1641,7 @@ class FileTagRelationViewSet(viewsets.ModelViewSet):
     """ViewSet for managing file-tag relationships"""
     queryset = FileTagRelation.objects.all()
     serializer_class = FileTagRelationSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticated]
 
 
 class FileAccessLogViewSet(viewsets.ReadOnlyModelViewSet):
