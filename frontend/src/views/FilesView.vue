@@ -1125,8 +1125,16 @@ const uploadAllFiles = async (files: File[]) => {
             fileSize: file.size
           })
           
+          // Create progress callback for overwrite operation
+          const overwriteProgressCallback = (progressEvent: any) => {
+            if (progressEvent.total) {
+              const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              uploadProgress.value[i].percentage = percentage
+            }
+          }
+          
           // Use the store's updateFileContent method which makes a PATCH request
-          const success = await filesStore.updateFileContent(conflictResult.existingFile.id, file)
+          const success = await filesStore.updateFileContent(conflictResult.existingFile.id, file, overwriteProgressCallback)
           
           if (success) {
             uploadProgress.value[i].status = 'success'
@@ -1164,7 +1172,16 @@ const uploadAllFiles = async (files: File[]) => {
         fileSize: file.size,
         relativePath
       })
-      await uploadAPI.upload(formData)
+      
+      // Create progress callback for this specific file
+      const progressCallback = (progressEvent: any) => {
+        if (progressEvent.total) {
+          const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          uploadProgress.value[i].percentage = percentage
+        }
+      }
+      
+      await uploadAPI.upload(formData, progressCallback)
 
       // Update progress
       uploadProgress.value[i].status = 'success'

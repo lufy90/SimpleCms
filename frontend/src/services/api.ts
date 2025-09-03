@@ -4,58 +4,76 @@ import Cookies from 'js-cookie'
 // Create axios instance
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002',
-  timeout: 30000,
+  timeout: 30000, // 30 seconds for regular requests
+})
+
+// Create separate axios instance for uploads with longer timeout
+const uploadApi = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002',
+  timeout: 300000, // 5 minutes for upload requests
 })
 
 // Request interceptor to add auth token
-api.interceptors.request.use(
-  (config) => {
-    const token = Cookies.get('access_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  },
-)
+const addAuthInterceptor = (axiosInstance: typeof api) => {
+  axiosInstance.interceptors.request.use(
+    (config) => {
+      const token = Cookies.get('access_token')
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
+      return config
+    },
+    (error) => {
+      return Promise.reject(error)
+    },
+  )
+}
+
+// Add auth interceptor to both instances
+addAuthInterceptor(api)
+addAuthInterceptor(uploadApi)
 
 // Response interceptor to handle token refresh
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config
+const addResponseInterceptor = (axiosInstance: typeof api) => {
+  axiosInstance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        originalRequest._retry = true
 
-      try {
-        const refreshToken = Cookies.get('refresh_token')
-        if (refreshToken) {
-          const response = await api.post('/api/auth/refresh/', {
-            refresh_token: refreshToken,
-          })
+        try {
+          const refreshToken = Cookies.get('refresh_token')
+          if (refreshToken) {
+            const response = await api.post('/api/auth/refresh/', {
+              refresh_token: refreshToken,
+            })
 
-          const { access, refresh } = response.data
-          Cookies.set('access_token', access, { expires: 1 / 24 }) // 1 hour
-          Cookies.set('refresh_token', refresh, { expires: 7 }) // 7 days
+            const { access, refresh } = response.data
+            Cookies.set('access_token', access, { expires: 1 / 24 }) // 1 hour
+            Cookies.set('refresh_token', refresh, { expires: 7 }) // 7 days
 
-          originalRequest.headers.Authorization = `Bearer ${access}`
-          return api(originalRequest)
+            originalRequest.headers.Authorization = `Bearer ${access}`
+            return axiosInstance(originalRequest)
+          }
+        } catch (refreshError) {
+          // Refresh failed, redirect to login
+          Cookies.remove('access_token')
+          Cookies.remove('refresh_token')
+          window.location.href = '/login'
+          return Promise.reject(refreshError)
         }
-      } catch (refreshError) {
-        // Refresh failed, redirect to login
-        Cookies.remove('access_token')
-        Cookies.remove('refresh_token')
-        window.location.href = '/login'
-        return Promise.reject(refreshError)
       }
-    }
 
-    return Promise.reject(error)
-  },
-)
+      return Promise.reject(error)
+    },
+  )
+}
+
+// Add response interceptor to both instances
+addResponseInterceptor(api)
+addResponseInterceptor(uploadApi)
 
 // Auth API
 export const authAPI = {
@@ -159,17 +177,23 @@ export const filesAPI = {
   ) => api.post(`/api/files/${fileId}/unshare_recursively/`, data),
 
   // Update file content
-  updateContent: (fileId: number, formData: FormData) =>
-    api.patch(`/api/files/${fileId}/update_content/`, formData, {
+  updateContent: (fileId: number, formData: FormData, onProgress?: (progressEvent: any) => void) =>
+    uploadApi.patch(`/api/files/${fileId}/update_content/`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      onUploadProgress: onProgress,
     }),
 }
 
 // Upload API
 export const uploadAPI = {
-  upload: (formData: FormData) => api.post('/api/upload/', formData),
+  upload: (formData: FormData, onProgress?: (progressEvent: any) => void) => uploadApi.post('/api/upload/', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    onUploadProgress: onProgress,
+  }),
 }
 
 // Operations API

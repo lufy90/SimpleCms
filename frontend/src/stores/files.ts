@@ -344,12 +344,18 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const updateFileContent = async (fileId: number, file: File) => {
+  const updateFileContent = async (fileId: number, file: File, onProgress?: (progressEvent: any) => void) => {
     try {
       const formData = new FormData()
       formData.append('file', file)
 
-      await filesAPI.updateContent(fileId, formData)
+      // Use the upload API with progress tracking for file content updates
+      if (onProgress) {
+        await filesAPI.updateContent(fileId, formData, onProgress)
+      } else {
+        await filesAPI.updateContent(fileId, formData)
+      }
+      
       toast.success('File content updated successfully')
 
       // Refresh file list
