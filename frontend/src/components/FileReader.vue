@@ -4,91 +4,88 @@
     :title="`${file?.name} - File Viewer`"
     width="90%"
     :close-on-click-modal="false"
-    class="file-reader-dialog"
     @close="handleClose"
   >
-    <div class="file-reader-container">
-      <!-- Loading State -->
-      <div v-if="loading" class="loading-container">
-        <el-icon class="is-loading" size="48">
-          <Loading />
-        </el-icon>
-        <p>Loading file...</p>
-      </div>
+    <!-- Loading State -->
+    <div v-if="loading" class="loading-state">
+      <el-icon class="is-loading" size="48">
+        <Loading />
+      </el-icon>
+      <p>Loading file...</p>
+    </div>
 
-      <!-- Error State -->
-      <div v-else-if="error" class="error-container">
-        <el-icon size="48" color="#f56c6c">
-          <Warning />
-        </el-icon>
-        <p>{{ error }}</p>
-        <el-button @click="retryLoad">Retry</el-button>
-      </div>
+    <!-- Error State -->
+    <div v-else-if="error" class="error-state">
+      <el-icon size="48" color="#f56c6c">
+        <Warning />
+      </el-icon>
+      <p>{{ error }}</p>
+      <el-button @click="retryLoad">Retry</el-button>
+    </div>
 
-      <!-- File Content -->
-      <div v-else-if="fileContent" class="file-content">
-        <!-- Image Viewer -->
-        <ImageViewer
-          v-if="fileType === 'image'"
-          :src="fileContent"
-          :alt="file?.name"
-        />
+    <!-- File Content -->
+    <div v-else-if="fileContent">
+      <!-- Image Viewer -->
+      <ImageViewer
+        v-if="fileType === 'image'"
+        :src="fileContent"
+        :alt="file?.name"
+      />
 
-        <!-- PDF Viewer -->
-        <PDFViewer
-          v-else-if="fileType === 'pdf'"
-          :src="fileContent"
-          :filename="file?.name"
-        />
+      <!-- PDF Viewer -->
+      <PDFViewer
+        v-else-if="fileType === 'pdf'"
+        :src="fileContent"
+        :filename="file?.name"
+      />
 
-        <!-- Text Viewer -->
-        <TextViewer
-          v-else-if="fileType === 'text'"
-          :content="fileContent"
-          :filename="file?.name"
-          :mime-type="file?.storage?.mime_type"
-        />
+      <!-- Text Viewer -->
+      <TextViewer
+        v-else-if="fileType === 'text'"
+        :content="fileContent"
+        :filename="file?.name"
+        :mime-type="file?.storage?.mime_type"
+      />
 
-        <!-- JSON Viewer -->
-        <JSONViewer
-          v-else-if="fileType === 'json'"
-          :content="fileContent"
-          :filename="file?.name"
-        />
+      <!-- JSON Viewer -->
+      <JSONViewer
+        v-else-if="fileType === 'json'"
+        :content="fileContent"
+        :filename="file?.name"
+      />
 
-        <!-- Code Viewer -->
-        <CodeViewer
-          v-else-if="fileType === 'code'"
-          :content="fileContent"
-          :filename="file?.name"
-          :language="detectedLanguage"
-        />
+      <!-- Code Viewer -->
+      <CodeViewer
+        v-else-if="fileType === 'code'"
+        :content="fileContent"
+        :filename="file?.name"
+        :language="detectedLanguage"
+      />
 
-        <!-- Video Viewer -->
-        <VideoViewer
-          v-else-if="fileType === 'video'"
-          :src="fileContent"
-          :filename="file?.name"
-        />
+      <!-- Video Viewer -->
+      <VideoViewer
+        v-else-if="fileType === 'video'"
+        :src="fileContent"
+        :filename="file?.name"
+      />
 
-        <!-- Audio Viewer -->
-        <AudioViewer
-          v-else-if="fileType === 'audio'"
-          :src="fileContent"
-          :filename="file?.name"
-        />
+      <!-- Audio Viewer -->
+      <AudioViewer
+        v-else-if="fileType === 'audio'"
+        :src="fileContent"
+        :filename="file?.name"
+      />
 
-        <!-- Unsupported File Type -->
-        <UnsupportedViewer
-          v-else
-          :file="file"
-          @download="handleDownload"
-        />
-      </div>
+      <!-- Unsupported File Type -->
+      <UnsupportedViewer
+        v-else
+        :file="file"
+        @download="handleDownload"
+      />
     </div>
 
     <template #footer>
-      <div class="dialog-footer">
+      <div class="footer-actions">
         <el-button @click="handleDownload" :disabled="loading">
           <el-icon><Download /></el-icon>
           Download
@@ -349,18 +346,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.file-reader-dialog {
-  --el-dialog-border-radius: 12px;
-}
-
-.file-reader-container {
-  min-height: 400px;
-  max-height: 80vh;
-  overflow: auto;
-}
-
-.loading-container,
-.error-container {
+/* Minimal styles only for loading/error states */
+.loading-state,
+.error-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -369,22 +357,17 @@ onMounted(() => {
   gap: 16px;
 }
 
-.error-container {
+.error-state {
   color: #f56c6c;
 }
 
-.file-content {
-  width: 100%;
-  height: 100%;
-}
-
-.dialog-footer {
+.footer-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
 }
 
-.dialog-footer .el-button {
+.footer-actions .el-button {
   display: flex;
   align-items: center;
   gap: 6px;

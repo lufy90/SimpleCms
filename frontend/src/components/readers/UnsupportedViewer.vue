@@ -99,7 +99,8 @@ const openInNewTab = () => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  min-height: 400px;
+  min-height: 500px;
+  max-height: 80vh;
 }
 
 .unsupported-content {

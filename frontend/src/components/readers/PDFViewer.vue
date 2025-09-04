@@ -97,7 +97,8 @@ const onPdfError = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 400px;
+  min-height: 500px;
+  max-height: 80vh;
 }
 
 .pdf-header {
