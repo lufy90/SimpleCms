@@ -19,9 +19,14 @@ class PaginationSerializer(serializers.Serializer):
 
 
 class GroupSerializer(serializers.ModelSerializer):
+    members = serializers.SerializerMethodField()
+    
     class Meta:
         model = Group
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'members']
+    
+    def get_members(self, obj):
+        return list(obj.user_set.values_list('id', flat=True))
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -32,6 +37,54 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'groups']
 
 
+class UserCreateUpdateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False)
+    groups = serializers.ListField(child=serializers.IntegerField(), required=False)
+    
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'first_name', 'last_name', 'password', 'groups']
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make password required only for creation, not for updates
+        if self.instance is None:
+            # Creating a new user - password is required
+            self.fields['password'].required = True
+        else:
+            # Updating an existing user - password is optional
+            self.fields['password'].required = False
+    
+    def validate_username(self, value):
+        if self.instance and self.instance.username == value:
+            return value
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("A user with this username already exists.")
+        return value
+    
+    def validate_email(self, value):
+        if self.instance and self.instance.email == value:
+            return value
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+
+class GroupCreateUpdateSerializer(serializers.ModelSerializer):
+    members = serializers.ListField(child=serializers.IntegerField(), required=False)
+    
+    class Meta:
+        model = Group
+        fields = ['name', 'members']
+    
+    def validate_name(self, value):
+        if self.instance and self.instance.name == value:
+            return value
+        if Group.objects.filter(name=value).exists():
+            raise serializers.ValidationError("A group with this name already exists.")
+        return value
+
+
 class FileStorageSerializer(serializers.ModelSerializer):
     """Serializer for FileStorage model"""
     class Meta:
@@ -39,11 +92,6 @@ class FileStorageSerializer(serializers.ModelSerializer):
         fields = ['uuid', 'original_filename', 'file_size', 'mime_type', 'extension', 'checksum', 'created_at']
 
 
-class FileThumbnailSerializer(serializers.ModelSerializer):
-    """Serializer for FileThumbnail model"""
-    class Meta:
-        model = FileThumbnail
-        fields = ['uuid', 'thumbnail_size', 'width', 'height', 'file_size', 'created_at']
 
 
 class FileTagSerializer(serializers.ModelSerializer):
@@ -108,7 +156,7 @@ class FileItemSerializer(serializers.ModelSerializer):
     
     # New fields for UUID-based system
     storage = FileStorageSerializer(read_only=True)
-    thumbnail = FileThumbnailSerializer(read_only=True)
+    thumbnail = serializers.SerializerMethodField()
     sharing_status = serializers.SerializerMethodField()
     
     class Meta:
@@ -225,6 +273,26 @@ class FileItemSerializer(serializers.ModelSerializer):
     def get_sharing_status(self, obj):
         """Get detailed sharing status for display purposes"""
         return obj.get_sharing_status()
+    
+    def get_thumbnail(self, obj):
+        """Get thumbnail information and URL if available"""
+        if obj.thumbnail:
+            request = self.context.get('request')
+            thumbnail_data = {
+                'uuid': str(obj.thumbnail.uuid),
+                'thumbnail_size': obj.thumbnail.thumbnail_size,
+                'width': obj.thumbnail.width,
+                'height': obj.thumbnail.height,
+                'file_size': obj.thumbnail.file_size,
+                'created_at': obj.thumbnail.created_at
+            }
+            
+            # Add URL if request context is available
+            if request:
+                thumbnail_data['url'] = request.build_absolute_uri(f'/api/files/{obj.id}/thumbnail/')
+            
+            return thumbnail_data
+        return None
     
     def to_representation(self, instance):
         """Override to hide parent field for non-owned files"""

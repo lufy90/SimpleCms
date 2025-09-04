@@ -40,25 +40,45 @@ const addResponseInterceptor = (axiosInstance: typeof api) => {
     async (error) => {
       const originalRequest = error.config
 
+      // Don't retry refresh token requests to avoid infinite loops
+      if (originalRequest.url?.includes('/api/auth/refresh/')) {
+        // If refresh token request fails, clear tokens and redirect to login
+        Cookies.remove('access_token')
+        Cookies.remove('refresh_token')
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
+
       if (error.response?.status === 401 && !originalRequest._retry) {
         originalRequest._retry = true
 
         try {
           const refreshToken = Cookies.get('refresh_token')
           if (refreshToken) {
-            const response = await api.post('/api/auth/refresh/', {
+            // Use a separate axios instance for refresh to avoid interceptor loops
+            const refreshResponse = await axios.post('/api/auth/refresh/', {
               refresh_token: refreshToken,
+            }, {
+              baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002',
+              timeout: 10000
             })
 
-            const { access, refresh } = response.data
+            const { access, refresh } = refreshResponse.data
             Cookies.set('access_token', access, { expires: 1 / 24 }) // 1 hour
             Cookies.set('refresh_token', refresh, { expires: 7 }) // 7 days
 
             originalRequest.headers.Authorization = `Bearer ${access}`
             return axiosInstance(originalRequest)
+          } else {
+            // No refresh token available, redirect to login
+            Cookies.remove('access_token')
+            Cookies.remove('refresh_token')
+            window.location.href = '/login'
+            return Promise.reject(error)
           }
         } catch (refreshError) {
-          // Refresh failed, redirect to login
+          // Refresh failed, clear tokens and redirect to login
+          console.error('Token refresh failed:', refreshError)
           Cookies.remove('access_token')
           Cookies.remove('refresh_token')
           window.location.href = '/login'
@@ -74,6 +94,47 @@ const addResponseInterceptor = (axiosInstance: typeof api) => {
 // Add response interceptor to both instances
 addResponseInterceptor(api)
 addResponseInterceptor(uploadApi)
+
+// Utility function to check and clean up invalid tokens
+export const cleanupInvalidTokens = () => {
+  const accessToken = Cookies.get('access_token')
+  const refreshToken = Cookies.get('refresh_token')
+  
+  // If we have tokens, try to validate them
+  if (accessToken || refreshToken) {
+    // Check if tokens are expired or malformed
+    try {
+      if (accessToken) {
+        const payload = JSON.parse(atob(accessToken.split('.')[1]))
+        const now = Math.floor(Date.now() / 1000)
+        if (payload.exp < now) {
+          // Access token is expired, remove it
+          Cookies.remove('access_token')
+        }
+      }
+    } catch (error) {
+      // Token is malformed, remove it
+      Cookies.remove('access_token')
+    }
+    
+    try {
+      if (refreshToken) {
+        const payload = JSON.parse(atob(refreshToken.split('.')[1]))
+        const now = Math.floor(Date.now() / 1000)
+        if (payload.exp < now) {
+          // Refresh token is expired, remove it
+          Cookies.remove('refresh_token')
+        }
+      }
+    } catch (error) {
+      // Token is malformed, remove it
+      Cookies.remove('refresh_token')
+    }
+  }
+}
+
+// Clean up invalid tokens on module load
+cleanupInvalidTokens()
 
 // Auth API
 export const authAPI = {
@@ -131,7 +192,10 @@ export const filesAPI = {
 
   delete: (id: number) => api.delete(`/api/files/${id}/`),
 
-  download: (id: number) => api.get(`/api/files/${id}/download/`, { responseType: 'blob' }),
+  download: (id: number, params?: { download?: string }) => 
+    api.get(`/api/files/${id}/download/`, { responseType: 'blob', params }),
+
+  getThumbnail: (id: number) => api.get(`/api/files/${id}/thumbnail/`, { responseType: 'blob' }),
 
   preview: (id: number) => api.get(`/api/files/${id}/preview/`),
 
@@ -235,6 +299,64 @@ export const permissionsAPI = {
     api.get('/api/users/search/', { params: { q: params.query } }),
 
   searchGroups: (params: { query: string }) =>
+    api.get('/api/groups/search/', { params: { q: params.query } }),
+}
+
+// Users API
+export const usersAPI = {
+  list: (params?: { search?: string; page?: number; page_size?: number }) =>
+    api.get('/api/users/', { params }),
+
+  get: (id: number) => api.get(`/api/users/${id}/`),
+
+  create: (data: {
+    username: string
+    email: string
+    first_name?: string
+    last_name?: string
+    password: string
+    groups?: number[]
+  }) => api.post('/api/users/', data),
+
+  update: (id: number, data: {
+    username?: string
+    email?: string
+    first_name?: string
+    last_name?: string
+    password?: string
+    groups?: number[]
+  }) => api.put(`/api/users/${id}/`, data),
+
+  delete: (id: number) => api.delete(`/api/users/${id}/`),
+
+  // Search method (existing)
+  search: (params: { query: string }) =>
+    api.get('/api/users/search/', { params: { q: params.query } }),
+}
+
+// Groups API
+export const groupsAPI = {
+  list: (params?: { search?: string; page?: number; page_size?: number }) =>
+    api.get('/api/groups/', { params }),
+
+  get: (id: number) => api.get(`/api/groups/${id}/`),
+
+  create: (data: {
+    name: string
+    description?: string
+    members?: number[]
+  }) => api.post('/api/groups/', data),
+
+  update: (id: number, data: {
+    name?: string
+    description?: string
+    members?: number[]
+  }) => api.put(`/api/groups/${id}/`, data),
+
+  delete: (id: number) => api.delete(`/api/groups/${id}/`),
+
+  // Search method (existing)
+  search: (params: { query: string }) =>
     api.get('/api/groups/search/', { params: { q: params.query } }),
 }
 

@@ -1,0 +1,392 @@
+<template>
+  <el-dialog
+    v-model="visible"
+    :title="`${file?.name} - File Viewer`"
+    width="90%"
+    :close-on-click-modal="false"
+    class="file-reader-dialog"
+    @close="handleClose"
+  >
+    <div class="file-reader-container">
+      <!-- Loading State -->
+      <div v-if="loading" class="loading-container">
+        <el-icon class="is-loading" size="48">
+          <Loading />
+        </el-icon>
+        <p>Loading file...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="error-container">
+        <el-icon size="48" color="#f56c6c">
+          <Warning />
+        </el-icon>
+        <p>{{ error }}</p>
+        <el-button @click="retryLoad">Retry</el-button>
+      </div>
+
+      <!-- File Content -->
+      <div v-else-if="fileContent" class="file-content">
+        <!-- Image Viewer -->
+        <ImageViewer
+          v-if="fileType === 'image'"
+          :src="fileContent"
+          :alt="file?.name"
+        />
+
+        <!-- PDF Viewer -->
+        <PDFViewer
+          v-else-if="fileType === 'pdf'"
+          :src="fileContent"
+          :filename="file?.name"
+        />
+
+        <!-- Text Viewer -->
+        <TextViewer
+          v-else-if="fileType === 'text'"
+          :content="fileContent"
+          :filename="file?.name"
+          :mime-type="file?.storage?.mime_type"
+        />
+
+        <!-- JSON Viewer -->
+        <JSONViewer
+          v-else-if="fileType === 'json'"
+          :content="fileContent"
+          :filename="file?.name"
+        />
+
+        <!-- Code Viewer -->
+        <CodeViewer
+          v-else-if="fileType === 'code'"
+          :content="fileContent"
+          :filename="file?.name"
+          :language="detectedLanguage"
+        />
+
+        <!-- Video Viewer -->
+        <VideoViewer
+          v-else-if="fileType === 'video'"
+          :src="fileContent"
+          :filename="file?.name"
+        />
+
+        <!-- Audio Viewer -->
+        <AudioViewer
+          v-else-if="fileType === 'audio'"
+          :src="fileContent"
+          :filename="file?.name"
+        />
+
+        <!-- Unsupported File Type -->
+        <UnsupportedViewer
+          v-else
+          :file="file"
+          @download="handleDownload"
+        />
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="handleDownload" :disabled="loading">
+          <el-icon><Download /></el-icon>
+          Download
+        </el-button>
+        <el-button @click="handleOpenInNewTab" :disabled="loading">
+          <el-icon><Share /></el-icon>
+          Open in New Tab
+        </el-button>
+        <el-button type="primary" @click="visible = false">
+          Close
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, watch, onMounted } from 'vue'
+import { Loading, Warning, Download, Share } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { filesAPI } from '@/services/api'
+
+// Import individual viewers
+import ImageViewer from './readers/ImageViewer.vue'
+import PDFViewer from './readers/PDFViewer.vue'
+import TextViewer from './readers/TextViewer.vue'
+import JSONViewer from './readers/JSONViewer.vue'
+import CodeViewer from './readers/CodeViewer.vue'
+import VideoViewer from './readers/VideoViewer.vue'
+import AudioViewer from './readers/AudioViewer.vue'
+import UnsupportedViewer from './readers/UnsupportedViewer.vue'
+
+interface FileItem {
+  id: number
+  name: string
+  item_type: 'file' | 'directory'
+  storage?: {
+    mime_type?: string
+  }
+  file_info?: {
+    size?: number
+  }
+}
+
+interface Props {
+  file: FileItem | null
+  modelValue: boolean
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  'update:modelValue': [value: boolean]
+  'close': []
+}>()
+
+// State
+const visible = computed({
+  get: () => props.modelValue,
+  set: (value) => emit('update:modelValue', value)
+})
+
+const fileContent = ref<string | null>(null)
+const loading = ref(false)
+const error = ref<string | null>(null)
+
+// Computed properties
+const fileType = computed(() => {
+  if (!props.file) return null
+  
+  const mimeType = props.file.storage?.mime_type || ''
+  const fileName = props.file.name.toLowerCase()
+  
+  // Image types
+  if (mimeType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName)) {
+    return 'image'
+  }
+  
+  // PDF
+  if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
+    return 'pdf'
+  }
+  
+  // Video
+  if (mimeType.startsWith('video/') || /\.(mp4|webm|ogg|avi|mov)$/i.test(fileName)) {
+    return 'video'
+  }
+  
+  // Audio
+  if (mimeType.startsWith('audio/') || /\.(mp3|wav|ogg|m4a)$/i.test(fileName)) {
+    return 'audio'
+  }
+  
+  // JSON
+  if (mimeType === 'application/json' || fileName.endsWith('.json')) {
+    return 'json'
+  }
+  
+  // Code files
+  if (/\.(js|ts|jsx|tsx|py|java|cpp|c|cs|php|rb|go|rs|swift|kt|scala|sh|bash|sql|html|css|scss|less|xml|yaml|yml|toml|ini|conf)$/i.test(fileName)) {
+    return 'code'
+  }
+  
+  // Text files
+  if (mimeType.startsWith('text/') || /\.(txt|md|log|csv)$/i.test(fileName)) {
+    return 'text'
+  }
+  
+  return 'unsupported'
+})
+
+const detectedLanguage = computed(() => {
+  if (!props.file) return 'text'
+  
+  const fileName = props.file.name.toLowerCase()
+  
+  // Language detection based on file extension
+  const languageMap: Record<string, string> = {
+    '.js': 'javascript',
+    '.ts': 'typescript',
+    '.jsx': 'jsx',
+    '.tsx': 'tsx',
+    '.py': 'python',
+    '.java': 'java',
+    '.cpp': 'cpp',
+    '.c': 'c',
+    '.cs': 'csharp',
+    '.php': 'php',
+    '.rb': 'ruby',
+    '.go': 'go',
+    '.rs': 'rust',
+    '.swift': 'swift',
+    '.kt': 'kotlin',
+    '.scala': 'scala',
+    '.sh': 'bash',
+    '.bash': 'bash',
+    '.sql': 'sql',
+    '.html': 'html',
+    '.css': 'css',
+    '.scss': 'scss',
+    '.less': 'less',
+    '.xml': 'xml',
+    '.yaml': 'yaml',
+    '.yml': 'yaml',
+    '.toml': 'toml',
+    '.ini': 'ini',
+    '.conf': 'ini',
+    '.md': 'markdown',
+    '.json': 'json'
+  }
+  
+  for (const [ext, lang] of Object.entries(languageMap)) {
+    if (fileName.endsWith(ext)) {
+      return lang
+    }
+  }
+  
+  return 'text'
+})
+
+// Methods
+const loadFileContent = async () => {
+  if (!props.file) return
+  
+  loading.value = true
+  error.value = null
+  fileContent.value = null
+  
+  try {
+    if (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio') {
+      // For media files, create object URL from blob
+      const response = await filesAPI.download(props.file.id)
+      const blob = new Blob([response.data])
+      fileContent.value = URL.createObjectURL(blob)
+    } else {
+      // For text-based files, get as text
+      const response = await filesAPI.download(props.file.id)
+      const text = await response.data.text()
+      fileContent.value = text
+    }
+  } catch (err: any) {
+    console.error('Error loading file:', err)
+    error.value = err.response?.data?.error || err.message || 'Failed to load file'
+  } finally {
+    loading.value = false
+  }
+}
+
+const retryLoad = () => {
+  loadFileContent()
+}
+
+const handleDownload = async () => {
+  if (!props.file) return
+  
+  try {
+    const response = await filesAPI.download(props.file.id, { download: 'true' })
+    const blob = new Blob([response.data])
+    const url = URL.createObjectURL(blob)
+    
+    const link = document.createElement('a')
+    link.href = url
+    link.download = props.file.name
+    link.style.display = 'none'
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    URL.revokeObjectURL(url)
+    ElMessage.success(`Downloaded ${props.file.name}`)
+  } catch (error: any) {
+    console.error('Download error:', error)
+    ElMessage.error('Download failed')
+  }
+}
+
+const handleOpenInNewTab = () => {
+  if (!props.file) return
+  
+  const fileUrl = `/api/files/${props.file.id}/download/`
+  window.open(fileUrl, '_blank')
+}
+
+const handleClose = () => {
+  // Clean up object URLs
+  if (fileContent.value && (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio')) {
+    URL.revokeObjectURL(fileContent.value)
+  }
+  fileContent.value = null
+  error.value = null
+  emit('close')
+}
+
+// Watch for file changes
+watch(() => props.file, (newFile) => {
+  if (newFile && visible.value) {
+    loadFileContent()
+  }
+}, { immediate: true })
+
+// Watch for dialog visibility
+watch(visible, (newVisible) => {
+  if (newVisible && props.file) {
+    loadFileContent()
+  } else if (!newVisible) {
+    handleClose()
+  }
+})
+
+// Cleanup on unmount
+onMounted(() => {
+  return () => {
+    if (fileContent.value && (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio')) {
+      URL.revokeObjectURL(fileContent.value)
+    }
+  }
+})
+</script>
+
+<style scoped>
+.file-reader-dialog {
+  --el-dialog-border-radius: 12px;
+}
+
+.file-reader-container {
+  min-height: 400px;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.loading-container,
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 16px;
+}
+
+.error-container {
+  color: #f56c6c;
+}
+
+.file-content {
+  width: 100%;
+  height: 100%;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.dialog-footer .el-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+</style>

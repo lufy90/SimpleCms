@@ -136,7 +136,7 @@
     </div>
 
     <!-- File List -->
-    <div class="file-content">
+    <div class="file-list-container">
       <el-empty v-if="filteredFiles.length === 0 && !isLoading" description="No files found">
         <el-button type="primary" @click="triggerFileSelection"> Upload Files </el-button>
       </el-empty>
@@ -151,16 +151,13 @@
               @click.stop
             />
           </div>
-          <div class="file-content" @click="handleFileClick(file)">
+          <div class="file-card-content" @click="handleFileClick(file)">
             <div class="file-icon">
-              <el-icon size="32" :color="getFileIconColor(file)">
-                <Folder v-if="file.item_type === 'directory'" />
-                <Document v-else />
-              </el-icon>
+              <FileIcon :file="file" :size="48" />
             </div>
             <div class="file-name">{{ file.name }}</div>
             <div class="file-meta">
-              <span v-if="file.size">{{ formatFileSize(file.size) }}</span>
+              <span v-if="file.file_info?.size">{{ formatFileSize(file.file_info.size) }}</span>
               <span>{{ formatDate(file.created_at) }}</span>
             </div>
           </div>
@@ -234,17 +231,14 @@
         >
           <template #default="{ row }">
             <div class="file-name-cell">
-              <el-icon :color="getFileIconColor(row)">
-                <Folder v-if="row.item_type === 'directory'" />
-                <Document v-else />
-              </el-icon>
+              <FileIcon :file="row" :size="18" />
               <span>{{ row.name }}</span>
             </div>
           </template>
         </el-table-column>
         <el-table-column prop="size" label="Size" width="120" sortable :sort-method="sortBySize">
           <template #default="{ row }">
-            <span v-if="row.size">{{ formatFileSize(row.size) }}</span>
+            <span v-if="row.file_info?.size">{{ formatFileSize(row.file_info.size) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -709,6 +703,13 @@
       </div>
     </template>
   </el-dialog>
+
+  <!-- File Reader Dialog -->
+  <FileReader
+    v-model="fileReaderVisible"
+    :file="selectedFileForReader"
+    @close="selectedFileForReader = null"
+  />
 </template>
 
 <script setup lang="ts">
@@ -736,17 +737,19 @@ import {
   Edit,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useAuthStore } from '@/stores/auth'
 import ShareDialog from '@/components/ShareDialog.vue'
+import FileIcon from '@/components/FileIcon.vue'
+import FileReader from '@/components/FileReader.vue'
 
 const router = useRouter()
 const filesStore = useFilesStore()
-const authStore = useAuthStore()
 
 // State
 const viewType = ref<'grid' | 'list'>('list')
 const searchQuery = ref('')
 const uploadDialogVisible = ref(false)
+const fileReaderVisible = ref(false)
+const selectedFileForReader = ref<any>(null)
 const uploadForm = ref({
   visibility: 'private',
 })
@@ -1335,8 +1338,50 @@ const handleFileClick = async (file: any) => {
     // Navigate to directory using the new API
     await navigateToDirectory(file.id)
   } else {
-    // Open file details
-    router.push({ name: 'FileDetails', params: { id: file.id } })
+    // For files, open in the file reader
+    selectedFileForReader.value = file
+    fileReaderVisible.value = true
+  }
+}
+
+const openFileInBrowser = async (file: any) => {
+  try {
+    // Check if file type can be displayed in browser
+    const mimeType = file.storage?.mime_type || ''
+    const fileName = file.name.toLowerCase()
+    
+    // Define file types that can be opened in browser
+    const browserSupportedTypes = [
+      // Images
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp',
+      // Documents
+      'application/pdf', 'text/plain', 'text/html', 'text/css', 'text/javascript', 'application/json',
+      'text/xml', 'application/xml', 'text/csv',
+      // Audio/Video (some browsers support these)
+      'audio/mpeg', 'audio/wav', 'audio/ogg', 'video/mp4', 'video/webm', 'video/ogg'
+    ]
+    
+    // Check by MIME type or file extension
+    const isSupportedByMime = browserSupportedTypes.includes(mimeType)
+    const isSupportedByExtension = [
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp',
+      '.pdf', '.txt', '.html', '.htm', '.css', '.js', '.json', '.xml', '.csv',
+      '.mp3', '.wav', '.ogg', '.mp4', '.webm'
+    ].some(ext => fileName.endsWith(ext))
+    
+    if (isSupportedByMime || isSupportedByExtension) {
+      // Open file in new tab
+      const fileUrl = `/api/files/${file.id}/download/`
+      window.open(fileUrl, '_blank')
+    } else {
+      // For unsupported files, show details or download
+      ElMessage.info(`File type not supported for browser preview. Use download option.`)
+      // Optionally, you could still open the details dialog here
+      // showFileDetails(file)
+    }
+  } catch (error) {
+    console.error('Error opening file in browser:', error)
+    ElMessage.error('Failed to open file in browser')
   }
 }
 
@@ -1665,8 +1710,8 @@ const downloadFile = async (file: any) => {
   try {
     ElMessage.info(`Downloading ${file.name}...`)
 
-    // Use the API service to download the file
-    const response = await filesAPI.download(file.id)
+    // Use the API service to download the file with force download parameter
+    const response = await filesAPI.download(file.id, { download: 'true' })
 
     // Create a blob URL from the response
     const blob = new Blob([response.data])
@@ -1801,8 +1846,8 @@ const sortBySize = (a: any, b: any): number => {
   if (a.item_type === 'directory' && b.item_type !== 'directory') return -1
   if (a.item_type !== 'directory' && b.item_type === 'directory') return 1
 
-  const sizeA = a.size || 0
-  const sizeB = b.size || 0
+  const sizeA = a.file_info?.size || 0
+  const sizeB = b.file_info?.size || 0
 
   return sizeA - sizeB
 }
@@ -1812,11 +1857,6 @@ const sortByDate = (a: any, b: any): number => {
   const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
 
   return dateA - dateB
-}
-
-const getFileIconColor = (file: any): string => {
-  if (file.item_type === 'directory') return '#409eff'
-  return '#909399'
 }
 
 const getVisibilityTagType = (visibility: string): string => {
@@ -1996,56 +2036,102 @@ watch(
   }
 }
 
-.file-content {
+.file-list-container {
   margin-bottom: 24px;
 }
 
 /* Grid View */
 .grid-view {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px;
 }
 
 .file-card {
   background: #fff;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
-  padding: 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 12px;
   transition: all 0.2s ease;
   text-align: center;
   position: relative;
+  min-height: 120px;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
-.file-content {
+.file-card-content {
   cursor: pointer;
-  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  flex: 1;
+  justify-content: center;
 }
 
 .file-card:hover {
-  border-color: #409eff;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.1);
+  background: #f8f9fa;
+  border-color: #e1e5e9;
 }
 
-.file-content:hover {
-  transform: translateY(-2px);
+.file-card:hover .file-selection,
+.file-card:hover .file-actions {
+  opacity: 1;
+  visibility: visible;
 }
 
 .file-selection {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 1;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
 }
 
 .file-actions {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 1;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+}
+
+.file-icon {
+  margin-bottom: 4px;
+}
+
+.file-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  word-break: break-word;
+  line-height: 1.3;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.file-meta {
+  font-size: 11px;
+  color: #666;
   display: flex;
-  gap: 4px;
-  align-items: center;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
 }
 
 .custom-tree-node {
@@ -2056,10 +2142,6 @@ watch(
 
 .custom-tree-node .el-icon {
   color: #409eff;
-}
-
-.file-icon {
-  margin-bottom: 12px;
 }
 
 .file-name {
@@ -2104,6 +2186,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
 }
 
 /* List view table styling */

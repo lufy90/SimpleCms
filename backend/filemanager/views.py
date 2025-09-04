@@ -25,7 +25,7 @@ from .serializers import (
     FileVisibilityUpdateSerializer, FilePermissionRequestSerializer,
     FilePermissionRequestCreateSerializer, FilePermissionRequestReviewSerializer,
     DeletedFileSerializer, FileRestoreSerializer, FileHardDeleteSerializer,
-    UserSerializer, GroupSerializer,
+    UserSerializer, GroupSerializer, UserCreateUpdateSerializer, GroupCreateUpdateSerializer,
     FileContentUpdateSerializer
 )
 from .pagination import (
@@ -140,7 +140,29 @@ class FileItemViewSet(viewsets.ModelViewSet):
         
         try:
             response = FileResponse(open(file_path, 'rb'))
-            response['Content-Disposition'] = f'attachment; filename="{file_item.name}"'
+            
+            # Set appropriate content type
+            mime_type = file_item.storage.mime_type or 'application/octet-stream'
+            response['Content-Type'] = mime_type
+            
+            # Check if file should be displayed inline (browser preview) or downloaded
+            browser_supported_types = [
+                'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp',
+                'application/pdf', 'text/plain', 'text/html', 'text/css', 'text/javascript', 'application/json',
+                'text/xml', 'application/xml', 'text/csv',
+                'audio/mpeg', 'audio/wav', 'audio/ogg', 'video/mp4', 'video/webm', 'video/ogg'
+            ]
+            
+            # Check if user wants to force download (via query parameter)
+            force_download = request.GET.get('download', '').lower() == 'true'
+            
+            if mime_type in browser_supported_types and not force_download:
+                # Display in browser
+                response['Content-Disposition'] = f'inline; filename="{file_item.name}"'
+            else:
+                # Force download
+                response['Content-Disposition'] = f'attachment; filename="{file_item.name}"'
+            
             return response
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -893,6 +915,30 @@ class FileItemViewSet(viewsets.ModelViewSet):
                 return Response({'error': f'Failed to update file content: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def thumbnail(self, request, pk=None):
+        """Serve thumbnail for a file item"""
+        file_item = self.get_object()
+        
+        if file_item.item_type != 'file':
+            return Response({'error': 'Thumbnails are only available for files'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not file_item.thumbnail:
+            return Response({'error': 'No thumbnail available for this file'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            thumbnail_path = file_item.thumbnail.get_thumbnail_path()
+            if not os.path.exists(thumbnail_path):
+                return Response({'error': 'Thumbnail file not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            return FileResponse(
+                open(thumbnail_path, 'rb'),
+                content_type='image/jpeg',
+                filename=f"{file_item.name}_thumbnail.jpg"
+            )
+        except Exception as e:
+            return Response({'error': f'Failed to serve thumbnail: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 class FileUploadView(generics.CreateAPIView):
     """Handle file uploads with UUID-based storage"""
@@ -1714,3 +1760,150 @@ class GroupSearchView(generics.ListAPIView):
         
         # Limit results for performance
         return queryset[:50]
+
+
+class UserManagementViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing users"""
+    queryset = User.objects.all()
+    permission_classes = [IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return UserCreateUpdateSerializer
+        return UserSerializer
+    
+    def get_queryset(self):
+        # Only superusers can manage users
+        if not self.request.user.is_superuser:
+            return User.objects.none()
+        return User.objects.all()
+    
+    def create(self, request, *args, **kwargs):
+        """Create a new user"""
+        if not request.user.is_superuser:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Create user with password
+        user = User.objects.create_user(
+            username=serializer.validated_data['username'],
+            email=serializer.validated_data['email'],
+            password=serializer.validated_data['password'],  # Required for creation
+            first_name=serializer.validated_data.get('first_name', ''),
+            last_name=serializer.validated_data.get('last_name', '')
+        )
+        
+        # Add to groups if specified
+        if 'groups' in serializer.validated_data:
+            user.groups.set(serializer.validated_data['groups'])
+        
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+    
+    def update(self, request, *args, **kwargs):
+        """Update a user (partial update)"""
+        if not request.user.is_superuser:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        user = self.get_object()
+        serializer = self.get_serializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        
+        # Update user fields only if provided
+        if 'username' in serializer.validated_data:
+            user.username = serializer.validated_data['username']
+        if 'email' in serializer.validated_data:
+            user.email = serializer.validated_data['email']
+        if 'first_name' in serializer.validated_data:
+            user.first_name = serializer.validated_data['first_name']
+        if 'last_name' in serializer.validated_data:
+            user.last_name = serializer.validated_data['last_name']
+        if 'password' in serializer.validated_data and serializer.validated_data['password']:
+            user.set_password(serializer.validated_data['password'])
+        
+        user.save()
+        
+        # Update groups if specified
+        if 'groups' in serializer.validated_data:
+            user.groups.set(serializer.validated_data['groups'])
+        
+        return Response(UserSerializer(user).data)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Delete a user"""
+        if not request.user.is_superuser:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        user = self.get_object()
+        # Prevent deleting the current user
+        if user == request.user:
+            return Response({'error': 'Cannot delete your own account'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class GroupManagementViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing groups"""
+    queryset = Group.objects.all()
+    permission_classes = [IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return GroupCreateUpdateSerializer
+        return GroupSerializer
+    
+    def get_queryset(self):
+        # Only superusers can manage groups
+        if not self.request.user.is_superuser:
+            return Group.objects.none()
+        return Group.objects.all()
+    
+    def create(self, request, *args, **kwargs):
+        """Create a new group"""
+        if not request.user.is_superuser:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        group = Group.objects.create(
+            name=serializer.validated_data['name']
+        )
+        
+        # Add members if specified
+        if 'members' in serializer.validated_data:
+            group.user_set.set(serializer.validated_data['members'])
+        
+        return Response(GroupSerializer(group).data, status=status.HTTP_201_CREATED)
+    
+    def update(self, request, *args, **kwargs):
+        """Update a group"""
+        if not request.user.is_superuser:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        group = self.get_object()
+        serializer = self.get_serializer(group, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        
+        # Update group fields
+        if 'name' in serializer.validated_data:
+            group.name = serializer.validated_data['name']
+        
+        group.save()
+        
+        # Update members if specified
+        if 'members' in serializer.validated_data:
+            group.user_set.set(serializer.validated_data['members'])
+        
+        return Response(GroupSerializer(group).data)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Delete a group"""
+        if not request.user.is_superuser:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        group = self.get_object()
+        group.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

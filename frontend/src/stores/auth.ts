@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import Cookies from 'js-cookie'
-import { authAPI } from '@/services/api'
+import { authAPI, cleanupInvalidTokens } from '@/services/api'
 import { toast } from 'vue3-toastify'
 
 export interface Group {
@@ -116,6 +116,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   const checkAuth = async () => {
     try {
+      // Clean up any invalid tokens first
+      cleanupInvalidTokens()
+      
       const accessToken = Cookies.get('access_token')
       if (!accessToken) {
         return false
@@ -127,6 +130,7 @@ export const useAuthStore = defineStore('auth', () => {
       return true
     } catch (error) {
       // Token is invalid, clear everything
+      console.error('Auth check failed:', error)
       user.value = null
       isAuthenticated.value = false
       Cookies.remove('access_token')
@@ -174,6 +178,13 @@ export const useAuthStore = defineStore('auth', () => {
     await checkAuth()
   }
 
+  // Force cleanup of invalid tokens
+  const forceCleanup = () => {
+    cleanupInvalidTokens()
+    user.value = null
+    isAuthenticated.value = false
+  }
+
   return {
     // State
     user,
@@ -192,5 +203,6 @@ export const useAuthStore = defineStore('auth', () => {
     changePassword,
     updateProfile,
     init,
+    forceCleanup,
   }
 })

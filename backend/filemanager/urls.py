@@ -9,6 +9,8 @@ router.register(r'tag-relations', views.FileTagRelationViewSet, basename='fileta
 router.register(r'access-logs', views.FileAccessLogViewSet, basename='fileaccesslog')
 router.register(r'permissions', views.FileAccessPermissionViewSet, basename='fileaccesspermission')
 router.register(r'permission-requests', views.FilePermissionRequestViewSet, basename='filepermissionrequest')
+router.register(r'users', views.UserManagementViewSet, basename='usermanagement')
+router.register(r'groups', views.GroupManagementViewSet, basename='groupmanagement')
 
 urlpatterns = [
     path('api/', include(router.urls)),

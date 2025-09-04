@@ -1,43 +1,638 @@
 <template>
-  <div class="settings-view">
-    <div class="page-header">
+  <div class="settings-container">
+    <div class="settings-header">
       <h1>Settings</h1>
+      <p>Manage users, groups</p>
     </div>
 
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>Application Settings</span>
-        </div>
-      </template>
+    <el-tabs v-model="activeTab" class="settings-tabs">
+      <!-- User Management Tab -->
+      <el-tab-pane label="User Management" name="users">
+        <div class="tab-content">
+          <div class="section-header">
+            <h2>Users</h2>
+            <el-button type="primary" @click="showCreateUserDialog = true">
+              <el-icon><Plus /></el-icon>
+              Add User
+            </el-button>
+          </div>
 
-      <p>Settings view - Coming soon!</p>
-    </el-card>
+          <!-- User Search and Filter -->
+          <div class="search-section">
+            <el-input
+              v-model="userSearchQuery"
+              placeholder="Search users..."
+              @input="searchUsers"
+              clearable
+              class="search-input"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+          </div>
+
+          <!-- Users Table -->
+          <el-table
+            :data="filteredUsers"
+            v-loading="usersLoading"
+            class="users-table"
+            stripe
+          >
+            <el-table-column prop="username" label="Username" width="150" />
+            <el-table-column prop="email" label="Email" width="200" />
+            <el-table-column prop="first_name" label="First Name" width="120" />
+            <el-table-column prop="last_name" label="Last Name" width="120" />
+            <el-table-column label="Groups" width="200">
+              <template #default="{ row }">
+                <el-tag
+                  v-for="group in row.groups"
+                  :key="group.id"
+                  size="small"
+                  class="group-tag"
+                >
+                  {{ group.name }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="Actions" width="150">
+              <template #default="{ row }">
+                <el-button
+                  size="small"
+                  @click="editUser(row)"
+                  type="primary"
+                  link
+                >
+                  Edit
+                </el-button>
+                <el-button
+                  size="small"
+                  @click="deleteUser(row)"
+                  type="danger"
+                  link
+                >
+                  Delete
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </el-tab-pane>
+
+      <!-- Group Management Tab -->
+      <el-tab-pane label="Group Management" name="groups">
+        <div class="tab-content">
+          <div class="section-header">
+            <h2>Groups</h2>
+            <el-button type="primary" @click="showCreateGroupDialog = true">
+              <el-icon><Plus /></el-icon>
+              Add Group
+            </el-button>
+          </div>
+
+          <!-- Group Search and Filter -->
+          <div class="search-section">
+            <el-input
+              v-model="groupSearchQuery"
+              placeholder="Search groups..."
+              @input="searchGroups"
+              clearable
+              class="search-input"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+          </div>
+
+          <!-- Groups Table -->
+          <el-table
+            :data="filteredGroups"
+            v-loading="groupsLoading"
+            class="groups-table"
+            stripe
+          >
+            <el-table-column prop="name" label="Group Name" width="200" />
+            <el-table-column label="Members" width="300">
+              <template #default="{ row }">
+                <span v-if="row.members && row.members.length > 0">
+                  {{ row.members.length }} member(s)
+                </span>
+                <span v-else class="no-members">No members</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="Actions" width="150">
+              <template #default="{ row }">
+                <el-button
+                  size="small"
+                  @click="editGroup(row)"
+                  type="primary"
+                  link
+                >
+                  Edit
+                </el-button>
+                <el-button
+                  size="small"
+                  @click="deleteGroup(row)"
+                  type="danger"
+                  link
+                >
+                  Delete
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </el-tab-pane>
+
+    </el-tabs>
+
+    <!-- Create/Edit User Dialog -->
+    <el-dialog
+      v-model="showCreateUserDialog"
+      :title="editingUser ? 'Edit User' : 'Create User'"
+      width="500px"
+    >
+      <el-form
+        ref="userFormRef"
+        :model="userForm"
+        :rules="userFormRules"
+        label-width="100px"
+      >
+        <el-form-item label="Username" prop="username">
+          <el-input v-model="userForm.username" />
+        </el-form-item>
+        <el-form-item label="Email" prop="email">
+          <el-input v-model="userForm.email" type="email" />
+        </el-form-item>
+        <el-form-item label="First Name" prop="first_name">
+          <el-input v-model="userForm.first_name" />
+        </el-form-item>
+        <el-form-item label="Last Name" prop="last_name">
+          <el-input v-model="userForm.last_name" />
+        </el-form-item>
+        <el-form-item 
+          :label="editingUser ? 'New Password (optional)' : 'Password'" 
+          prop="password"
+        >
+          <el-input 
+            v-model="userForm.password" 
+            type="password" 
+            show-password 
+            :placeholder="editingUser ? 'Leave blank to keep current password' : 'Enter password'"
+          />
+        </el-form-item>
+        <el-form-item label="Groups" prop="groups">
+          <el-select
+            v-model="userForm.groups"
+            multiple
+            placeholder="Select groups"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="group in availableGroups"
+              :key="group.id"
+              :label="group.name"
+              :value="group.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreateUserDialog = false">Cancel</el-button>
+        <el-button type="primary" @click="saveUser">Save</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Create/Edit Group Dialog -->
+    <el-dialog
+      v-model="showCreateGroupDialog"
+      :title="editingGroup ? 'Edit Group' : 'Create Group'"
+      width="500px"
+    >
+      <el-form
+        ref="groupFormRef"
+        :model="groupForm"
+        :rules="groupFormRules"
+        label-width="100px"
+      >
+        <el-form-item label="Group Name" prop="name">
+          <el-input v-model="groupForm.name" />
+        </el-form-item>
+        <el-form-item label="Description" prop="description">
+          <el-input
+            v-model="groupForm.description"
+            type="textarea"
+            :rows="3"
+          />
+        </el-form-item>
+        <el-form-item label="Members" prop="members">
+          <el-select
+            v-model="groupForm.members"
+            multiple
+            placeholder="Select members"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="user in availableUsers"
+              :key="user.id"
+              :label="user.username"
+              :value="user.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreateGroupDialog = false">Cancel</el-button>
+        <el-button type="primary" @click="saveGroup">Save</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-// Placeholder component
+import { ref, reactive, onMounted, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Search } from '@element-plus/icons-vue'
+import { usersAPI, groupsAPI } from '@/services/api'
+
+// Types
+interface User {
+  id: number
+  username: string
+  email: string
+  first_name: string
+  last_name: string
+  groups: { id: number; name: string }[]
+}
+
+interface Group {
+  id: number
+  name: string
+  description?: string
+  members: number[]
+}
+
+// Reactive data
+const activeTab = ref('users')
+const usersLoading = ref(false)
+const groupsLoading = ref(false)
+
+// User management
+const users = ref<User[]>([])
+const filteredUsers = ref<User[]>([])
+const userSearchQuery = ref('')
+const showCreateUserDialog = ref(false)
+const editingUser = ref<User | null>(null)
+const userFormRef = ref()
+
+const userForm = reactive({
+  username: '',
+  email: '',
+  first_name: '',
+  last_name: '',
+  password: '',
+  groups: [] as number[]
+})
+
+const userFormRules = computed(() => ({
+  username: [
+    { required: true, message: 'Please enter username', trigger: 'blur' }
+  ],
+  email: [
+    { required: true, message: 'Please enter email', trigger: 'blur' },
+    { type: 'email', message: 'Please enter valid email', trigger: 'blur' }
+  ],
+  password: editingUser.value ? [
+    // For editing: password is optional, but if provided, must be at least 6 characters
+    { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' }
+  ] : [
+    // For creating: password is required
+    { required: true, message: 'Please enter password', trigger: 'blur' },
+    { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' }
+  ]
+}))
+
+// Group management
+const groups = ref<Group[]>([])
+const filteredGroups = ref<Group[]>([])
+const groupSearchQuery = ref('')
+const showCreateGroupDialog = ref(false)
+const editingGroup = ref<Group | null>(null)
+const groupFormRef = ref()
+
+const groupForm = reactive({
+  name: '',
+  description: '',
+  members: [] as number[]
+})
+
+const groupFormRules = {
+  name: [
+    { required: true, message: 'Please enter group name', trigger: 'blur' }
+  ]
+}
+
+
+// Computed properties
+const availableGroups = computed(() => groups.value)
+const availableUsers = computed(() => users.value)
+
+// Methods
+const loadUsers = async () => {
+  try {
+    usersLoading.value = true
+    const response = await usersAPI.list()
+    users.value = response.data.results || response.data
+    filteredUsers.value = users.value
+  } catch (error) {
+    console.error('Failed to load users:', error)
+    ElMessage.error('Failed to load users')
+    
+    // Fallback to mock data for development
+    users.value = [
+      {
+        id: 1,
+        username: 'admin',
+        email: 'admin@example.com',
+        first_name: 'Admin',
+        last_name: 'User',
+        groups: [{ id: 1, name: 'Administrators' }]
+      },
+      {
+        id: 2,
+        username: 'user1',
+        email: 'user1@example.com',
+        first_name: 'John',
+        last_name: 'Doe',
+        groups: [{ id: 2, name: 'Users' }]
+      }
+    ]
+    filteredUsers.value = users.value
+  } finally {
+    usersLoading.value = false
+  }
+}
+
+const loadGroups = async () => {
+  try {
+    groupsLoading.value = true
+    const response = await groupsAPI.list()
+    groups.value = response.data.results || response.data
+    filteredGroups.value = groups.value
+  } catch (error) {
+    console.error('Failed to load groups:', error)
+    ElMessage.error('Failed to load groups')
+    
+    // Fallback to mock data for development
+    groups.value = [
+      {
+        id: 1,
+        name: 'Administrators',
+        description: 'System administrators',
+        members: [1]
+      },
+      {
+        id: 2,
+        name: 'Users',
+        description: 'Regular users',
+        members: [2]
+      }
+    ]
+    filteredGroups.value = groups.value
+  } finally {
+    groupsLoading.value = false
+  }
+}
+
+const searchUsers = () => {
+  if (!userSearchQuery.value) {
+    filteredUsers.value = users.value
+    return
+  }
+  
+  const query = userSearchQuery.value.toLowerCase()
+  filteredUsers.value = users.value.filter(user =>
+    user.username.toLowerCase().includes(query) ||
+    user.email.toLowerCase().includes(query) ||
+    user.first_name.toLowerCase().includes(query) ||
+    user.last_name.toLowerCase().includes(query)
+  )
+}
+
+const searchGroups = () => {
+  if (!groupSearchQuery.value) {
+    filteredGroups.value = groups.value
+    return
+  }
+  
+  const query = groupSearchQuery.value.toLowerCase()
+  filteredGroups.value = groups.value.filter(group =>
+    group.name.toLowerCase().includes(query)
+  )
+}
+
+const editUser = (user: User) => {
+  editingUser.value = user
+  userForm.username = user.username
+  userForm.email = user.email
+  userForm.first_name = user.first_name
+  userForm.last_name = user.last_name
+  userForm.groups = user.groups.map((g: any) => g.id)
+  userForm.password = ''
+  showCreateUserDialog.value = true
+}
+
+const deleteUser = async (user: User) => {
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete user "${user.username}"?`,
+      'Confirm Delete',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning'
+      }
+    )
+    
+    await usersAPI.delete(user.id)
+    
+    ElMessage.success('User deleted successfully')
+    loadUsers()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('Failed to delete user')
+    }
+  }
+}
+
+const saveUser = async () => {
+  try {
+    await userFormRef.value.validate()
+    
+    // Prepare data for API call
+    const userData = { ...userForm }
+    
+    // For updates, only include password if it's provided
+    if (editingUser.value && !userData.password) {
+      delete (userData as any).password
+    }
+    
+    if (editingUser.value) {
+      await usersAPI.update(editingUser.value.id, userData)
+    } else {
+      await usersAPI.create(userData)
+    }
+    
+    ElMessage.success(editingUser.value ? 'User updated successfully' : 'User created successfully')
+    showCreateUserDialog.value = false
+    resetUserForm()
+    loadUsers()
+  } catch (error) {
+    console.error('Failed to save user:', error)
+    ElMessage.error('Failed to save user')
+  }
+}
+
+const resetUserForm = () => {
+  editingUser.value = null
+  userForm.username = ''
+  userForm.email = ''
+  userForm.first_name = ''
+  userForm.last_name = ''
+  userForm.password = ''
+  userForm.groups = []
+}
+
+const editGroup = (group: Group) => {
+  editingGroup.value = group
+  groupForm.name = group.name
+  groupForm.description = group.description || ''
+  groupForm.members = group.members || []
+  showCreateGroupDialog.value = true
+}
+
+const deleteGroup = async (group: Group) => {
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete group "${group.name}"?`,
+      'Confirm Delete',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning'
+      }
+    )
+    
+    await groupsAPI.delete(group.id)
+    
+    ElMessage.success('Group deleted successfully')
+    loadGroups()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('Failed to delete group')
+    }
+  }
+}
+
+const saveGroup = async () => {
+  try {
+    await groupFormRef.value.validate()
+    
+    if (editingGroup.value) {
+      await groupsAPI.update(editingGroup.value.id, groupForm)
+    } else {
+      await groupsAPI.create(groupForm)
+    }
+    
+    ElMessage.success(editingGroup.value ? 'Group updated successfully' : 'Group created successfully')
+    showCreateGroupDialog.value = false
+    resetGroupForm()
+    loadGroups()
+  } catch (error) {
+    console.error('Failed to save group:', error)
+    ElMessage.error('Failed to save group')
+  }
+}
+
+const resetGroupForm = () => {
+  editingGroup.value = null
+  groupForm.name = ''
+  groupForm.description = ''
+  groupForm.members = []
+}
+
+// Lifecycle
+onMounted(() => {
+  loadUsers()
+  loadGroups()
+})
 </script>
 
 <style scoped>
-.settings-view {
+.settings-container {
   padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.page-header {
+.settings-header {
   margin-bottom: 24px;
 }
 
-.page-header h1 {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 600;
+.settings-header h1 {
+  margin: 0 0 8px 0;
   color: #303133;
 }
 
-.card-header {
-  font-weight: 600;
-  font-size: 16px;
+.settings-header p {
+  margin: 0;
+  color: #606266;
 }
+
+.settings-tabs {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.tab-content {
+  padding: 24px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.section-header h2 {
+  margin: 0;
+  color: #303133;
+}
+
+.search-section {
+  margin-bottom: 24px;
+}
+
+.search-input {
+  max-width: 400px;
+}
+
+.users-table,
+.groups-table {
+  margin-top: 16px;
+}
+
+.group-tag {
+  margin-right: 8px;
+  margin-bottom: 4px;
+}
+
+.no-members {
+  color: #909399;
+  font-style: italic;
+}
+
 </style>

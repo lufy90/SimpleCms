@@ -44,10 +44,7 @@
         >
           <template #default="{ node, data }">
             <div class="tree-node" :class="{ 'virtual-root': data.is_virtual }">
-              <el-icon class="node-icon">
-                <Folder v-if="data.item_type === 'directory'" />
-                <Document v-else />
-              </el-icon>
+              <FileIcon :file="data" :size="16" :show-thumbnail="false" />
               <span class="node-label" :title="data.name">
                 {{ data.name }}
               </span>
@@ -169,6 +166,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
+import FileIcon from '@/components/FileIcon.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
