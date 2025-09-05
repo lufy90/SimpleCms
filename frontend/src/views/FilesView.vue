@@ -3277,4 +3277,107 @@ onUnmounted(() => {
 .directory-loading-overlay .el-icon {
   font-size: 18px;
 }
+
+/* Dark mode styles */
+.dark .files-view {
+  background: #141414;
+}
+
+.dark .page-header h1 {
+  color: #e5e5e5;
+}
+
+.dark .files-grid {
+  background: #1f1f1f;
+}
+
+.dark .file-item {
+  background: #2a2a2a;
+  border-color: #3c3c3c;
+}
+
+.dark .file-item:hover {
+  background: #333;
+  border-color: #409eff;
+}
+
+.dark .file-name {
+  color: #e5e5e5;
+}
+
+.dark .file-size {
+  color: #a8a8a8;
+}
+
+.dark .file-date {
+  color: #a8a8a8;
+}
+
+.dark .directory-item {
+  border-bottom-color: #3c3c3c;
+}
+
+.dark .item-name {
+  color: #e5e5e5;
+}
+
+.dark .item-size {
+  color: #a8a8a8;
+}
+
+.dark .directory-placeholder {
+  color: #666;
+}
+
+.dark .directory-placeholder p {
+  color: #a8a8a8;
+}
+
+.dark .upload-progress-section {
+  border-top-color: #3c3c3c;
+}
+
+.dark .upload-progress-section h4 {
+  color: #e5e5e5;
+}
+
+.dark .progress-item {
+  background-color: #2a2a2a;
+  border-color: #3c3c3c;
+}
+
+.dark .filename {
+  color: #e5e5e5;
+}
+
+.dark .conflict-radio {
+  border-color: #3c3c3c;
+  background-color: #2a2a2a;
+}
+
+.dark .conflict-radio:hover {
+  border-color: #409eff;
+  background-color: #1a1a1a;
+}
+
+.dark .conflict-radio.is-checked {
+  border-color: #409eff;
+  background-color: #1a1a1a;
+}
+
+.dark .radio-title {
+  color: #e5e5e5;
+}
+
+.dark .radio-description {
+  color: #a8a8a8;
+}
+
+.dark .image-loading-overlay {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.dark .directory-loading-overlay {
+  background: rgba(0, 0, 0, 0.9);
+}
 </style>

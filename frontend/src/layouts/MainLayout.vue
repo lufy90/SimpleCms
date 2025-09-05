@@ -111,6 +111,9 @@
             class="search-input"
           />
 
+          <!-- Theme Toggle -->
+          <ThemeToggle />
+
           <!-- User Menu -->
           <el-dropdown @command="handleUserCommand">
             <el-avatar :size="32" class="user-avatar">
@@ -167,6 +170,7 @@ import {
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import FileIcon from '@/components/FileIcon.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -604,5 +608,70 @@ watch(
   .search-input {
     width: 200px;
   }
+}
+
+/* Dark mode styles */
+.dark .sidebar {
+  background: #1f1f1f;
+  border-right-color: #3c3c3c;
+}
+
+.dark .sidebar-header {
+  border-bottom-color: #3c3c3c;
+}
+
+.dark .logo {
+  color: #e5e5e5;
+}
+
+.dark .tree-header h4 {
+  color: #e5e5e5;
+}
+
+.dark .dustbin-section {
+  background: #2a2a2a;
+  border-top-color: #3c3c3c;
+}
+
+.dark .dustbin-header h4 {
+  color: #e5e5e5;
+}
+
+.dark .dustbin-button {
+  color: #a8a8a8;
+}
+
+.dark .dustbin-button:hover {
+  color: #409eff;
+}
+
+.dark .dustbin-icon-button {
+  color: #a8a8a8;
+}
+
+.dark .dustbin-icon-button:hover {
+  color: #409eff;
+  background-color: #2a2a2a;
+}
+
+.dark .node-label {
+  color: #e5e5e5;
+}
+
+.dark .sidebar-toggle {
+  color: #a8a8a8;
+}
+
+.dark .sidebar-toggle:hover {
+  color: #409eff;
+}
+
+.dark .top-nav {
+  background: #1f1f1f;
+  border-bottom-color: #3c3c3c;
+}
+
+.dark .page-content {
+  background: #141414;
 }
 </style>

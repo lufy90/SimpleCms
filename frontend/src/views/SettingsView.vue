@@ -6,6 +6,61 @@
     </div>
 
     <el-tabs v-model="activeTab" class="settings-tabs">
+      <!-- Theme Settings Tab -->
+      <el-tab-pane label="Theme Settings" name="theme">
+        <div class="tab-content">
+          <div class="section-header">
+            <h2>Appearance</h2>
+          </div>
+
+          <div class="theme-settings">
+            <div class="setting-item">
+              <div class="setting-label">
+                <h3>Theme</h3>
+                <p>Choose your preferred theme</p>
+              </div>
+              <div class="setting-control">
+                <el-radio-group v-model="themeStore.theme" @change="handleThemeChange">
+                  <el-radio-button label="light">
+                    <el-icon><Sunny /></el-icon>
+                    Light
+                  </el-radio-button>
+                  <el-radio-button label="dark">
+                    <el-icon><Moon /></el-icon>
+                    Dark
+                  </el-radio-button>
+                  <el-radio-button label="auto">
+                    <el-icon><Monitor /></el-icon>
+                    Auto
+                  </el-radio-button>
+                </el-radio-group>
+              </div>
+            </div>
+
+            <div class="theme-preview">
+              <h4>Preview</h4>
+              <div class="preview-container" :class="{ 'dark-preview': themeStore.isDarkMode }">
+                <div class="preview-sidebar">
+                  <div class="preview-header">File Manager</div>
+                  <div class="preview-tree">
+                    <div class="preview-item">📁 Documents</div>
+                    <div class="preview-item">📁 Images</div>
+                    <div class="preview-item">📄 file.txt</div>
+                  </div>
+                </div>
+                <div class="preview-main">
+                  <div class="preview-nav">Files / Documents</div>
+                  <div class="preview-content">
+                    <div class="preview-card">Sample file 1</div>
+                    <div class="preview-card">Sample file 2</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
+
       <!-- User Management Tab -->
       <el-tab-pane label="User Management" name="users">
         <div class="tab-content">
@@ -253,8 +308,9 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Search, Sunny, Moon, Monitor } from '@element-plus/icons-vue'
 import { usersAPI, groupsAPI } from '@/services/api'
+import { useThemeStore } from '@/stores/theme'
 
 // Types
 interface User {
@@ -277,6 +333,9 @@ interface Group {
 const activeTab = ref('users')
 const usersLoading = ref(false)
 const groupsLoading = ref(false)
+
+// Theme store
+const themeStore = useThemeStore()
 
 // User management
 const users = ref<User[]>([])
@@ -339,6 +398,10 @@ const availableGroups = computed(() => groups.value)
 const availableUsers = computed(() => users.value)
 
 // Methods
+const handleThemeChange = (theme: string) => {
+  themeStore.setTheme(theme as 'light' | 'dark' | 'auto')
+}
+
 const loadUsers = async () => {
   try {
     usersLoading.value = true
@@ -633,6 +696,186 @@ onMounted(() => {
 .no-members {
   color: #909399;
   font-style: italic;
+}
+
+/* Theme settings styles */
+.theme-settings {
+  max-width: 800px;
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 0;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+}
+
+.setting-label h3 {
+  margin: 0 0 8px 0;
+  color: #303133;
+  font-size: 16px;
+}
+
+.setting-label p {
+  margin: 0;
+  color: #606266;
+  font-size: 14px;
+}
+
+.setting-control {
+  flex-shrink: 0;
+}
+
+.theme-preview {
+  margin-top: 32px;
+}
+
+.theme-preview h4 {
+  margin: 0 0 16px 0;
+  color: #303133;
+  font-size: 16px;
+}
+
+.preview-container {
+  display: flex;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  height: 200px;
+}
+
+.preview-sidebar {
+  width: 200px;
+  background: #f5f7fa;
+  border-right: 1px solid #e4e7ed;
+}
+
+.preview-header {
+  padding: 12px 16px;
+  background: #f0f2f5;
+  border-bottom: 1px solid #e4e7ed;
+  font-weight: 600;
+  font-size: 14px;
+  color: #303133;
+}
+
+.preview-tree {
+  padding: 8px 0;
+}
+
+.preview-item {
+  padding: 6px 16px;
+  font-size: 13px;
+  color: #606266;
+  cursor: pointer;
+}
+
+.preview-item:hover {
+  background: #f0f9ff;
+  color: #409eff;
+}
+
+.preview-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-nav {
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e4e7ed;
+  font-size: 14px;
+  color: #303133;
+}
+
+.preview-content {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  gap: 12px;
+}
+
+.preview-card {
+  width: 120px;
+  height: 80px;
+  background: #f8f9fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #606266;
+}
+
+/* Dark preview styles */
+.dark-preview {
+  background: #1f1f1f;
+  border-color: #3c3c3c;
+}
+
+.dark-preview .preview-sidebar {
+  background: #2a2a2a;
+  border-right-color: #3c3c3c;
+}
+
+.dark-preview .preview-header {
+  background: #1f1f1f;
+  border-bottom-color: #3c3c3c;
+  color: #e5e5e5;
+}
+
+.dark-preview .preview-item {
+  color: #a8a8a8;
+}
+
+.dark-preview .preview-item:hover {
+  background: #2a2a2a;
+  color: #409eff;
+}
+
+.dark-preview .preview-nav {
+  background: #1f1f1f;
+  border-bottom-color: #3c3c3c;
+  color: #e5e5e5;
+}
+
+.dark-preview .preview-card {
+  background: #2a2a2a;
+  border-color: #3c3c3c;
+  color: #a8a8a8;
+}
+
+/* Dark mode styles for settings */
+.dark .settings-header h1 {
+  color: #e5e5e5;
+}
+
+.dark .settings-header p {
+  color: #a8a8a8;
+}
+
+.dark .setting-label h3 {
+  color: #e5e5e5;
+}
+
+.dark .setting-label p {
+  color: #a8a8a8;
+}
+
+.dark .setting-item {
+  border-bottom-color: #3c3c3c;
+}
+
+.dark .theme-preview h4 {
+  color: #e5e5e5;
 }
 
 </style>

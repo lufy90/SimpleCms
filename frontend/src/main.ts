@@ -9,6 +9,7 @@ import 'vue3-toastify/dist/index.css'
 
 import App from './App.vue'
 import router from './router'
+import { useThemeStore } from './stores/theme'
 
 const app = createApp(App)
 
@@ -17,7 +18,8 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component as any)
 }
 
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
 app.use(ElementPlus)
 app.use(Vue3Toastify, {
@@ -25,5 +27,9 @@ app.use(Vue3Toastify, {
   position: 'top-right',
   theme: 'colored',
 })
+
+// Initialize theme after pinia is set up
+const themeStore = useThemeStore()
+themeStore.initializeTheme()
 
 app.mount('#app')
