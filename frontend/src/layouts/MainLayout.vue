@@ -44,7 +44,7 @@
         >
           <template #default="{ node, data }">
             <div class="tree-node" :class="{ 'virtual-root': data.is_virtual }">
-              <FileIcon :file="data" :size="16" :show-thumbnail="false" />
+              <FileIcon :file="data" :size="16" :show-thumbnail="true" />
               <span class="node-label" :title="data.name">
                 {{ data.name }}
               </span>

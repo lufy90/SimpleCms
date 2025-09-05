@@ -39,6 +39,8 @@
 
 <script setup lang="ts">
 import { Document, Warning, Download, Share } from '@element-plus/icons-vue'
+import { filesAPI } from '@/services/api'
+import { ElMessage } from 'element-plus'
 
 interface FileItem {
   id: number
@@ -86,10 +88,11 @@ const formatFileSize = (bytes: number) => {
 }
 
 const openInNewTab = () => {
-  if (props.file) {
-    const fileUrl = `/api/files/${props.file.id}/download/`
-    window.open(fileUrl, '_blank')
-  }
+  if (!props.file) return
+  
+  // Open file in new tab using the dedicated file viewer route
+  const fileViewerUrl = `/view/${props.file.id}`
+  window.open(fileViewerUrl, '_blank')
 }
 </script>
 
@@ -99,8 +102,6 @@ const openInNewTab = () => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  min-height: 500px;
-  max-height: 80vh;
 }
 
 .unsupported-content {

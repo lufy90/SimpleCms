@@ -1,12 +1,5 @@
 <template>
   <div class="audio-viewer">
-    <div class="audio-header">
-      <div class="file-info">
-        <el-icon><Microphone /></el-icon>
-        <span>{{ filename }}</span>
-      </div>
-    </div>
-    
     <div class="audio-content">
       <div class="audio-player-container">
         <audio
@@ -66,26 +59,9 @@ const onAudioError = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 500px;
-  max-height: 80vh;
 }
 
-.audio-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 0;
-  border-bottom: 1px solid #e4e7ed;
-  margin-bottom: 16px;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  color: #303133;
-}
+/* Audio header removed since controls are built into HTML5 audio element */
 
 .audio-content {
   flex: 1;

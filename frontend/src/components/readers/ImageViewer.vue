@@ -108,8 +108,6 @@ const onImageError = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 500px;
-  max-height: 80vh;
 }
 
 .image-container {
@@ -117,10 +115,10 @@ const onImageError = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
   background: #f5f5f5;
   border-radius: 8px;
   padding: 20px;
+  overflow: visible;
 }
 
 .image {

@@ -1,26 +1,19 @@
 <template>
   <div class="code-viewer">
-    <div class="code-header">
-      <div class="file-info">
-        <el-icon><Document /></el-icon>
-        <span>{{ filename }}</span>
-        <el-tag size="small" type="info">{{ language }}</el-tag>
-      </div>
-      <div class="code-controls">
+    <div class="code-content" :class="{ 'with-line-numbers': showLineNumbers }">
+      <!-- Floating Controls Overlay -->
+      <div class="code-controls-overlay">
         <el-button-group>
-          <el-button @click="toggleLineNumbers">
+          <el-button @click="toggleLineNumbers" size="small">
             <el-icon><List /></el-icon>
             {{ showLineNumbers ? 'Hide Lines' : 'Show Lines' }}
           </el-button>
-          <el-button @click="copyToClipboard">
+          <el-button @click="copyToClipboard" size="small">
             <el-icon><CopyDocument /></el-icon>
             Copy
           </el-button>
         </el-button-group>
       </div>
-    </div>
-    
-    <div class="code-content" :class="{ 'with-line-numbers': showLineNumbers }">
       <div v-if="showLineNumbers" class="line-numbers">
         <div
           v-for="lineNum in lineCount"
@@ -80,39 +73,35 @@ const copyToClipboard = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 500px;
-  max-height: 80vh;
-}
-
-.code-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 0;
-  border-bottom: 1px solid #e4e7ed;
-  margin-bottom: 16px;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  color: #303133;
-}
-
-.code-controls {
-  display: flex;
-  gap: 12px;
 }
 
 .code-content {
   flex: 1;
+  position: relative;
   display: flex;
-  overflow: auto;
   background: #1e1e1e;
   border-radius: 8px;
   border: 1px solid #e4e7ed;
+  overflow: visible;
+}
+
+.code-controls-overlay {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.code-content:hover .code-controls-overlay {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .code-content.with-line-numbers {
@@ -138,7 +127,6 @@ const copyToClipboard = async () => {
 
 .code-body {
   flex: 1;
-  overflow: auto;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 13px;
   line-height: 1.5;
@@ -153,7 +141,6 @@ const copyToClipboard = async () => {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  overflow-x: auto;
 }
 
 .code-body code {

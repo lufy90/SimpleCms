@@ -21,6 +21,12 @@ const router = createRouter({
       meta: { requiresAuth: false },
     },
     {
+      path: '/view/:id',
+      name: 'FileViewer',
+      component: () => import('@/views/FileViewerView.vue'),
+      meta: { requiresAuth: true, title: 'File Viewer' },
+    },
+    {
       path: '/',
       component: () => import('@/layouts/MainLayout.vue'),
       meta: { requiresAuth: true },
@@ -30,12 +36,14 @@ const router = createRouter({
           name: 'Files',
           component: () => import('@/views/FilesView.vue'),
           meta: { title: 'Files' },
+          props: (route) => ({ parentId: route.query.parent_id }),
         },
         {
           path: 'files/:id',
           name: 'FileDetails',
           component: () => import('@/views/FileDetailsView.vue'),
           meta: { title: 'File Details' },
+          props: (route) => ({ fileId: route.params.id }),
         },
         {
           path: 'upload',

@@ -192,6 +192,8 @@ export const filesAPI = {
 
   delete: (id: number) => api.delete(`/api/files/${id}/`),
 
+  getFile: (id: number) => api.get(`/api/files/${id}/`),
+
   download: (id: number, params?: { download?: string }) => 
     api.get(`/api/files/${id}/download/`, { responseType: 'blob', params }),
 

@@ -1,26 +1,20 @@
 <template>
   <div class="pdf-viewer">
-    <div class="pdf-header">
-      <div class="file-info">
-        <el-icon><Document /></el-icon>
-        <span>{{ filename }}</span>
-      </div>
-      <div class="pdf-controls">
+    <div class="pdf-content">
+      <!-- Floating Controls Overlay -->
+      <div class="pdf-controls-overlay">
         <el-button-group>
-          <el-button @click="zoomOut" :disabled="scale <= 0.5">
+          <el-button @click="zoomOut" :disabled="scale <= 0.5" size="small">
             <el-icon><ZoomOut /></el-icon>
           </el-button>
-          <el-button @click="resetZoom">
+          <el-button @click="resetZoom" size="small">
             {{ Math.round(scale * 100) }}%
           </el-button>
-          <el-button @click="zoomIn" :disabled="scale >= 3">
+          <el-button @click="zoomIn" :disabled="scale >= 3" size="small">
             <el-icon><ZoomIn /></el-icon>
           </el-button>
         </el-button-group>
       </div>
-    </div>
-    
-    <div class="pdf-content">
       <div v-if="error" class="error-message">
         <el-icon color="#f56c6c"><Warning /></el-icon>
         <span>{{ error }}</span>
@@ -97,39 +91,34 @@ const onPdfError = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 500px;
-  max-height: 80vh;
-}
-
-.pdf-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 0;
-  border-bottom: 1px solid #e4e7ed;
-  margin-bottom: 16px;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  color: #303133;
-}
-
-.pdf-controls {
-  display: flex;
-  gap: 12px;
 }
 
 .pdf-content {
   flex: 1;
-  overflow: auto;
+  position: relative;
   background: #f5f5f5;
   border-radius: 8px;
   border: 1px solid #e4e7ed;
-  position: relative;
+  overflow: visible;
+}
+
+.pdf-controls-overlay {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.pdf-content:hover .pdf-controls-overlay {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .error-message {

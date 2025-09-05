@@ -1,25 +1,19 @@
 <template>
   <div class="text-viewer">
-    <div class="text-header">
-      <div class="file-info">
-        <el-icon><Document /></el-icon>
-        <span>{{ filename }}</span>
-      </div>
-      <div class="text-controls">
+    <div class="text-content" :class="{ 'with-line-numbers': showLineNumbers }">
+      <!-- Floating Controls Overlay -->
+      <div class="text-controls-overlay">
         <el-button-group>
-          <el-button @click="wrapText = !wrapText">
+          <el-button @click="wrapText = !wrapText" size="small">
             <el-icon><DocumentCopy /></el-icon>
             {{ wrapText ? 'No Wrap' : 'Wrap' }}
           </el-button>
-          <el-button @click="showLineNumbers = !showLineNumbers">
+          <el-button @click="showLineNumbers = !showLineNumbers" size="small">
             <el-icon><List /></el-icon>
             {{ showLineNumbers ? 'Hide Lines' : 'Show Lines' }}
           </el-button>
         </el-button-group>
       </div>
-    </div>
-    
-    <div class="text-content" :class="{ 'with-line-numbers': showLineNumbers }">
       <div v-if="showLineNumbers" class="line-numbers">
         <div
           v-for="lineNum in lineCount"
@@ -65,39 +59,35 @@ const lineCount = computed(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 500px;
-  max-height: 80vh;
-}
-
-.text-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 0;
-  border-bottom: 1px solid #e4e7ed;
-  margin-bottom: 16px;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  color: #303133;
-}
-
-.text-controls {
-  display: flex;
-  gap: 12px;
 }
 
 .text-content {
   flex: 1;
+  position: relative;
   display: flex;
-  overflow: auto;
   background: #f8f9fa;
   border-radius: 8px;
   border: 1px solid #e4e7ed;
+  overflow: visible;
+}
+
+.text-controls-overlay {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.text-content:hover .text-controls-overlay {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .text-content.with-line-numbers {
@@ -124,7 +114,6 @@ const lineCount = computed(() => {
 .text-body {
   flex: 1;
   padding: 12px;
-  overflow: auto;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 13px;
   line-height: 1.5;

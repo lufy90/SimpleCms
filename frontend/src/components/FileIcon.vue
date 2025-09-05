@@ -17,7 +17,17 @@
       :color="iconColor"
       class="fallback-icon"
     >
-      <Folder v-if="file.item_type === 'directory'" />
+      <Folder v-if="fileType === 'directory'" />
+      <Picture v-else-if="fileType === 'image'" />
+      <VideoPlay v-else-if="fileType === 'video'" />
+      <Microphone v-else-if="fileType === 'audio'" />
+      <Reading v-else-if="fileType === 'pdf'" />
+      <Tools v-else-if="fileType === 'code'" />
+      <DataLine v-else-if="fileType === 'json'" />
+      <Document v-else-if="fileType === 'text'" />
+      <Files v-else-if="fileType === 'archive'" />
+      <Collection v-else-if="fileType === 'spreadsheet'" />
+      <Monitor v-else-if="fileType === 'presentation'" />
       <Document v-else />
     </el-icon>
     
@@ -32,7 +42,23 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Folder, Document, Loading } from '@element-plus/icons-vue'
+import { 
+  Folder, 
+  Document, 
+  Loading,
+  VideoPlay,
+  Microphone,
+  Picture,
+  Files,
+  VideoCamera,
+  DocumentCopy,
+  DataLine,
+  Setting,
+  Tools,
+  Collection,
+  Reading,
+  Monitor
+} from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
 
 interface FileItem {
@@ -69,17 +95,94 @@ const thumbnailUrl = ref<string | null>(null)
 const loadingThumbnail = ref(false)
 const thumbnailError = ref(false)
 
+// File type detection
+const detectFileType = (file: FileItem) => {
+  if (file.item_type === 'directory') return 'directory'
+  
+  const mimeType = file.storage?.mime_type || ''
+  const fileName = file.name.toLowerCase()
+  
+  // Image types
+  if (mimeType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|tiff)$/i.test(fileName)) {
+    return 'image'
+  }
+  
+  // Video types
+  if (mimeType.startsWith('video/') || /\.(mp4|webm|ogg|avi|mov|mkv|flv|wmv|m4v)$/i.test(fileName)) {
+    return 'video'
+  }
+  
+  // Audio types
+  if (mimeType.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|flac|wma)$/i.test(fileName)) {
+    return 'audio'
+  }
+  
+  // PDF
+  if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
+    return 'pdf'
+  }
+  
+  // Code files
+  if (/\.(js|ts|jsx|tsx|py|java|cpp|c|cs|php|rb|go|rs|swift|kt|scala|sh|bash|sql|html|css|scss|less|xml|yaml|yml|toml|ini|conf|vue|svelte)$/i.test(fileName)) {
+    return 'code'
+  }
+  
+  // JSON
+  if (mimeType === 'application/json' || fileName.endsWith('.json')) {
+    return 'json'
+  }
+  
+  // Text files
+  if (mimeType.startsWith('text/') || /\.(txt|md|log|csv|rtf)$/i.test(fileName)) {
+    return 'text'
+  }
+  
+  // Archive files
+  if (/\.(zip|rar|7z|tar|gz|bz2)$/i.test(fileName)) {
+    return 'archive'
+  }
+  
+  // Spreadsheet files
+  if (/\.(xlsx|xls|csv)$/i.test(fileName)) {
+    return 'spreadsheet'
+  }
+  
+  // Presentation files
+  if (/\.(pptx|ppt)$/i.test(fileName)) {
+    return 'presentation'
+  }
+  
+  return 'file'
+}
+
 // Computed properties
+const fileType = computed(() => detectFileType(props.file))
+
 const iconColor = computed(() => {
-  if (props.file.item_type === 'directory') return '#409eff'
-  return '#909399'
+  const type = fileType.value
+  const colors: Record<string, string> = {
+    directory: '#409eff',
+    image: '#67c23a',
+    video: '#e6a23c',
+    audio: '#f56c6c',
+    pdf: '#f56c6c',
+    code: '#909399',
+    json: '#e6a23c',
+    text: '#606266',
+    archive: '#909399',
+    spreadsheet: '#67c23a',
+    presentation: '#e6a23c',
+    file: '#909399'
+  }
+  return colors[type] || '#909399'
 })
 
 const shouldShowThumbnail = computed(() => {
   return props.showThumbnail && 
          props.file.item_type === 'file' && 
          props.file.thumbnail && 
-         !thumbnailError.value
+         !thumbnailError.value &&
+         (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'pdf')
 })
 
 // Methods

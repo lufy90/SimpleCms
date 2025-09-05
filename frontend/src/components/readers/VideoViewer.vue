@@ -1,21 +1,15 @@
 <template>
   <div class="video-viewer">
-    <div class="video-header">
-      <div class="file-info">
-        <el-icon><VideoPlay /></el-icon>
-        <span>{{ filename }}</span>
-      </div>
-      <div class="video-controls">
+    <div class="video-content">
+      <!-- Floating Controls Overlay -->
+      <div class="video-controls-overlay">
         <el-button-group>
-          <el-button @click="toggleFullscreen">
+          <el-button @click="toggleFullscreen" size="small">
             <el-icon><FullScreen /></el-icon>
             Fullscreen
           </el-button>
         </el-button-group>
       </div>
-    </div>
-    
-    <div class="video-content">
       <video
         ref="videoRef"
         :src="src"
@@ -67,40 +61,36 @@ const onVideoError = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 500px;
-  max-height: 80vh;
-}
-
-.video-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 0;
-  border-bottom: 1px solid #e4e7ed;
-  margin-bottom: 16px;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  color: #303133;
-}
-
-.video-controls {
-  display: flex;
-  gap: 12px;
 }
 
 .video-content {
   flex: 1;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #000;
   border-radius: 8px;
   overflow: hidden;
+}
+
+.video-controls-overlay {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.video-content:hover .video-controls-overlay {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .video-player {

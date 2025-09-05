@@ -1,25 +1,19 @@
 <template>
   <div class="json-viewer">
-    <div class="json-header">
-      <div class="file-info">
-        <el-icon><Document /></el-icon>
-        <span>{{ filename }}</span>
-      </div>
-      <div class="json-controls">
+    <div class="json-content">
+      <!-- Floating Controls Overlay -->
+      <div class="json-controls-overlay">
         <el-button-group>
-          <el-button @click="toggleFormat">
+          <el-button @click="toggleFormat" size="small">
             <el-icon><DocumentCopy /></el-icon>
             {{ formatted ? 'Minify' : 'Format' }}
           </el-button>
-          <el-button @click="copyToClipboard">
+          <el-button @click="copyToClipboard" size="small">
             <el-icon><CopyDocument /></el-icon>
             Copy
           </el-button>
         </el-button-group>
       </div>
-    </div>
-    
-    <div class="json-content">
       <div v-if="error" class="error-message">
         <el-icon color="#f56c6c"><Warning /></el-icon>
         <span>Invalid JSON: {{ error }}</span>
@@ -92,38 +86,34 @@ const copyToClipboard = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 500px;
-  max-height: 80vh;
-}
-
-.json-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 0;
-  border-bottom: 1px solid #e4e7ed;
-  margin-bottom: 16px;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  color: #303133;
-}
-
-.json-controls {
-  display: flex;
-  gap: 12px;
 }
 
 .json-content {
   flex: 1;
-  overflow: auto;
+  position: relative;
   background: #f8f9fa;
   border-radius: 8px;
   border: 1px solid #e4e7ed;
+  overflow: visible;
+}
+
+.json-controls-overlay {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.json-content:hover .json-controls-overlay {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .error-message {
@@ -148,14 +138,12 @@ const copyToClipboard = async () => {
 .formatted-json {
   margin: 0;
   white-space: pre;
-  overflow-x: auto;
 }
 
 .minified-json {
   margin: 0;
   white-space: pre;
   word-break: break-all;
-  overflow-x: auto;
 }
 
 /* JSON syntax highlighting */

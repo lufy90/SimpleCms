@@ -216,7 +216,7 @@
         @selection-change="handleListSelectionChange"
         @sort-change="handleSortChange"
         ref="listTableRef"
-        default-sort="{prop: 'name', order: 'ascending'}"
+        :default-sort="{prop: 'name', order: 'ascending'}"
       >
         <!-- Selection Column -->
         <el-table-column type="selection" width="55" />
@@ -704,17 +704,31 @@
     </template>
   </el-dialog>
 
-  <!-- File Reader Dialog -->
-  <FileReader
-    v-model="fileReaderVisible"
-    :file="selectedFileForReader"
-    @close="selectedFileForReader = null"
+  <!-- Image Preview -->
+  <el-image-viewer
+    v-if="imagePreviewVisible"
+    :url-list="imagePreviewList"
+    :initial-index="imagePreviewInitialIndex"
+    :z-index="3000"
+    @close="handleImagePreviewClose"
+    @switch="handleImagePreviewChange"
   />
+  
+  <!-- Loading indicator for image preview -->
+  <div 
+    v-if="imagePreviewVisible && imageLoadingStates.some(loading => loading)"
+    class="image-loading-overlay"
+  >
+    <el-icon class="is-loading">
+      <Loading />
+    </el-icon>
+    <span>Loading image...</span>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useFilesStore, type FileItem } from '@/stores/files'
 import { uploadAPI, filesAPI } from '@/services/api'
 import {
@@ -735,21 +749,35 @@ import {
   Download,
   Share,
   Edit,
+  Loading,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ShareDialog from '@/components/ShareDialog.vue'
 import FileIcon from '@/components/FileIcon.vue'
-import FileReader from '@/components/FileReader.vue'
+
+// Props
+interface Props {
+  parentId?: string | string[]
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  parentId: undefined
+})
 
 const router = useRouter()
+const route = useRoute()
 const filesStore = useFilesStore()
 
 // State
 const viewType = ref<'grid' | 'list'>('list')
 const searchQuery = ref('')
 const uploadDialogVisible = ref(false)
-const fileReaderVisible = ref(false)
-const selectedFileForReader = ref<any>(null)
+const imagePreviewVisible = ref(false)
+const imagePreviewList = ref<string[]>([])
+const imagePreviewInitialIndex = ref(0)
+const imageObjectUrls = ref<string[]>([]) // Store object URLs for cleanup
+const imageLoadingStates = ref<boolean[]>([]) // Track loading state for each image
+const imageFiles = ref<any[]>([]) // Store the actual file objects for lazy loading
 const uploadForm = ref({
   visibility: 'private',
 })
@@ -976,6 +1004,32 @@ const updateBreadcrumb = async () => {
   console.log('Built complete breadcrumb:', newBreadcrumb)
   breadcrumbPath.value = newBreadcrumb
 }
+
+// Watch for route changes to load appropriate directory
+watch(
+  () => props.parentId,
+  async (newParentId, oldParentId) => {
+    console.log('parentId watcher triggered:', { 
+      old: oldParentId, 
+      new: newParentId, 
+      isImmediate: oldParentId === undefined 
+    })
+    
+    if (newParentId) {
+      // Navigate to specific directory
+      console.log('Loading directory:', newParentId)
+      await filesStore.fetchChildren(Number(newParentId))
+    } else {
+      // Navigate to root (parent_id is undefined or was removed)
+      console.log('Loading root directory')
+      await filesStore.fetchChildren()
+    }
+    
+    // Update breadcrumb after loading
+    await updateBreadcrumb()
+  },
+  { immediate: true }
+)
 
 // Watch for directory changes to update breadcrumb
 watch(
@@ -1321,26 +1375,181 @@ const handleFileExceed = (files: any, fileList: any) => {
 // Directory handle methods removed - no longer needed
 
 const refreshFiles = async () => {
-  if (currentDirectory.value) {
-    await filesStore.fetchChildren(currentDirectory.value.id)
-  } else {
-    await filesStore.fetchChildren()
-  }
-  // Don't update breadcrumb here - let the navigation methods handle it
+  // Use current route parent_id to determine which directory to refresh
+  const parentId = props.parentId ? Number(props.parentId) : undefined
+  await filesStore.fetchChildren(parentId)
 }
 
 const handleSearch = (value: string) => {
   searchQuery.value = value
 }
 
+// Image file detection
+const isImageFile = (file: any): boolean => {
+  const mimeType = file.storage?.mime_type || ''
+  const extension = file.storage?.extension || ''
+  const fileName = file.name.toLowerCase()
+  
+  // Check by MIME type
+  if (mimeType.startsWith('image/')) {
+    return true
+  }
+  
+  // Check by file extension from storage
+  if (extension && /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(extension)) {
+    return true
+  }
+  
+  // Fallback to filename extension
+  return /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName)
+}
+
+// Get all image files in current directory
+const getImageFiles = (): any[] => {
+  return filteredFiles.value.filter(file => 
+    file.item_type === 'file' && isImageFile(file)
+  )
+}
+
+// Clean up object URLs to prevent memory leaks
+const cleanupImageObjectUrls = () => {
+  imageObjectUrls.value.forEach(url => {
+    URL.revokeObjectURL(url)
+  })
+  imageObjectUrls.value = []
+  imagePreviewList.value = []
+  imageLoadingStates.value = []
+  imageFiles.value = []
+}
+
+// Handle image preview close
+const handleImagePreviewClose = () => {
+  imagePreviewVisible.value = false
+  cleanupImageObjectUrls()
+}
+
+// Handle image preview change (when user navigates to different image)
+const handleImagePreviewChange = (index: number) => {
+  // Load the image at the new index if not already loaded
+  loadImageLazy(index)
+  
+  // Preload adjacent images for smoother navigation
+  if (index > 0) {
+    loadImageLazy(index - 1) // Previous image
+  }
+  if (index < imageFiles.value.length - 1) {
+    loadImageLazy(index + 1) // Next image
+  }
+}
+
+// Show image preview
+const showImagePreview = async (clickedFile: any) => {
+  const currentImageFiles = getImageFiles()
+  
+  if (currentImageFiles.length === 0) {
+    ElMessage.warning('No images found in current directory')
+    return
+  }
+  
+  // Find the index of the clicked image
+  const clickedIndex = currentImageFiles.findIndex(file => file.id === clickedFile.id)
+  
+  if (clickedIndex === -1) {
+    ElMessage.warning('Image not found in current directory')
+    return
+  }
+  
+  try {
+    // Clean up previous object URLs
+    cleanupImageObjectUrls()
+    
+    // Store the file objects for lazy loading
+    imageFiles.value = currentImageFiles
+    
+    // Initialize arrays with placeholders
+    const previewUrls: string[] = new Array(currentImageFiles.length).fill('')
+    const loadingStates: boolean[] = new Array(currentImageFiles.length).fill(false) // Start as not loading
+    
+    // Set up the preview immediately
+    imagePreviewList.value = previewUrls
+    imagePreviewInitialIndex.value = clickedIndex
+    imageLoadingStates.value = loadingStates
+    imagePreviewVisible.value = true
+    
+    // Load only the clicked image initially
+    await loadImageLazy(clickedIndex)
+    
+  } catch (error) {
+    console.error('Error setting up image preview:', error)
+    ElMessage.error('Failed to set up image preview')
+  }
+}
+
+// Load a single image lazily (only when needed)
+const loadImageLazy = async (index: number) => {
+  if (!imageFiles.value[index]) {
+    console.error(`No file found at index ${index}`)
+    return
+  }
+  
+  const file = imageFiles.value[index]
+  
+  // Check if already loaded
+  if (imagePreviewList.value[index] && imagePreviewList.value[index] !== '') {
+    return
+  }
+  
+  // Set loading state
+  const newLoadingStates = [...imageLoadingStates.value]
+  newLoadingStates[index] = true
+  imageLoadingStates.value = newLoadingStates
+  
+  try {
+    const response = await filesAPI.download(file.id)
+    const blob = new Blob([response.data])
+    const objectUrl = URL.createObjectURL(blob)
+    
+    // Update the specific index
+    const newPreviewUrls = [...imagePreviewList.value]
+    newPreviewUrls[index] = objectUrl
+    imagePreviewList.value = newPreviewUrls
+    
+    // Add to object URLs for cleanup
+    imageObjectUrls.value.push(objectUrl)
+    
+    // Update loading state
+    const updatedLoadingStates = [...imageLoadingStates.value]
+    updatedLoadingStates[index] = false
+    imageLoadingStates.value = updatedLoadingStates
+    
+  } catch (error) {
+    console.error(`Error loading image ${file.name}:`, error)
+    
+    // Set error placeholder
+    const newPreviewUrls = [...imagePreviewList.value]
+    newPreviewUrls[index] = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+RXJyb3I8L3RleHQ+PC9zdmc+'
+    imagePreviewList.value = newPreviewUrls
+    
+    // Update loading state even on error
+    const updatedLoadingStates = [...imageLoadingStates.value]
+    updatedLoadingStates[index] = false
+    imageLoadingStates.value = updatedLoadingStates
+  }
+}
+
 const handleFileClick = async (file: any) => {
   if (file.item_type === 'directory') {
-    // Navigate to directory using the new API
+    // Navigate to directory using router
     await navigateToDirectory(file.id)
   } else {
-    // For files, open in the file reader
-    selectedFileForReader.value = file
-    fileReaderVisible.value = true
+    // Check if it's an image file
+    if (isImageFile(file)) {
+      // For images, show image preview with all images in current directory
+      showImagePreview(file)
+    } else {
+      // For other files, navigate to file detail page
+      await router.push({ name: 'FileDetails', params: { id: file.id.toString() } })
+    }
   }
 }
 
@@ -1370,9 +1579,9 @@ const openFileInBrowser = async (file: any) => {
     ].some(ext => fileName.endsWith(ext))
     
     if (isSupportedByMime || isSupportedByExtension) {
-      // Open file in new tab
-      const fileUrl = `/api/files/${file.id}/download/`
-      window.open(fileUrl, '_blank')
+      // Open file in new tab using the dedicated file viewer route
+      const fileViewerUrl = `/view/${file.id}`
+      window.open(fileViewerUrl, '_blank')
     } else {
       // For unsupported files, show details or download
       ElMessage.info(`File type not supported for browser preview. Use download option.`)
@@ -1395,20 +1604,20 @@ const handleListRowClick = (row: any, column: any, event: Event) => {
 
 const navigateToDirectory = async (directoryId: number) => {
   console.log('navigateToDirectory called with ID:', directoryId)
-  await filesStore.fetchChildren(directoryId)
-  console.log('After fetchChildren, currentDirectory:', currentDirectory.value)
-  // Update breadcrumb with complete parent hierarchy from API
-  await updateBreadcrumb()
+  // Use router navigation instead of direct store calls
+  await router.push({ 
+    name: 'Files', 
+    query: { parent_id: directoryId.toString() } 
+  })
 }
 
 const navigateToRoot = async () => {
   console.log('navigateToRoot called')
-  console.log('Before fetchChildren, currentDirectory:', currentDirectory.value)
-  await filesStore.fetchChildren()
-  console.log('After fetchChildren, currentDirectory:', currentDirectory.value)
-  // Reset breadcrumb to root only
-  breadcrumbPath.value = [{ id: null, name: 'root', path: '/' }]
-  console.log('Breadcrumb reset to root:', breadcrumbPath.value)
+  // Use router navigation to root
+  await router.push({ 
+    name: 'Files', 
+    query: {} 
+  })
 }
 
 const handleBreadcrumbClick = async (item: { id: number | null; name: string; path: string }) => {
@@ -1418,8 +1627,7 @@ const handleBreadcrumbClick = async (item: { id: number | null; name: string; pa
   } else {
     // Clicked on a directory in the breadcrumb
     console.log('Navigating to breadcrumb directory:', item)
-
-    // Navigate to this directory - the breadcrumb will be rebuilt automatically
+    // Navigate to this directory using router
     await navigateToDirectory(item.id)
   }
 }
@@ -1894,39 +2102,14 @@ const getPermissionTagType = (permission: string): string => {
 // Lifecycle
 onMounted(async () => {
   await filesStore.fetchDirectoryTree()
-
-  // Check if we have a parent_id in the route query (from sidebar navigation)
-  const parentId = router.currentRoute.value.query.parent_id
-  console.log('FilesView mounted, parent_id:', parentId, 'route:', router.currentRoute.value)
-
-  if (parentId) {
-    console.log('Navigating to directory from sidebar:', parentId)
-    await navigateToDirectory(Number(parentId))
-  } else {
-    console.log('No parent_id, navigating to root')
-    await refreshFiles()
-    // Initialize breadcrumb to root
-    breadcrumbPath.value = [{ id: null, name: 'root', path: '/' }]
-  }
+  // Directory loading is handled by the parentId watcher with immediate: true
 })
 
-// Watch for route changes to handle sidebar navigation
-watch(
-  () => router.currentRoute.value.query.parent_id,
-  async (newParentId, oldParentId) => {
-    console.log('Route parent_id changed:', { old: oldParentId, new: newParentId })
+// Cleanup on unmount
+onUnmounted(() => {
+  cleanupImageObjectUrls()
+})
 
-    if (newParentId && newParentId !== oldParentId) {
-      // Navigate to specific directory
-      console.log('Route parent_id changed, navigating to directory:', newParentId)
-      await navigateToDirectory(Number(newParentId))
-    } else if (!newParentId && oldParentId) {
-      // Navigate to root (parent_id was removed)
-      console.log('Route parent_id removed, navigating to root')
-      await navigateToRoot()
-    }
-  },
-)
 </script>
 
 <style scoped>
@@ -2552,5 +2735,26 @@ watch(
   font-size: 14px;
   color: #606266;
   line-height: 1.4;
+}
+
+/* Loading overlay for image preview */
+.image-loading-overlay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 20px 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 3001;
+  font-size: 14px;
+}
+
+.image-loading-overlay .el-icon {
+  font-size: 18px;
 }
 </style>

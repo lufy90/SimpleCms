@@ -305,8 +305,9 @@ const handleDownload = async () => {
 const handleOpenInNewTab = () => {
   if (!props.file) return
   
-  const fileUrl = `/api/files/${props.file.id}/download/`
-  window.open(fileUrl, '_blank')
+  // Open file in new tab using the dedicated file viewer route
+  const fileViewerUrl = `/view/${props.file.id}`
+  window.open(fileViewerUrl, '_blank')
 }
 
 const handleClose = () => {
