@@ -22,12 +22,13 @@
       <VideoPlay v-else-if="fileType === 'video'" />
       <Microphone v-else-if="fileType === 'audio'" />
       <Reading v-else-if="fileType === 'pdf'" />
+      <Document v-else-if="fileType === 'word'" />
+      <Document v-else-if="fileType === 'excel'" />
+      <Document v-else-if="fileType === 'powerpoint'" />
       <Tools v-else-if="fileType === 'code'" />
       <DataLine v-else-if="fileType === 'json'" />
       <Document v-else-if="fileType === 'text'" />
       <Files v-else-if="fileType === 'archive'" />
-      <Collection v-else-if="fileType === 'spreadsheet'" />
-      <Monitor v-else-if="fileType === 'presentation'" />
       <Document v-else />
     </el-icon>
     
@@ -122,6 +123,27 @@ const detectFileType = (file: FileItem) => {
     return 'pdf'
   }
   
+  // Word documents
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+      mimeType === 'application/msword' || 
+      /\.(docx|doc)$/i.test(fileName)) {
+    return 'word'
+  }
+  
+  // Excel spreadsheets
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+      mimeType === 'application/vnd.ms-excel' || 
+      /\.(xlsx|xls)$/i.test(fileName)) {
+    return 'excel'
+  }
+  
+  // PowerPoint presentations
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || 
+      mimeType === 'application/vnd.ms-powerpoint' || 
+      /\.(pptx|ppt)$/i.test(fileName)) {
+    return 'powerpoint'
+  }
+  
   // Code files
   if (/\.(js|ts|jsx|tsx|py|java|cpp|c|cs|php|rb|go|rs|swift|kt|scala|sh|bash|sql|html|css|scss|less|xml|yaml|yml|toml|ini|conf|vue|svelte)$/i.test(fileName)) {
     return 'code'
@@ -142,16 +164,6 @@ const detectFileType = (file: FileItem) => {
     return 'archive'
   }
   
-  // Spreadsheet files
-  if (/\.(xlsx|xls|csv)$/i.test(fileName)) {
-    return 'spreadsheet'
-  }
-  
-  // Presentation files
-  if (/\.(pptx|ppt)$/i.test(fileName)) {
-    return 'presentation'
-  }
-  
   return 'file'
 }
 
@@ -166,12 +178,13 @@ const iconColor = computed(() => {
     video: '#e6a23c',
     audio: '#f56c6c',
     pdf: '#f56c6c',
+    word: '#409eff',        // Blue for Word documents
+    excel: '#67c23a',       // Green for Excel spreadsheets
+    powerpoint: '#f56c6c',  // Red for PowerPoint presentations
     code: '#909399',
     json: '#e6a23c',
     text: '#606266',
     archive: '#909399',
-    spreadsheet: '#67c23a',
-    presentation: '#e6a23c',
     file: '#909399'
   }
   return colors[type] || '#909399'

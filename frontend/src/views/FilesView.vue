@@ -125,6 +125,22 @@
           Grid
         </el-button>
         <el-button
+          :type="viewType === 'large' ? 'primary' : 'default'"
+          @click="setViewType('large')"
+          size="default"
+        >
+          <el-icon><Menu /></el-icon>
+          Large
+        </el-button>
+        <el-button
+          :type="viewType === 'picture' ? 'primary' : 'default'"
+          @click="setViewType('picture')"
+          size="default"
+        >
+          <el-icon><Picture /></el-icon>
+          Pictures
+        </el-button>
+        <el-button
           :type="viewType === 'list' ? 'primary' : 'default'"
           @click="setViewType('list')"
           size="default"
@@ -140,6 +156,138 @@
       <el-empty v-if="filteredFiles.length === 0 && !isLoading" description="No files found">
         <el-button type="primary" @click="triggerFileSelection"> Upload Files </el-button>
       </el-empty>
+
+      <!-- Large View (Picture Wall) -->
+      <div v-else-if="viewType === 'large'" class="large-view">
+        <div v-for="file in filteredFiles" :key="file.id" class="large-file-card">
+          <div class="large-file-selection">
+            <el-checkbox
+              :model-value="selectedFileIds.has(file.id)"
+              @change="(checked: boolean) => toggleFileSelection(file.id, checked)"
+              @click.stop
+            />
+          </div>
+          <div class="large-file-content" @click="handleFileClick(file)">
+            <div class="large-file-icon">
+              <FileIcon :file="file" :size="80" />
+            </div>
+            <div class="large-file-name">{{ file.name }}</div>
+            <div class="large-file-meta">
+              <span v-if="file.file_info?.size">{{ formatFileSize(file.file_info.size) }}</span>
+              <span>{{ formatDate(file.created_at) }}</span>
+            </div>
+          </div>
+          <div class="large-file-actions">
+            <el-dropdown
+              @command="(command: string) => handleFileAction(command, file)"
+              trigger="click"
+            >
+              <el-button type="info" size="small" title="Actions" circle>
+                <el-icon><More /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="copy">
+                    <el-icon><CopyDocument /></el-icon>
+                    Copy
+                  </el-dropdown-item>
+                  <el-dropdown-item command="move">
+                    <el-icon><Position /></el-icon>
+                    Move
+                  </el-dropdown-item>
+                  <el-dropdown-item command="download" :disabled="file.item_type !== 'file'">
+                    <el-icon><Download /></el-icon>
+                    Download
+                  </el-dropdown-item>
+                  <el-dropdown-item command="details">
+                    <el-icon><Document /></el-icon>
+                    Details
+                  </el-dropdown-item>
+                  <el-dropdown-item command="share" :disabled="!file.can_share">
+                    <el-icon><Share /></el-icon>
+                    Share
+                  </el-dropdown-item>
+                  <el-dropdown-item command="rename" :disabled="!file.can_write">
+                    <el-icon><Edit /></el-icon>
+                    Rename
+                  </el-dropdown-item>
+                  <el-dropdown-item command="delete" divided>
+                    <el-icon><Delete /></el-icon>
+                    Delete
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </div>
+      </div>
+
+      <!-- Picture Wall View -->
+      <div v-else-if="viewType === 'picture'" class="picture-wall-view">
+        <div v-for="file in filteredFiles" :key="file.id" class="picture-item">
+          <div class="picture-selection">
+            <el-checkbox
+              :model-value="selectedFileIds.has(file.id)"
+              @change="(checked: boolean) => toggleFileSelection(file.id, checked)"
+              @click.stop
+            />
+          </div>
+          <div class="picture-content" @click="handleFileClick(file)">
+            <div class="picture-thumbnail">
+              <FileIcon :file="file" />
+            </div>
+            <div class="picture-overlay">
+              <div class="picture-filename">{{ file.name }}</div>
+              <div class="picture-meta">
+                <span v-if="file.file_info?.size">{{ formatFileSize(file.file_info.size) }}</span>
+                <span>{{ formatDate(file.created_at) }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="picture-actions">
+            <el-dropdown
+              @command="(command: string) => handleFileAction(command, file)"
+              trigger="click"
+            >
+              <el-button type="info" size="small" title="Actions" circle>
+                <el-icon><More /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="copy">
+                    <el-icon><CopyDocument /></el-icon>
+                    Copy
+                  </el-dropdown-item>
+                  <el-dropdown-item command="move">
+                    <el-icon><Position /></el-icon>
+                    Move
+                  </el-dropdown-item>
+                  <el-dropdown-item command="download" :disabled="file.item_type !== 'file'">
+                    <el-icon><Download /></el-icon>
+                    Download
+                  </el-dropdown-item>
+                  <el-dropdown-item command="details">
+                    <el-icon><Document /></el-icon>
+                    Details
+                  </el-dropdown-item>
+                  <el-dropdown-item command="share" :disabled="!file.can_share">
+                    <el-icon><Share /></el-icon>
+                    Share
+                  </el-dropdown-item>
+                  <el-dropdown-item command="rename" :disabled="!file.can_write">
+                    <el-icon><Edit /></el-icon>
+                    Rename
+                  </el-dropdown-item>
+                  <el-dropdown-item command="delete" divided>
+                    <el-icon><Delete /></el-icon>
+                    Delete
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </div>
+      </div>
 
       <!-- Grid View -->
       <div v-else-if="viewType === 'grid'" class="grid-view">
@@ -724,6 +872,18 @@
     </el-icon>
     <span>Loading image...</span>
   </div>
+
+  <!-- Loading indicator for directory navigation -->
+  <div 
+    v-if="isNavigating"
+    class="directory-loading-overlay"
+  >
+    <el-icon class="is-loading">
+      <Loading />
+    </el-icon>
+    <span>Loading directory...</span>
+  </div>
+
 </template>
 
 <script setup lang="ts">
@@ -734,6 +894,8 @@ import { uploadAPI, filesAPI } from '@/services/api'
 import {
   Grid,
   List,
+  Menu,
+  Picture,
   Document,
   Folder,
   Upload,
@@ -769,7 +931,7 @@ const route = useRoute()
 const filesStore = useFilesStore()
 
 // State
-const viewType = ref<'grid' | 'list'>('list')
+const viewType = ref<'grid' | 'large' | 'picture' | 'list'>('list')
 const searchQuery = ref('')
 const uploadDialogVisible = ref(false)
 const imagePreviewVisible = ref(false)
@@ -795,6 +957,7 @@ const uploadProgress = ref<
   }>
 >([])
 const isUploading = ref(false)
+const isNavigating = ref(false)
 
 // Operation dialogs
 const copyDialogVisible = ref(false)
@@ -1015,18 +1178,28 @@ watch(
       isImmediate: oldParentId === undefined 
     })
     
-    if (newParentId) {
-      // Navigate to specific directory
-      console.log('Loading directory:', newParentId)
-      await filesStore.fetchChildren(Number(newParentId))
-    } else {
-      // Navigate to root (parent_id is undefined or was removed)
-      console.log('Loading root directory')
-      await filesStore.fetchChildren()
+    // Show loading state for directory changes (but not on initial load)
+    if (oldParentId !== undefined) {
+      isNavigating.value = true
     }
     
-    // Update breadcrumb after loading
-    await updateBreadcrumb()
+    try {
+      if (newParentId) {
+        // Navigate to specific directory
+        console.log('Loading directory:', newParentId)
+        await filesStore.fetchChildren(Number(newParentId))
+      } else {
+        // Navigate to root (parent_id is undefined or was removed)
+        console.log('Loading root directory')
+        await filesStore.fetchChildren()
+      }
+      
+      // Update breadcrumb after loading
+      await updateBreadcrumb()
+    } finally {
+      // Hide loading state
+      isNavigating.value = false
+    }
   },
   { immediate: true }
 )
@@ -1055,7 +1228,7 @@ watch(
 )
 
 // Methods
-const setViewType = (type: 'grid' | 'list') => {
+const setViewType = (type: 'grid' | 'large' | 'picture' | 'list') => {
   viewType.value = type
 }
 
@@ -1540,6 +1713,8 @@ const loadImageLazy = async (index: number) => {
 const handleFileClick = async (file: any) => {
   if (file.item_type === 'directory') {
     // Navigate to directory using router
+    // Loading state will be handled by the parentId watcher
+    console.log('Starting directory navigation to:', file.name, file.id)
     await navigateToDirectory(file.id)
   } else {
     // Check if it's an image file
@@ -1630,6 +1805,7 @@ const handleBreadcrumbClick = async (item: { id: number | null; name: string; pa
     // Navigate to this directory using router
     await navigateToDirectory(item.id)
   }
+  // Loading state will be handled by the parentId watcher
 }
 
 // File operation methods
@@ -2317,6 +2493,329 @@ onUnmounted(() => {
   margin-top: 4px;
 }
 
+/* Large View (Picture Wall) */
+.large-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 16px;
+  justify-content: flex-start;
+}
+
+.large-file-card {
+  background: #fff;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+  text-align: center;
+  position: relative;
+  min-height: 200px;
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.large-file-content {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  flex: 1;
+  justify-content: center;
+}
+
+.large-file-card:hover {
+  background: #f8f9fa;
+  border-color: #e1e5e9;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.large-file-card:hover .large-file-selection,
+.large-file-card:hover .large-file-actions {
+  opacity: 1;
+  visibility: visible;
+}
+
+.large-file-selection {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+}
+
+.large-file-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+}
+
+.large-file-icon {
+  margin-bottom: 8px;
+}
+
+.large-file-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  word-break: break-word;
+  line-height: 1.4;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-align: center;
+}
+
+.large-file-meta {
+  font-size: 12px;
+  color: #666;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Responsive design for large view */
+@media (max-width: 1200px) {
+  .large-file-card {
+    width: 180px;
+    min-height: 180px;
+  }
+}
+
+@media (max-width: 768px) {
+  .large-view {
+    gap: 16px;
+    padding: 12px;
+  }
+  
+  .large-file-card {
+    width: 160px;
+    min-height: 160px;
+    padding: 12px;
+  }
+  
+  .large-file-name {
+    font-size: 13px;
+  }
+  
+  .large-file-meta {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .large-view {
+    gap: 12px;
+    padding: 8px;
+  }
+  
+  .large-file-card {
+    width: 140px;
+    min-height: 140px;
+    padding: 10px;
+  }
+}
+
+/* Picture Wall View */
+.picture-wall-view {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 16px;
+  justify-items: center;
+}
+
+.picture-item {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.picture-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.picture-thumbnail {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+}
+
+.picture-thumbnail .file-icon {
+  width: 100% !important;
+  height: 100% !important;
+  aspect-ratio: unset !important;
+  border-radius: 0 !important;
+}
+
+.picture-thumbnail .thumbnail-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+}
+
+.picture-thumbnail .fallback-icon {
+  width: 100%;
+  height: 100%;
+  font-size: 80px;
+}
+
+.picture-thumbnail .fallback-icon .el-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.picture-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  color: white;
+  padding: 20px 12px 12px;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+  opacity: 0;
+}
+
+.picture-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.picture-item:hover .picture-overlay {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.picture-item:hover .picture-selection,
+.picture-item:hover .picture-actions {
+  opacity: 1;
+  visibility: visible;
+}
+
+.picture-selection {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+}
+
+.picture-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+}
+
+.picture-filename {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picture-meta {
+  font-size: 11px;
+  opacity: 0.9;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Responsive design for picture wall */
+@media (max-width: 1200px) {
+  .picture-wall-view {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  
+  .picture-item {
+    width: 180px;
+    height: 180px;
+  }
+}
+
+@media (max-width: 768px) {
+  .picture-wall-view {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    padding: 12px;
+  }
+  
+  .picture-item {
+    width: 160px;
+    height: 160px;
+  }
+  
+  .picture-filename {
+    font-size: 13px;
+  }
+  
+  .picture-meta {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .picture-wall-view {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    padding: 10px;
+  }
+  
+  .picture-item {
+    width: 140px;
+    height: 140px;
+  }
+}
+
 .custom-tree-node {
   display: flex;
   align-items: center;
@@ -2755,6 +3254,27 @@ onUnmounted(() => {
 }
 
 .image-loading-overlay .el-icon {
+  font-size: 18px;
+}
+
+.directory-loading-overlay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 20px 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 2000;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.directory-loading-overlay .el-icon {
   font-size: 18px;
 }
 </style>
