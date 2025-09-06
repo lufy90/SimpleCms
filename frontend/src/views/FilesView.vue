@@ -1553,8 +1553,21 @@ const refreshFiles = async () => {
   await filesStore.fetchChildren(parentId)
 }
 
-const handleSearch = (value: string) => {
+const handleSearch = async (value: string) => {
   searchQuery.value = value
+  
+  // If there's a search query, perform the search
+  if (value.trim()) {
+    // Use unified search API - pass node_id if in a directory, otherwise global search
+    await filesStore.searchFiles(value, {
+      node_id: currentDirectory.value?.id,
+      recursive: true,
+      limit: 100
+    })
+  } else {
+    // Clear search, refresh current directory
+    await refreshFiles()
+  }
 }
 
 // Image file detection
@@ -2373,6 +2386,7 @@ onUnmounted(() => {
   gap: 16px;
   justify-content: space-between;
 }
+
 
 .view-toggle {
   flex-shrink: 0;

@@ -291,15 +291,26 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const searchFiles = async (query: string, params?: { type?: string; limit?: number }) => {
+  const searchFiles = async (query: string, params?: { 
+    node_id?: number;
+    recursive?: boolean; 
+    type?: string; 
+    limit?: number 
+  }) => {
     try {
       isLoading.value = true
       const response = await filesAPI.search(query, params)
       files.value = response.data.results
-      return true
+      return {
+        success: true,
+        data: response.data
+      }
     } catch (error: any) {
       toast.error('Search failed')
-      return false
+      return {
+        success: false,
+        error: error.message
+      }
     } finally {
       isLoading.value = false
     }

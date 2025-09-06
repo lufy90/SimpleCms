@@ -258,17 +258,53 @@ class FileItemViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def search(self, request):
-        """Search for files and directories"""
+        """Search for files and directories - supports both global and node-specific search"""
         query = request.query_params.get('q', '')
+        node_id = request.query_params.get('node_id', None)
+        recursive = request.query_params.get('recursive', 'true').lower() == 'true'
+        
         if not query:
             return Response({'error': 'Search query is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         start_time = time.time()
         
-        # Search in database first
-        queryset = FileItem.objects.filter(
-            Q(name__icontains=query)
-        )
+        # Get the target node if specified
+        target_node = None
+        if node_id:
+            try:
+                target_node = FileItem.objects.get(id=node_id, item_type='directory')
+            except FileItem.DoesNotExist:
+                return Response({'error': 'Node not found or is not a directory'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Check if user can access the target node
+            user = request.user
+            if not user.is_authenticated:
+                return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            if not target_node.can_access(user, 'read'):
+                return Response({'error': 'Access denied to target node'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Build search queryset
+        if target_node:
+            # Node-specific search
+            if recursive:
+                # Get all descendant nodes (files and directories) under the target node
+                descendant_ids = self._get_descendant_ids(target_node)
+                queryset = FileItem.objects.filter(
+                    id__in=descendant_ids,
+                    name__icontains=query
+                )
+            else:
+                # Search only direct children of the target node
+                queryset = FileItem.objects.filter(
+                    parent=target_node,
+                    name__icontains=query
+                )
+        else:
+            # Global search
+            queryset = FileItem.objects.filter(
+                Q(name__icontains=query)
+            )
         
         # Apply permission filtering
         user = request.user
@@ -286,7 +322,7 @@ class FileItemViewSet(viewsets.ModelViewSet):
                 Q(access_permissions__group__in=user_groups, access_permissions__is_active=True)  # Explicit group permissions
             ).distinct()
         
-        # Apply filters
+        # Apply additional filters
         item_type = request.query_params.get('type', None)
         if item_type:
             queryset = queryset.filter(item_type=item_type)
@@ -299,13 +335,38 @@ class FileItemViewSet(viewsets.ModelViewSet):
         
         serializer = FileItemSerializer(queryset, many=True, context={'request': request})
         
-        return Response({
+        response_data = {
             'query': query,
             'results': serializer.data,
             'total_count': queryset.count(),
             'search_time': search_time
-        })
+        }
+        
+        # Add node-specific information if searching within a node
+        if target_node:
+            response_data.update({
+                'node_id': int(node_id),
+                'node_name': target_node.name,
+                'recursive': recursive
+            })
+        
+        return Response(response_data)
     
+    def _get_descendant_ids(self, directory):
+        """Get all descendant node IDs under a directory recursively"""
+        descendant_ids = []
+        
+        def _traverse(current_dir):
+            # Get direct children
+            children = FileItem.objects.filter(parent=current_dir, is_deleted=False)
+            for child in children:
+                descendant_ids.append(child.id)
+                # If it's a directory, traverse its children too
+                if child.item_type == 'directory':
+                    _traverse(child)
+        
+        _traverse(directory)
+        return descendant_ids
 
     
     @action(detail=False, methods=['post'])

@@ -214,8 +214,21 @@ export const filesAPI = {
   createDirectory: (data: { name: string; parent_id?: number; visibility?: string }) =>
     api.post('/api/files/create_directory/', data),
 
-  search: (query: string, params?: { type?: string; limit?: number }) =>
-    api.get('/api/files/search/', { params: { q: query, ...params } }),
+  search: (query: string, params?: { 
+    node_id?: number;
+    recursive?: boolean; 
+    type?: string; 
+    limit?: number 
+  }) =>
+    api.get('/api/files/search/', { 
+      params: { 
+        q: query, 
+        ...(params?.node_id && { node_id: params.node_id }),
+        recursive: params?.recursive ?? true,
+        ...(params?.type && { type: params.type }),
+        ...(params?.limit && { limit: params.limit })
+      } 
+    }),
 
   scanDirectory: (path: string) => api.post('/api/files/scan_directory/', { path }),
 
