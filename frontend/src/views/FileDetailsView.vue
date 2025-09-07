@@ -77,6 +77,8 @@
           :content="fileContent"
           :filename="file.name"
           :mime-type="file.storage?.mime_type"
+          :file-id="file.id"
+          @content-updated="handleContentUpdated"
         />
 
         <!-- JSON Viewer -->
@@ -84,6 +86,8 @@
           v-else-if="fileType === 'json'"
           :content="fileContent"
           :filename="file.name"
+          :file-id="file.id"
+          @content-updated="handleContentUpdated"
         />
 
         <!-- Code Viewer -->
@@ -92,6 +96,8 @@
           :content="fileContent"
           :filename="file.name"
           :language="detectedLanguage"
+          :file-id="file.id"
+          @content-updated="handleContentUpdated"
         />
 
         <!-- Video Viewer -->
@@ -329,6 +335,12 @@ const handleOpenInNewTab = () => {
   // Open file in new tab using the dedicated file viewer route
   const fileViewerUrl = `/view/${file.value.id}`
   window.open(fileViewerUrl, '_blank')
+}
+
+const handleContentUpdated = (newContent: string) => {
+  // Update the local content when file is edited
+  fileContent.value = newContent
+  ElMessage.success('File content updated')
 }
 
 const formatFileSize = (bytes: number) => {

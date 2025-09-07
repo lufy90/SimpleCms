@@ -55,6 +55,8 @@
           v-else-if="fileType === 'text' && textContent"
           :content="textContent"
           :filename="file?.name || ''"
+          :file-id="file?.id"
+          @content-updated="handleContentUpdated"
         />
         
         <!-- JSON Viewer -->
@@ -62,6 +64,8 @@
           v-else-if="fileType === 'json' && textContent"
           :content="textContent"
           :filename="file?.name || ''"
+          :file-id="file?.id"
+          @content-updated="handleContentUpdated"
         />
         
         <!-- Code Viewer -->
@@ -70,6 +74,8 @@
           :content="textContent"
           :filename="file?.name || ''"
           :language="detectLanguage(file?.name || '')"
+          :file-id="file?.id"
+          @content-updated="handleContentUpdated"
         />
         
         <!-- Video Viewer -->
@@ -290,6 +296,12 @@ const downloadFile = async () => {
   } finally {
     downloading.value = false
   }
+}
+
+const handleContentUpdated = (newContent: string) => {
+  // Update the local content when file is edited
+  textContent.value = newContent
+  ElMessage.success('File content updated')
 }
 
 const retry = () => {
