@@ -18,7 +18,7 @@
     
     <div v-else-if="file" class="file-content">
       <!-- File Header -->
-      <div class="file-header">
+      <div class="file-header" v-show="fileType !== 'office'">
         <div class="file-info">
           <el-icon><Document /></el-icon>
           <span class="file-name">{{ file.name }}</span>
@@ -92,6 +92,17 @@
           :filename="file?.name || ''"
         />
         
+        <!-- Office Document Viewer -->
+        <OfficeDocumentViewerSimple
+          v-else-if="fileType === 'office'"
+          :file="file"
+          mode="edit"
+          height="600px"
+          @document-ready="handleDocumentReady"
+          @document-saved="handleDocumentSaved"
+          @error="handleDocumentError"
+        />
+        
         <!-- Unsupported File -->
         <UnsupportedViewer
           v-else
@@ -113,6 +124,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
+import { useOfficeConfig } from '@/services/officeConfig'
 import ImageViewer from '@/components/readers/ImageViewer.vue'
 import PDFViewer from '@/components/readers/PDFViewer.vue'
 import TextViewer from '@/components/readers/TextViewer.vue'
@@ -120,6 +132,7 @@ import JSONViewer from '@/components/readers/JSONViewer.vue'
 import CodeViewer from '@/components/readers/CodeViewer.vue'
 import VideoViewer from '@/components/readers/VideoViewer.vue'
 import AudioViewer from '@/components/readers/AudioViewer.vue'
+import OfficeDocumentViewerSimple from '@/components/readers/OfficeDocumentViewerSimple.vue'
 import UnsupportedViewer from '@/components/readers/UnsupportedViewer.vue'
 
 // Props
@@ -145,9 +158,17 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const downloading = ref(false)
 
+// Services
+const officeConfig = useOfficeConfig()
+
 // Computed
 const fileType = computed(() => {
   if (!file.value) return 'unknown'
+  
+  // Check for office documents first
+  if (officeConfig.isOfficeDocument(file.value)) {
+    return 'office'
+  }
   
   const mimeType = file.value.storage?.mime_type || ''
   const extension = file.value.storage?.extension || ''
@@ -258,21 +279,23 @@ const loadFile = async () => {
     const fileResponse = await filesAPI.getFile(parseInt(fileId))
     file.value = fileResponse.data
     
-    // Download file content
-    const contentResponse = await filesAPI.download(parseInt(fileId))
-    const blob = new Blob([contentResponse.data])
-    const objectUrl = URL.createObjectURL(blob)
-    fileContent.value = objectUrl
-    
-    // For text-based files, also read the content as text
+    // Download file content (skip for office documents)
     const currentFileType = fileType.value
-    if (['text', 'json', 'code'].includes(currentFileType)) {
-      try {
-        const text = await blob.text()
-        textContent.value = text
-      } catch (err) {
-        console.error('Error reading text content:', err)
-        textContent.value = 'Error reading file content'
+    if (currentFileType !== 'office') {
+      const contentResponse = await filesAPI.download(parseInt(fileId))
+      const blob = new Blob([contentResponse.data])
+      const objectUrl = URL.createObjectURL(blob)
+      fileContent.value = objectUrl
+      
+      // For text-based files, also read the content as text
+      if (['text', 'json', 'code'].includes(currentFileType)) {
+        try {
+          const text = await blob.text()
+          textContent.value = text
+        } catch (err) {
+          console.error('Error reading text content:', err)
+          textContent.value = 'Error reading file content'
+        }
       }
     }
     
@@ -340,7 +363,18 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-// Event handlers are now handled by the reader components
+// Event handlers
+const handleDocumentReady = () => {
+  ElMessage.success('Document editor ready')
+}
+
+const handleDocumentSaved = (document: any) => {
+  ElMessage.success('Document saved successfully')
+}
+
+const handleDocumentError = (error: string) => {
+  ElMessage.error(`Document error: ${error}`)
+}
 
 // Lifecycle
 onMounted(() => {

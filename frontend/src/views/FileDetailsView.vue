@@ -114,6 +114,17 @@
           :filename="file.name"
         />
 
+        <!-- Office Document Viewer -->
+        <OfficeDocumentViewer
+          v-else-if="fileType === 'office'"
+          :file="file"
+          mode="edit"
+          height="100%"
+          @document-ready="handleDocumentReady"
+          @document-saved="handleDocumentSaved"
+          @error="handleDocumentError"
+        />
+
         <!-- Unsupported File Type -->
         <UnsupportedViewer
           v-else
@@ -131,6 +142,7 @@ import { useRouter } from 'vue-router'
 import { Loading, Warning, Download, Share, ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
+import { useOfficeConfig } from '@/services/officeConfig'
 
 // Import individual viewers
 import ImageViewer from '@/components/readers/ImageViewer.vue'
@@ -140,6 +152,7 @@ import JSONViewer from '@/components/readers/JSONViewer.vue'
 import CodeViewer from '@/components/readers/CodeViewer.vue'
 import VideoViewer from '@/components/readers/VideoViewer.vue'
 import AudioViewer from '@/components/readers/AudioViewer.vue'
+import OfficeDocumentViewer from '@/components/readers/OfficeDocumentViewer.vue'
 import UnsupportedViewer from '@/components/readers/UnsupportedViewer.vue'
 
 interface FileItem {
@@ -169,9 +182,17 @@ const fileContent = ref<string | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 
+// Services
+const officeConfig = useOfficeConfig()
+
 // Computed properties
 const fileType = computed(() => {
   if (!file.value) return null
+  
+  // Check for office documents first
+  if (officeConfig.isOfficeDocument(file.value)) {
+    return 'office'
+  }
   
   const mimeType = file.value.storage?.mime_type || ''
   const fileName = file.value.name.toLowerCase()
@@ -277,7 +298,10 @@ const loadFile = async () => {
     file.value = fileResponse.data
     
     // Then load file content
-    if (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio') {
+    if (fileType.value === 'office') {
+      // For office documents, we don't need to load content as the OfficeDocumentViewer handles it
+      fileContent.value = null
+    } else if (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio') {
       // For media files, create object URL from blob
       const response = await filesAPI.download(file.value.id)
       const blob = new Blob([response.data])
@@ -341,6 +365,18 @@ const handleContentUpdated = (newContent: string) => {
   // Update the local content when file is edited
   fileContent.value = newContent
   ElMessage.success('File content updated')
+}
+
+const handleDocumentReady = () => {
+  ElMessage.success('Document editor ready')
+}
+
+const handleDocumentSaved = (document: any) => {
+  ElMessage.success('Document saved successfully')
+}
+
+const handleDocumentError = (error: string) => {
+  ElMessage.error(`Document error: ${error}`)
 }
 
 const formatFileSize = (bytes: number) => {
@@ -420,7 +456,7 @@ onMounted(() => {
 .file-content {
   display: flex;
   flex-direction: column;
-  flex: 0;
+  flex: 1;
   min-height: 0; /* Allow content to shrink */
 }
 
@@ -462,7 +498,7 @@ onMounted(() => {
 }
 
 .file-reader-content {
-  flex: 0 0 auto; /* Don't grow, size based on content */
+  flex: 1; /* Don't grow, size based on content */
   background: white;
   margin: 0;
   padding: 0;

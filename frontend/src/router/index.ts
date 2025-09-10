@@ -27,6 +27,12 @@ const router = createRouter({
       meta: { requiresAuth: true, title: 'File Viewer' },
     },
     {
+      path: '/test-onlyoffice',
+      name: 'OnlyOfficeTest',
+      component: () => import('@/components/OnlyOfficeTest.vue'),
+      meta: { requiresAuth: false, title: 'OnlyOffice Test' },
+    },
+    {
       path: '/',
       component: () => import('@/layouts/MainLayout.vue'),
       meta: { requiresAuth: true },

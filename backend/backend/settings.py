@@ -30,6 +30,7 @@ ALLOWED_HOSTS = [
     "10.7.13.132",
     "192.168.1.134",
     "localhost",
+    "10.0.1.2",
 ]
 
 
@@ -189,7 +190,12 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",  # Alternative Vue.js port
     "http://127.0.0.1:8080",
     "http://192.168.1.134:3000",
+    "http://10.0.1.6",  # OnlyOffice Document Server
+    "http://10.0.1.2:3000",  # Frontend on network IP
 ]
+
+# Allow all origins for OnlyOffice callbacks (more permissive)
+CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -202,3 +208,8 @@ FILE_MANAGER_ROOT = BASE_DIR / 'media/upload/'  # Root directory for all file op
 
 # Maximum file upload size (100MB)
 MAX_UPLOAD_SIZE = 104857600
+
+# OnlyOffice Document Server Configuration
+ONLYOFFICE_DOCUMENT_SERVER_URL = 'http://192.168.1.101'
+ONLYOFFICE_SECRET_KEY = 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd'
+API_BASE_URL = 'http://192.168.1.134:8002'  # Update this to match your frontend URL

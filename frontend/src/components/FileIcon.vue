@@ -61,6 +61,7 @@ import {
   Monitor
 } from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
+import { useOfficeConfig } from '@/services/officeConfig'
 
 interface FileItem {
   id: number
@@ -91,6 +92,9 @@ const props = withDefaults(defineProps<Props>(), {
   showThumbnail: true
 })
 
+// Services
+const officeConfig = useOfficeConfig()
+
 // Reactive state
 const thumbnailUrl = ref<string | null>(null)
 const loadingThumbnail = ref(false)
@@ -99,6 +103,12 @@ const thumbnailError = ref(false)
 // File type detection
 const detectFileType = (file: FileItem) => {
   if (file.item_type === 'directory') return 'directory'
+  
+  // Check for office documents first
+  if (officeConfig.isOfficeDocument(file)) {
+    const docType = officeConfig.getDocumentType(file)
+    return docType || 'office'
+  }
   
   const mimeType = file.storage?.mime_type || ''
   const fileName = file.name.toLowerCase()
@@ -181,6 +191,7 @@ const iconColor = computed(() => {
     word: '#409eff',        // Blue for Word documents
     excel: '#67c23a',       // Green for Excel spreadsheets
     powerpoint: '#f56c6c',  // Red for PowerPoint presentations
+    office: '#409eff',      // Blue for general office documents
     code: '#909399',
     json: '#e6a23c',
     text: '#606266',

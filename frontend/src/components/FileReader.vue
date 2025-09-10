@@ -82,6 +82,17 @@
         :filename="file?.name"
       />
 
+      <!-- Office Document Viewer -->
+      <OfficeDocumentViewer
+        v-else-if="fileType === 'office'"
+        :file="file"
+        mode="edit"
+        height="600px"
+        @document-ready="handleDocumentReady"
+        @document-saved="handleDocumentSaved"
+        @error="handleDocumentError"
+      />
+
       <!-- Unsupported File Type -->
       <UnsupportedViewer
         v-else
@@ -113,6 +124,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { Loading, Warning, Download, Share } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
+import { useOfficeConfig } from '@/services/officeConfig'
 
 // Import individual viewers
 import ImageViewer from './readers/ImageViewer.vue'
@@ -122,6 +134,7 @@ import JSONViewer from './readers/JSONViewer.vue'
 import CodeViewer from './readers/CodeViewer.vue'
 import VideoViewer from './readers/VideoViewer.vue'
 import AudioViewer from './readers/AudioViewer.vue'
+import OfficeDocumentViewer from './readers/OfficeDocumentViewer.vue'
 import UnsupportedViewer from './readers/UnsupportedViewer.vue'
 
 interface FileItem {
@@ -147,6 +160,9 @@ const emit = defineEmits<{
   'close': []
 }>()
 
+// Services
+const officeConfig = useOfficeConfig()
+
 // State
 const visible = computed({
   get: () => props.modelValue,
@@ -160,6 +176,11 @@ const error = ref<string | null>(null)
 // Computed properties
 const fileType = computed(() => {
   if (!props.file) return null
+  
+  // Check for office documents first
+  if (officeConfig.isOfficeDocument(props.file)) {
+    return 'office'
+  }
   
   const mimeType = props.file.storage?.mime_type || ''
   const fileName = props.file.name.toLowerCase()
@@ -255,6 +276,12 @@ const detectedLanguage = computed(() => {
 const loadFileContent = async () => {
   if (!props.file) return
   
+  // For office documents, we don't need to load content as the OfficeDocumentViewer handles it
+  if (fileType.value === 'office') {
+    loading.value = false
+    return
+  }
+  
   loading.value = true
   error.value = null
   fileContent.value = null
@@ -320,6 +347,18 @@ const handleContentUpdated = (newContent: string) => {
   // Update the local content when file is edited
   fileContent.value = newContent
   ElMessage.success('File content updated')
+}
+
+const handleDocumentReady = () => {
+  ElMessage.success('Document editor ready')
+}
+
+const handleDocumentSaved = (document: any) => {
+  ElMessage.success('Document saved successfully')
+}
+
+const handleDocumentError = (error: string) => {
+  ElMessage.error(`Document error: ${error}`)
 }
 
 const handleClose = () => {

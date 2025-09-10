@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+from . import office_views
 
 router = DefaultRouter()
 router.register(r'files', views.FileItemViewSet, basename='fileitem')
@@ -24,4 +25,11 @@ urlpatterns = [
     # User and Group search for file sharing
     path('api/users/search/', views.UserSearchView.as_view(), name='user-search'),
     path('api/groups/search/', views.GroupSearchView.as_view(), name='group-search'),
+    
+    # OnlyOffice Document Server integration
+    path('api/office/config/<int:file_id>/', office_views.get_document_config, name='office-document-config'),
+    path('api/office/callback/', office_views.document_callback, name='office-document-callback'),
+    path('api/office/info/', office_views.get_document_server_info, name='office-server-info'),
+    path('api/office/convert/<int:file_id>/', office_views.convert_document, name='office-convert-document'),
+    path('api/office/download/<int:file_id>/', office_views.office_download, name='office-download'),
 ]
