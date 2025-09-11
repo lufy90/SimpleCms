@@ -87,7 +87,7 @@ const filesStore = useFilesStore()
 // State
 const isLoading = ref(false)
 const hasSearched = ref(false)
-const searchResults = ref([])
+const searchResults = ref<any[]>([])
 
 // Form
 const searchForm = reactive({

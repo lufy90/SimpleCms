@@ -399,13 +399,13 @@ const revokePermission = async (permissionId: number) => {
     )
 
     revokingPermission.value = permissionId
-    
+
     // Find the permission to get its details
-    const permission = currentPermissions.value.find(p => p.id === permissionId)
+    const permission = currentPermissions.value.find((p) => p.id === permissionId)
     if (!permission) {
       throw new Error('Permission not found')
     }
-    
+
     // Check if this is a directory and we should offer recursive unsharing
     if (props.file?.item_type === 'directory') {
       const shouldRecursive = await ElMessageBox.confirm(
@@ -416,23 +416,25 @@ const revokePermission = async (permissionId: number) => {
           cancelButtonText: 'No, just this directory',
           type: 'warning',
         },
-      ).then(() => true).catch(() => false)
-      
+      )
+        .then(() => true)
+        .catch(() => false)
+
       if (shouldRecursive) {
         // Use recursive unsharing
         const shareType = permission.user ? 'user' : 'group'
         const targetId = permission.user?.id || permission.group?.id
-        
+
         if (!targetId) {
           throw new Error('Invalid permission target')
         }
-        
+
         await filesAPI.unshareRecursively(props.file.id, {
           share_type: shareType,
           target_id: targetId,
           permission_types: [permission.permission_type],
         })
-        
+
         ElMessage.success('Directory permissions revoked recursively')
       } else {
         // Use regular permission deletion

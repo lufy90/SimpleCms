@@ -9,14 +9,9 @@
       @error="onThumbnailError"
       @load="onThumbnailLoad"
     />
-    
+
     <!-- Fallback icon -->
-    <el-icon
-      v-else
-      :size="size"
-      :color="iconColor"
-      class="fallback-icon"
-    >
+    <el-icon v-else :size="size" :color="iconColor" class="fallback-icon">
       <Folder v-if="fileType === 'directory'" />
       <Picture v-else-if="fileType === 'image'" />
       <VideoPlay v-else-if="fileType === 'video'" />
@@ -31,7 +26,7 @@
       <Files v-else-if="fileType === 'archive'" />
       <Document v-else />
     </el-icon>
-    
+
     <!-- Loading indicator for thumbnail -->
     <div v-if="loadingThumbnail" class="thumbnail-loading">
       <el-icon class="is-loading">
@@ -43,9 +38,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { 
-  Folder, 
-  Document, 
+import {
+  Folder,
+  Document,
   Loading,
   VideoPlay,
   Microphone,
@@ -58,7 +53,7 @@ import {
   Tools,
   Collection,
   Reading,
-  Monitor
+  Monitor,
 } from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
@@ -89,7 +84,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   size: 32,
-  showThumbnail: true
+  showThumbnail: true,
 })
 
 // Services
@@ -103,77 +98,93 @@ const thumbnailError = ref(false)
 // File type detection
 const detectFileType = (file: FileItem) => {
   if (file.item_type === 'directory') return 'directory'
-  
+
   // Check for office documents first
   if (officeConfig.isOfficeDocument(file)) {
     const docType = officeConfig.getDocumentType(file)
     return docType || 'office'
   }
-  
+
   const mimeType = file.storage?.mime_type || ''
   const fileName = file.name.toLowerCase()
-  
+
   // Image types
-  if (mimeType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|tiff)$/i.test(fileName)) {
+  if (
+    mimeType.startsWith('image/') ||
+    /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|tiff)$/i.test(fileName)
+  ) {
     return 'image'
   }
-  
+
   // Video types
-  if (mimeType.startsWith('video/') || /\.(mp4|webm|ogg|avi|mov|mkv|flv|wmv|m4v)$/i.test(fileName)) {
+  if (
+    mimeType.startsWith('video/') ||
+    /\.(mp4|webm|ogg|avi|mov|mkv|flv|wmv|m4v)$/i.test(fileName)
+  ) {
     return 'video'
   }
-  
+
   // Audio types
   if (mimeType.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|flac|wma)$/i.test(fileName)) {
     return 'audio'
   }
-  
+
   // PDF
   if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
     return 'pdf'
   }
-  
+
   // Word documents
-  if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
-      mimeType === 'application/msword' || 
-      /\.(docx|doc)$/i.test(fileName)) {
+  if (
+    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    mimeType === 'application/msword' ||
+    /\.(docx|doc)$/i.test(fileName)
+  ) {
     return 'word'
   }
-  
+
   // Excel spreadsheets
-  if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-      mimeType === 'application/vnd.ms-excel' || 
-      /\.(xlsx|xls)$/i.test(fileName)) {
+  if (
+    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    mimeType === 'application/vnd.ms-excel' ||
+    /\.(xlsx|xls)$/i.test(fileName)
+  ) {
     return 'excel'
   }
-  
+
   // PowerPoint presentations
-  if (mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || 
-      mimeType === 'application/vnd.ms-powerpoint' || 
-      /\.(pptx|ppt)$/i.test(fileName)) {
+  if (
+    mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+    mimeType === 'application/vnd.ms-powerpoint' ||
+    /\.(pptx|ppt)$/i.test(fileName)
+  ) {
     return 'powerpoint'
   }
-  
+
   // Code files
-  if (/\.(js|ts|jsx|tsx|py|java|cpp|c|cs|php|rb|go|rs|swift|kt|scala|sh|bash|sql|html|css|scss|less|xml|yaml|yml|toml|ini|conf|vue|svelte)$/i.test(fileName)) {
+  if (
+    /\.(js|ts|jsx|tsx|py|java|cpp|c|cs|php|rb|go|rs|swift|kt|scala|sh|bash|sql|html|css|scss|less|xml|yaml|yml|toml|ini|conf|vue|svelte)$/i.test(
+      fileName,
+    )
+  ) {
     return 'code'
   }
-  
+
   // JSON
   if (mimeType === 'application/json' || fileName.endsWith('.json')) {
     return 'json'
   }
-  
+
   // Text files
   if (mimeType.startsWith('text/') || /\.(txt|md|log|csv|rtf)$/i.test(fileName)) {
     return 'text'
   }
-  
+
   // Archive files
   if (/\.(zip|rar|7z|tar|gz|bz2)$/i.test(fileName)) {
     return 'archive'
   }
-  
+
   return 'file'
 }
 
@@ -188,35 +199,37 @@ const iconColor = computed(() => {
     video: '#e6a23c',
     audio: '#f56c6c',
     pdf: '#f56c6c',
-    word: '#409eff',        // Blue for Word documents
-    excel: '#67c23a',       // Green for Excel spreadsheets
-    powerpoint: '#f56c6c',  // Red for PowerPoint presentations
-    office: '#409eff',      // Blue for general office documents
+    word: '#409eff', // Blue for Word documents
+    excel: '#67c23a', // Green for Excel spreadsheets
+    powerpoint: '#f56c6c', // Red for PowerPoint presentations
+    office: '#409eff', // Blue for general office documents
     code: '#909399',
     json: '#e6a23c',
     text: '#606266',
     archive: '#909399',
-    file: '#909399'
+    file: '#909399',
   }
   return colors[type] || '#909399'
 })
 
 const shouldShowThumbnail = computed(() => {
-  return props.showThumbnail && 
-         props.file.item_type === 'file' && 
-         props.file.thumbnail && 
-         !thumbnailError.value &&
-         (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'pdf')
+  return (
+    props.showThumbnail &&
+    props.file.item_type === 'file' &&
+    props.file.thumbnail &&
+    !thumbnailError.value &&
+    (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'pdf')
+  )
 })
 
 // Methods
 const loadThumbnail = async () => {
   if (!shouldShowThumbnail.value) return
-  
+
   try {
     loadingThumbnail.value = true
     thumbnailError.value = false
-    
+
     // Use thumbnail URL if available, otherwise fetch from API
     if (props.file.thumbnail?.url) {
       thumbnailUrl.value = props.file.thumbnail.url
@@ -252,14 +265,18 @@ onMounted(() => {
 })
 
 // Watch for changes in file or thumbnail
-watch(() => props.file, () => {
-  if (shouldShowThumbnail.value) {
-    loadThumbnail()
-  } else {
-    thumbnailUrl.value = null
-    thumbnailError.value = false
-  }
-}, { deep: true })
+watch(
+  () => props.file,
+  () => {
+    if (shouldShowThumbnail.value) {
+      loadThumbnail()
+    } else {
+      thumbnailUrl.value = null
+      thumbnailError.value = false
+    }
+  },
+  { deep: true },
+)
 
 // Cleanup blob URL on unmount
 import { onUnmounted } from 'vue'

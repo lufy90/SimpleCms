@@ -10,24 +10,15 @@
     </el-button>
     <template #dropdown>
       <el-dropdown-menu>
-        <el-dropdown-item 
-          command="light" 
-          :class="{ 'is-active': theme === 'light' }"
-        >
+        <el-dropdown-item command="light" :class="{ 'is-active': theme === 'light' }">
           <el-icon><Sunny /></el-icon>
           Light
         </el-dropdown-item>
-        <el-dropdown-item 
-          command="dark" 
-          :class="{ 'is-active': theme === 'dark' }"
-        >
+        <el-dropdown-item command="dark" :class="{ 'is-active': theme === 'dark' }">
           <el-icon><Moon /></el-icon>
           Dark
         </el-dropdown-item>
-        <el-dropdown-item 
-          command="auto" 
-          :class="{ 'is-active': theme === 'auto' }"
-        >
+        <el-dropdown-item command="auto" :class="{ 'is-active': theme === 'auto' }">
           <el-icon><Monitor /></el-icon>
           Auto
         </el-dropdown-item>

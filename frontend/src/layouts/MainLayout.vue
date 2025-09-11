@@ -53,8 +53,6 @@
         </el-tree>
       </div>
 
-
-
       <!-- Dustbin Section -->
       <div class="dustbin-section">
         <!-- Expanded view -->
@@ -71,7 +69,7 @@
             </el-button>
           </el-badge>
         </div>
-        
+
         <!-- Collapsed view -->
         <div v-else class="dustbin-collapsed">
           <el-badge
@@ -79,14 +77,17 @@
             :hidden="deletedFilesCount === 0"
             class="dustbin-badge-collapsed"
           >
-            <el-button type="text" size="large" @click="navigateToDustbin" class="dustbin-icon-button">
+            <el-button
+              type="text"
+              size="large"
+              @click="navigateToDustbin"
+              class="dustbin-icon-button"
+            >
               <el-icon><Delete /></el-icon>
             </el-button>
           </el-badge>
         </div>
       </div>
-
-
     </aside>
 
     <!-- Main Content -->
@@ -306,8 +307,6 @@ const navigateToDustbin = () => {
   router.push('/deleted-files')
 }
 
-
-
 // Lifecycle
 onMounted(async () => {
   await filesStore.fetchDirectoryTree()
@@ -339,7 +338,10 @@ watch(
   border-right: 1px solid #e4e7ed;
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
+  transition:
+    width 0.3s ease,
+    min-width 0.3s ease,
+    max-width 0.3s ease;
   min-width: 280px;
   max-width: 280px;
 }
@@ -449,8 +451,6 @@ watch(
   font-size: 18px;
 }
 
-
-
 .tree-header {
   display: flex;
   align-items: center;
@@ -524,8 +524,6 @@ watch(
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-
 
 .sidebar-toggle {
   color: #909399;

@@ -6,7 +6,7 @@
           <Document />
         </el-icon>
       </div>
-      
+
       <div class="file-info">
         <h3>{{ file?.name }}</h3>
         <p class="file-type">{{ getFileType() }}</p>
@@ -14,15 +14,17 @@
           {{ formatFileSize(file.file_info.size) }}
         </p>
       </div>
-      
+
       <div class="message">
         <el-icon size="32" color="#e6a23c">
           <Warning />
         </el-icon>
         <p>This file type cannot be previewed in the browser.</p>
-        <p class="sub-message">You can download the file to view it with an appropriate application.</p>
+        <p class="sub-message">
+          You can download the file to view it with an appropriate application.
+        </p>
       </div>
-      
+
       <div class="actions">
         <el-button type="primary" @click="$emit('download')">
           <el-icon><Download /></el-icon>
@@ -67,29 +69,29 @@ defineEmits<{
 // Methods
 const getFileType = () => {
   if (!props.file) return 'Unknown'
-  
+
   const mimeType = props.file.storage?.mime_type
   if (mimeType) {
     return mimeType
   }
-  
+
   const extension = props.file.name.split('.').pop()?.toUpperCase()
   return extension ? `${extension} File` : 'Unknown File Type'
 }
 
 const formatFileSize = (bytes: number) => {
   if (bytes === 0) return '0 Bytes'
-  
+
   const k = 1024
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 const openInNewTab = () => {
   if (!props.file) return
-  
+
   // Open file in new tab using the dedicated file viewer route
   const fileViewerUrl = `/view/${props.file.id}`
   window.open(fileViewerUrl, '_blank')

@@ -56,12 +56,16 @@ const addResponseInterceptor = (axiosInstance: typeof api) => {
           const refreshToken = Cookies.get('refresh_token')
           if (refreshToken) {
             // Use a separate axios instance for refresh to avoid interceptor loops
-            const refreshResponse = await axios.post('/api/auth/refresh/', {
-              refresh_token: refreshToken,
-            }, {
-              baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002',
-              timeout: 10000
-            })
+            const refreshResponse = await axios.post(
+              '/api/auth/refresh/',
+              {
+                refresh_token: refreshToken,
+              },
+              {
+                baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002',
+                timeout: 10000,
+              },
+            )
 
             const { access, refresh } = refreshResponse.data
             Cookies.set('access_token', access, { expires: 1 / 24 }) // 1 hour
@@ -99,7 +103,7 @@ addResponseInterceptor(uploadApi)
 export const cleanupInvalidTokens = () => {
   const accessToken = Cookies.get('access_token')
   const refreshToken = Cookies.get('refresh_token')
-  
+
   // If we have tokens, try to validate them
   if (accessToken || refreshToken) {
     // Check if tokens are expired or malformed
@@ -116,7 +120,7 @@ export const cleanupInvalidTokens = () => {
       // Token is malformed, remove it
       Cookies.remove('access_token')
     }
-    
+
     try {
       if (refreshToken) {
         const payload = JSON.parse(atob(refreshToken.split('.')[1]))
@@ -194,7 +198,7 @@ export const filesAPI = {
 
   getFile: (id: number) => api.get(`/api/files/${id}/`),
 
-  download: (id: number, params?: { download?: string }) => 
+  download: (id: number, params?: { download?: string }) =>
     api.get(`/api/files/${id}/download/`, { responseType: 'blob', params }),
 
   getThumbnail: (id: number) => api.get(`/api/files/${id}/thumbnail/`, { responseType: 'blob' }),
@@ -214,25 +218,26 @@ export const filesAPI = {
   createDirectory: (data: { name: string; parent_id?: number; visibility?: string }) =>
     api.post('/api/files/create_directory/', data),
 
-  search: (query: string, params?: { 
-    node_id?: number;
-    recursive?: boolean; 
-    type?: string; 
-    limit?: number 
-  }) =>
-    api.get('/api/files/search/', { 
-      params: { 
-        q: query, 
+  search: (
+    query: string,
+    params?: {
+      node_id?: number
+      recursive?: boolean
+      type?: string
+      limit?: number
+    },
+  ) =>
+    api.get('/api/files/search/', {
+      params: {
+        q: query,
         ...(params?.node_id && { node_id: params.node_id }),
         recursive: params?.recursive ?? true,
         ...(params?.type && { type: params.type }),
-        ...(params?.limit && { limit: params.limit })
-      } 
+        ...(params?.limit && { limit: params.limit }),
+      },
     }),
 
   scanDirectory: (path: string) => api.post('/api/files/scan_directory/', { path }),
-
-
 
   // Recursive directory sharing
   shareRecursively: (
@@ -267,12 +272,13 @@ export const filesAPI = {
 
 // Upload API
 export const uploadAPI = {
-  upload: (formData: FormData, onProgress?: (progressEvent: any) => void) => uploadApi.post('/api/upload/', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    onUploadProgress: onProgress,
-  }),
+  upload: (formData: FormData, onProgress?: (progressEvent: any) => void) =>
+    uploadApi.post('/api/upload/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: onProgress,
+    }),
 }
 
 // Operations API
@@ -333,14 +339,17 @@ export const usersAPI = {
     groups?: number[]
   }) => api.post('/api/users/', data),
 
-  update: (id: number, data: {
-    username?: string
-    email?: string
-    first_name?: string
-    last_name?: string
-    password?: string
-    groups?: number[]
-  }) => api.put(`/api/users/${id}/`, data),
+  update: (
+    id: number,
+    data: {
+      username?: string
+      email?: string
+      first_name?: string
+      last_name?: string
+      password?: string
+      groups?: number[]
+    },
+  ) => api.put(`/api/users/${id}/`, data),
 
   delete: (id: number) => api.delete(`/api/users/${id}/`),
 
@@ -356,17 +365,17 @@ export const groupsAPI = {
 
   get: (id: number) => api.get(`/api/groups/${id}/`),
 
-  create: (data: {
-    name: string
-    description?: string
-    members?: number[]
-  }) => api.post('/api/groups/', data),
+  create: (data: { name: string; description?: string; members?: number[] }) =>
+    api.post('/api/groups/', data),
 
-  update: (id: number, data: {
-    name?: string
-    description?: string
-    members?: number[]
-  }) => api.put(`/api/groups/${id}/`, data),
+  update: (
+    id: number,
+    data: {
+      name?: string
+      description?: string
+      members?: number[]
+    },
+  ) => api.put(`/api/groups/${id}/`, data),
 
   delete: (id: number) => api.delete(`/api/groups/${id}/`),
 

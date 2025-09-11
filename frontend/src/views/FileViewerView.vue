@@ -6,7 +6,7 @@
       </el-icon>
       <p>Loading file...</p>
     </div>
-    
+
     <div v-else-if="error" class="error-container">
       <el-icon size="48" color="#f56c6c">
         <Warning />
@@ -15,7 +15,7 @@
       <p>{{ error }}</p>
       <el-button @click="retry" type="primary">Retry</el-button>
     </div>
-    
+
     <div v-else-if="file" class="file-content">
       <!-- File Header -->
       <div class="file-header" v-show="fileType !== 'office'">
@@ -33,7 +33,7 @@
           </el-button>
         </div>
       </div>
-      
+
       <!-- File Content -->
       <div class="file-display">
         <!-- Image Viewer -->
@@ -42,14 +42,14 @@
           :src="fileContent"
           :alt="file?.name || ''"
         />
-        
+
         <!-- PDF Viewer -->
         <PDFViewer
           v-else-if="fileType === 'pdf' && fileContent"
           :src="fileContent"
           :filename="file?.name || ''"
         />
-        
+
         <!-- Text Viewer -->
         <TextViewer
           v-else-if="fileType === 'text' && textContent"
@@ -58,7 +58,7 @@
           :file-id="file?.id"
           @content-updated="handleContentUpdated"
         />
-        
+
         <!-- JSON Viewer -->
         <JSONViewer
           v-else-if="fileType === 'json' && textContent"
@@ -67,7 +67,7 @@
           :file-id="file?.id"
           @content-updated="handleContentUpdated"
         />
-        
+
         <!-- Code Viewer -->
         <CodeViewer
           v-else-if="fileType === 'code' && textContent"
@@ -77,21 +77,21 @@
           :file-id="file?.id"
           @content-updated="handleContentUpdated"
         />
-        
+
         <!-- Video Viewer -->
         <VideoViewer
           v-else-if="fileType === 'video' && fileContent"
           :src="fileContent"
           :filename="file?.name || ''"
         />
-        
+
         <!-- Audio Viewer -->
         <AudioViewer
           v-else-if="fileType === 'audio' && fileContent"
           :src="fileContent"
           :filename="file?.name || ''"
         />
-        
+
         <!-- Office Document Viewer -->
         <OfficeDocumentViewerSimple
           v-else-if="fileType === 'office'"
@@ -102,12 +102,9 @@
           @document-saved="handleDocumentSaved"
           @error="handleDocumentError"
         />
-        
+
         <!-- Unsupported File -->
-        <UnsupportedViewer
-          v-else
-          :file="file"
-        />
+        <UnsupportedViewer v-else :file="file" />
       </div>
     </div>
   </div>
@@ -116,12 +113,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { 
-  Document, 
-  Download, 
-  Loading, 
-  Warning 
-} from '@element-plus/icons-vue'
+import { Document, Download, Loading, Warning } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
@@ -164,67 +156,88 @@ const officeConfig = useOfficeConfig()
 // Computed
 const fileType = computed(() => {
   if (!file.value) return 'unknown'
-  
+
   // Check for office documents first
   if (officeConfig.isOfficeDocument(file.value)) {
     return 'office'
   }
-  
+
   const mimeType = file.value.storage?.mime_type || ''
   const extension = file.value.storage?.extension || ''
   const fileName = file.value.name.toLowerCase()
-  
+
   // Image files
-  if (mimeType.startsWith('image/') || 
-      ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].some(ext => 
-        extension === ext || fileName.endsWith(`.${ext}`)
-      )) {
+  if (
+    mimeType.startsWith('image/') ||
+    ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].some(
+      (ext) => extension === ext || fileName.endsWith(`.${ext}`),
+    )
+  ) {
     return 'image'
   }
-  
+
   // PDF files
-  if (mimeType === 'application/pdf' || 
-      extension === 'pdf' || fileName.endsWith('.pdf')) {
+  if (mimeType === 'application/pdf' || extension === 'pdf' || fileName.endsWith('.pdf')) {
     return 'pdf'
   }
-  
+
   // Text files
-  if (mimeType.startsWith('text/') || 
-      ['txt', 'md', 'csv', 'log'].some(ext => 
-        extension === ext || fileName.endsWith(`.${ext}`)
-      )) {
+  if (
+    mimeType.startsWith('text/') ||
+    ['txt', 'md', 'csv', 'log'].some((ext) => extension === ext || fileName.endsWith(`.${ext}`))
+  ) {
     return 'text'
   }
-  
+
   // JSON files
-  if (mimeType === 'application/json' || 
-      extension === 'json' || fileName.endsWith('.json')) {
+  if (mimeType === 'application/json' || extension === 'json' || fileName.endsWith('.json')) {
     return 'json'
   }
-  
+
   // Code files
-  if (['js', 'ts', 'jsx', 'tsx', 'vue', 'html', 'css', 'scss', 'py', 'java', 'cpp', 'c', 'php', 'rb', 'go', 'rs'].some(ext => 
-        extension === ext || fileName.endsWith(`.${ext}`)
-      )) {
+  if (
+    [
+      'js',
+      'ts',
+      'jsx',
+      'tsx',
+      'vue',
+      'html',
+      'css',
+      'scss',
+      'py',
+      'java',
+      'cpp',
+      'c',
+      'php',
+      'rb',
+      'go',
+      'rs',
+    ].some((ext) => extension === ext || fileName.endsWith(`.${ext}`))
+  ) {
     return 'code'
   }
-  
+
   // Video files
-  if (mimeType.startsWith('video/') || 
-      ['mp4', 'webm', 'ogg', 'avi', 'mov'].some(ext => 
-        extension === ext || fileName.endsWith(`.${ext}`)
-      )) {
+  if (
+    mimeType.startsWith('video/') ||
+    ['mp4', 'webm', 'ogg', 'avi', 'mov'].some(
+      (ext) => extension === ext || fileName.endsWith(`.${ext}`),
+    )
+  ) {
     return 'video'
   }
-  
+
   // Audio files
-  if (mimeType.startsWith('audio/') || 
-      ['mp3', 'wav', 'ogg', 'aac', 'flac'].some(ext => 
-        extension === ext || fileName.endsWith(`.${ext}`)
-      )) {
+  if (
+    mimeType.startsWith('audio/') ||
+    ['mp3', 'wav', 'ogg', 'aac', 'flac'].some(
+      (ext) => extension === ext || fileName.endsWith(`.${ext}`),
+    )
+  ) {
     return 'audio'
   }
-  
+
   return 'unsupported'
 })
 
@@ -234,29 +247,29 @@ const fileType = computed(() => {
 const detectLanguage = (filename: string) => {
   const ext = filename.toLowerCase().split('.').pop()
   const languageMap: { [key: string]: string } = {
-    'js': 'javascript',
-    'ts': 'typescript',
-    'jsx': 'jsx',
-    'tsx': 'tsx',
-    'vue': 'vue',
-    'html': 'html',
-    'css': 'css',
-    'scss': 'scss',
-    'py': 'python',
-    'java': 'java',
-    'cpp': 'cpp',
-    'c': 'c',
-    'php': 'php',
-    'rb': 'ruby',
-    'go': 'go',
-    'rs': 'rust',
-    'sh': 'bash',
-    'sql': 'sql',
-    'xml': 'xml',
-    'yaml': 'yaml',
-    'yml': 'yaml',
-    'json': 'json',
-    'md': 'markdown'
+    js: 'javascript',
+    ts: 'typescript',
+    jsx: 'jsx',
+    tsx: 'tsx',
+    vue: 'vue',
+    html: 'html',
+    css: 'css',
+    scss: 'scss',
+    py: 'python',
+    java: 'java',
+    cpp: 'cpp',
+    c: 'c',
+    php: 'php',
+    rb: 'ruby',
+    go: 'go',
+    rs: 'rust',
+    sh: 'bash',
+    sql: 'sql',
+    xml: 'xml',
+    yaml: 'yaml',
+    yml: 'yaml',
+    json: 'json',
+    md: 'markdown',
   }
   return languageMap[ext || ''] || 'text'
 }
@@ -264,21 +277,21 @@ const detectLanguage = (filename: string) => {
 // Methods
 const loadFile = async () => {
   const fileId = route.params.id as string
-  
+
   if (!fileId) {
     error.value = 'No file ID provided'
     loading.value = false
     return
   }
-  
+
   try {
     loading.value = true
     error.value = null
-    
+
     // Get file metadata first
     const fileResponse = await filesAPI.getFile(parseInt(fileId))
     file.value = fileResponse.data
-    
+
     // Download file content (skip for office documents)
     const currentFileType = fileType.value
     if (currentFileType !== 'office') {
@@ -286,7 +299,7 @@ const loadFile = async () => {
       const blob = new Blob([contentResponse.data])
       const objectUrl = URL.createObjectURL(blob)
       fileContent.value = objectUrl
-      
+
       // For text-based files, also read the content as text
       if (['text', 'json', 'code'].includes(currentFileType)) {
         try {
@@ -298,7 +311,6 @@ const loadFile = async () => {
         }
       }
     }
-    
   } catch (err: any) {
     console.error('Error loading file:', err)
     error.value = err.response?.data?.detail || 'Failed to load file'
@@ -309,7 +321,7 @@ const loadFile = async () => {
 
 const downloadFile = async () => {
   if (!file.value) return
-  
+
   try {
     downloading.value = true
     await filesAPI.download(file.value.id, { download: 'true' }) // Force download
@@ -333,33 +345,33 @@ const retry = () => {
 
 const getFileType = () => {
   if (!file.value) return 'Unknown'
-  
+
   const mimeType = file.value.storage?.mime_type
   if (mimeType) {
     return mimeType
   }
-  
+
   const extension = file.value.storage?.extension
   if (extension) {
     return extension.toUpperCase()
   }
-  
+
   const fileName = file.value.name
   const lastDot = fileName.lastIndexOf('.')
   if (lastDot > 0) {
     return fileName.substring(lastDot + 1).toUpperCase()
   }
-  
+
   return 'Unknown'
 }
 
 const formatFileSize = (bytes: number) => {
   if (bytes === 0) return '0 Bytes'
-  
+
   const k = 1024
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 

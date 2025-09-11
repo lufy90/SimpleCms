@@ -364,7 +364,7 @@
         @selection-change="handleListSelectionChange"
         @sort-change="handleSortChange"
         ref="listTableRef"
-        :default-sort="{prop: 'name', order: 'ascending'}"
+        :default-sort="{ prop: 'name', order: 'ascending' }"
       >
         <!-- Selection Column -->
         <el-table-column type="selection" width="55" />
@@ -797,22 +797,22 @@
   >
     <div v-if="conflictData" class="conflict-content">
       <div class="conflict-info">
-        <el-alert
-          title="File already exists"
-          type="warning"
-          :closable="false"
-          show-icon
-        >
+        <el-alert title="File already exists" type="warning" :closable="false" show-icon>
           <template #default>
-            <p>A file with the name <strong>{{ conflictData.fileName }}</strong> already exists in this location.</p>
-            <p v-if="conflictData.relativePath">Path: <code>{{ conflictData.relativePath }}/{{ conflictData.fileName }}</code></p>
+            <p>
+              A file with the name <strong>{{ conflictData.fileName }}</strong> already exists in
+              this location.
+            </p>
+            <p v-if="conflictData.relativePath">
+              Path: <code>{{ conflictData.relativePath }}/{{ conflictData.fileName }}</code>
+            </p>
           </template>
         </el-alert>
       </div>
 
       <div class="conflict-options">
         <h4>How would you like to resolve this conflict?</h4>
-        
+
         <el-radio-group v-model="conflictData.resolveAction" class="conflict-radio-group">
           <el-radio value="rename" class="conflict-radio">
             <div class="radio-content">
@@ -827,7 +827,7 @@
               />
             </div>
           </el-radio>
-          
+
           <el-radio value="overwrite" class="conflict-radio">
             <div class="radio-content">
               <div class="radio-title">Overwrite the existing file</div>
@@ -837,14 +837,17 @@
         </el-radio-group>
       </div>
     </div>
-    
+
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="handleConflictSkip">Skip This File</el-button>
         <el-button
           type="primary"
           @click="handleConflictResolve"
-          :disabled="!conflictData?.resolveAction || (conflictData.resolveAction === 'rename' && !conflictData.newName.trim())"
+          :disabled="
+            !conflictData?.resolveAction ||
+            (conflictData.resolveAction === 'rename' && !conflictData.newName.trim())
+          "
         >
           Continue
         </el-button>
@@ -861,10 +864,10 @@
     @close="handleImagePreviewClose"
     @switch="handleImagePreviewChange"
   />
-  
+
   <!-- Loading indicator for image preview -->
-  <div 
-    v-if="imagePreviewVisible && imageLoadingStates.some(loading => loading)"
+  <div
+    v-if="imagePreviewVisible && imageLoadingStates.some((loading) => loading)"
     class="image-loading-overlay"
   >
     <el-icon class="is-loading">
@@ -874,16 +877,12 @@
   </div>
 
   <!-- Loading indicator for directory navigation -->
-  <div 
-    v-if="isNavigating"
-    class="directory-loading-overlay"
-  >
+  <div v-if="isNavigating" class="directory-loading-overlay">
     <el-icon class="is-loading">
       <Loading />
     </el-icon>
     <span>Loading directory...</span>
   </div>
-
 </template>
 
 <script setup lang="ts">
@@ -923,7 +922,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  parentId: undefined
+  parentId: undefined,
 })
 
 const router = useRouter()
@@ -977,7 +976,7 @@ const selectedFileForDetails = ref<FileItem | null>(null)
 const renameDialogVisible = ref(false)
 const selectedFileForRename = ref<FileItem | null>(null)
 const renameForm = ref({
-  name: ''
+  name: '',
 })
 
 // Upload conflict dialog
@@ -990,12 +989,14 @@ const conflictData = ref<{
   resolveAction: 'rename' | 'overwrite' | null
   newName: string
 } | null>(null)
-const pendingUploads = ref<Array<{
-  file: File
-  relativePath: string
-  resolveAction: 'rename' | 'overwrite' | 'skip'
-  newName?: string
-}>>([])
+const pendingUploads = ref<
+  Array<{
+    file: File
+    relativePath: string
+    resolveAction: 'rename' | 'overwrite' | 'skip'
+    newName?: string
+  }>
+>([])
 
 // Tree selector configuration for el-tree-select
 const treeSelectProps = {
@@ -1172,17 +1173,17 @@ const updateBreadcrumb = async () => {
 watch(
   () => props.parentId,
   async (newParentId, oldParentId) => {
-    console.log('parentId watcher triggered:', { 
-      old: oldParentId, 
-      new: newParentId, 
-      isImmediate: oldParentId === undefined 
+    console.log('parentId watcher triggered:', {
+      old: oldParentId,
+      new: newParentId,
+      isImmediate: oldParentId === undefined,
     })
-    
+
     // Show loading state for directory changes (but not on initial load)
     if (oldParentId !== undefined) {
       isNavigating.value = true
     }
-    
+
     try {
       if (newParentId) {
         // Navigate to specific directory
@@ -1193,7 +1194,7 @@ watch(
         console.log('Loading root directory')
         await filesStore.fetchChildren()
       }
-      
+
       // Update breadcrumb after loading
       await updateBreadcrumb()
     } finally {
@@ -1201,7 +1202,7 @@ watch(
       isNavigating.value = false
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 // Watch for directory changes to update breadcrumb
@@ -1326,7 +1327,7 @@ const uploadAllFiles = async (files: File[]) => {
   // Process files one by one to handle conflicts
   for (let i = 0; i < files.length; i++) {
     let file = files[i]
-    
+
     try {
       // Get the relative path for this file
       const pathParts = file.webkitRelativePath.split('/')
@@ -1335,26 +1336,32 @@ const uploadAllFiles = async (files: File[]) => {
 
       // Check for conflicts before uploading
       const conflictResult = await checkForConflict(fileName, relativePath)
-      
+
       if (conflictResult.hasConflict) {
         // Show conflict dialog and wait for user decision
-        const resolution = await showConflictDialog(file, fileName, relativePath, conflictResult.existingFile, conflictResult.existingFiles)
-        
+        const resolution = await showConflictDialog(
+          file,
+          fileName,
+          relativePath,
+          conflictResult.existingFile,
+          conflictResult.existingFiles,
+        )
+
         if (resolution.action === 'skip') {
           uploadProgress.value[i].status = 'error'
           uploadProgress.value[i].error = 'Skipped due to conflict'
           skippedCount++
           continue
         }
-        
+
         // Handle overwrite action - use PATCH request to update existing file
         if (resolution.action === 'overwrite' && conflictResult.existingFile) {
           console.log('Overwriting existing file:', {
             fileId: conflictResult.existingFile.id,
             fileName: file.name,
-            fileSize: file.size
+            fileSize: file.size,
           })
-          
+
           // Create progress callback for overwrite operation
           const overwriteProgressCallback = (progressEvent: any) => {
             if (progressEvent.total) {
@@ -1362,10 +1369,14 @@ const uploadAllFiles = async (files: File[]) => {
               uploadProgress.value[i].percentage = percentage
             }
           }
-          
+
           // Use the store's updateFileContent method which makes a PATCH request
-          const success = await filesStore.updateFileContent(conflictResult.existingFile.id, file, overwriteProgressCallback)
-          
+          const success = await filesStore.updateFileContent(
+            conflictResult.existingFile.id,
+            file,
+            overwriteProgressCallback,
+          )
+
           if (success) {
             uploadProgress.value[i].status = 'success'
             uploadProgress.value[i].percentage = 100
@@ -1377,7 +1388,7 @@ const uploadAllFiles = async (files: File[]) => {
           }
           continue
         }
-        
+
         // Update file name if renaming
         if (resolution.action === 'rename' && resolution.newName) {
           // Create a new File object with the new name
@@ -1400,9 +1411,9 @@ const uploadAllFiles = async (files: File[]) => {
       console.log('Uploading new file via POST request:', {
         fileName: file.name,
         fileSize: file.size,
-        relativePath
+        relativePath,
       })
-      
+
       // Create progress callback for this specific file
       const progressCallback = (progressEvent: any) => {
         if (progressEvent.total) {
@@ -1410,14 +1421,13 @@ const uploadAllFiles = async (files: File[]) => {
           uploadProgress.value[i].percentage = percentage
         }
       }
-      
+
       await uploadAPI.upload(formData, progressCallback)
 
       // Update progress
       uploadProgress.value[i].status = 'success'
       uploadProgress.value[i].percentage = 100
       uploadedCount++
-
     } catch (error: any) {
       // Update progress with error
       uploadProgress.value[i].status = 'error'
@@ -1555,14 +1565,14 @@ const refreshFiles = async () => {
 
 const handleSearch = async (value: string) => {
   searchQuery.value = value
-  
+
   // If there's a search query, perform the search
   if (value.trim()) {
     // Use unified search API - pass node_id if in a directory, otherwise global search
     await filesStore.searchFiles(value, {
       node_id: currentDirectory.value?.id,
       recursive: true,
-      limit: 100
+      limit: 100,
     })
   } else {
     // Clear search, refresh current directory
@@ -1575,31 +1585,29 @@ const isImageFile = (file: any): boolean => {
   const mimeType = file.storage?.mime_type || ''
   const extension = file.storage?.extension || ''
   const fileName = file.name.toLowerCase()
-  
+
   // Check by MIME type
   if (mimeType.startsWith('image/')) {
     return true
   }
-  
+
   // Check by file extension from storage
   if (extension && /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(extension)) {
     return true
   }
-  
+
   // Fallback to filename extension
   return /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName)
 }
 
 // Get all image files in current directory
 const getImageFiles = (): any[] => {
-  return filteredFiles.value.filter(file => 
-    file.item_type === 'file' && isImageFile(file)
-  )
+  return filteredFiles.value.filter((file) => file.item_type === 'file' && isImageFile(file))
 }
 
 // Clean up object URLs to prevent memory leaks
 const cleanupImageObjectUrls = () => {
-  imageObjectUrls.value.forEach(url => {
+  imageObjectUrls.value.forEach((url) => {
     URL.revokeObjectURL(url)
   })
   imageObjectUrls.value = []
@@ -1618,7 +1626,7 @@ const handleImagePreviewClose = () => {
 const handleImagePreviewChange = (index: number) => {
   // Load the image at the new index if not already loaded
   loadImageLazy(index)
-  
+
   // Preload adjacent images for smoother navigation
   if (index > 0) {
     loadImageLazy(index - 1) // Previous image
@@ -1631,40 +1639,39 @@ const handleImagePreviewChange = (index: number) => {
 // Show image preview
 const showImagePreview = async (clickedFile: any) => {
   const currentImageFiles = getImageFiles()
-  
+
   if (currentImageFiles.length === 0) {
     ElMessage.warning('No images found in current directory')
     return
   }
-  
+
   // Find the index of the clicked image
-  const clickedIndex = currentImageFiles.findIndex(file => file.id === clickedFile.id)
-  
+  const clickedIndex = currentImageFiles.findIndex((file) => file.id === clickedFile.id)
+
   if (clickedIndex === -1) {
     ElMessage.warning('Image not found in current directory')
     return
   }
-  
+
   try {
     // Clean up previous object URLs
     cleanupImageObjectUrls()
-    
+
     // Store the file objects for lazy loading
     imageFiles.value = currentImageFiles
-    
+
     // Initialize arrays with placeholders
     const previewUrls: string[] = new Array(currentImageFiles.length).fill('')
     const loadingStates: boolean[] = new Array(currentImageFiles.length).fill(false) // Start as not loading
-    
+
     // Set up the preview immediately
     imagePreviewList.value = previewUrls
     imagePreviewInitialIndex.value = clickedIndex
     imageLoadingStates.value = loadingStates
     imagePreviewVisible.value = true
-    
+
     // Load only the clicked image initially
     await loadImageLazy(clickedIndex)
-    
   } catch (error) {
     console.error('Error setting up image preview:', error)
     ElMessage.error('Failed to set up image preview')
@@ -1677,45 +1684,45 @@ const loadImageLazy = async (index: number) => {
     console.error(`No file found at index ${index}`)
     return
   }
-  
+
   const file = imageFiles.value[index]
-  
+
   // Check if already loaded
   if (imagePreviewList.value[index] && imagePreviewList.value[index] !== '') {
     return
   }
-  
+
   // Set loading state
   const newLoadingStates = [...imageLoadingStates.value]
   newLoadingStates[index] = true
   imageLoadingStates.value = newLoadingStates
-  
+
   try {
     const response = await filesAPI.download(file.id)
     const blob = new Blob([response.data])
     const objectUrl = URL.createObjectURL(blob)
-    
+
     // Update the specific index
     const newPreviewUrls = [...imagePreviewList.value]
     newPreviewUrls[index] = objectUrl
     imagePreviewList.value = newPreviewUrls
-    
+
     // Add to object URLs for cleanup
     imageObjectUrls.value.push(objectUrl)
-    
+
     // Update loading state
     const updatedLoadingStates = [...imageLoadingStates.value]
     updatedLoadingStates[index] = false
     imageLoadingStates.value = updatedLoadingStates
-    
   } catch (error) {
     console.error(`Error loading image ${file.name}:`, error)
-    
+
     // Set error placeholder
     const newPreviewUrls = [...imagePreviewList.value]
-    newPreviewUrls[index] = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+RXJyb3I8L3RleHQ+PC9zdmc+'
+    newPreviewUrls[index] =
+      'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+RXJyb3I8L3RleHQ+PC9zdmc+'
     imagePreviewList.value = newPreviewUrls
-    
+
     // Update loading state even on error
     const updatedLoadingStates = [...imageLoadingStates.value]
     updatedLoadingStates[index] = false
@@ -1746,26 +1753,62 @@ const openFileInBrowser = async (file: any) => {
     // Check if file type can be displayed in browser
     const mimeType = file.storage?.mime_type || ''
     const fileName = file.name.toLowerCase()
-    
+
     // Define file types that can be opened in browser
     const browserSupportedTypes = [
       // Images
-      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/svg+xml',
+      'image/bmp',
       // Documents
-      'application/pdf', 'text/plain', 'text/html', 'text/css', 'text/javascript', 'application/json',
-      'text/xml', 'application/xml', 'text/csv',
+      'application/pdf',
+      'text/plain',
+      'text/html',
+      'text/css',
+      'text/javascript',
+      'application/json',
+      'text/xml',
+      'application/xml',
+      'text/csv',
       // Audio/Video (some browsers support these)
-      'audio/mpeg', 'audio/wav', 'audio/ogg', 'video/mp4', 'video/webm', 'video/ogg'
+      'audio/mpeg',
+      'audio/wav',
+      'audio/ogg',
+      'video/mp4',
+      'video/webm',
+      'video/ogg',
     ]
-    
+
     // Check by MIME type or file extension
     const isSupportedByMime = browserSupportedTypes.includes(mimeType)
     const isSupportedByExtension = [
-      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp',
-      '.pdf', '.txt', '.html', '.htm', '.css', '.js', '.json', '.xml', '.csv',
-      '.mp3', '.wav', '.ogg', '.mp4', '.webm'
-    ].some(ext => fileName.endsWith(ext))
-    
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.gif',
+      '.webp',
+      '.svg',
+      '.bmp',
+      '.pdf',
+      '.txt',
+      '.html',
+      '.htm',
+      '.css',
+      '.js',
+      '.json',
+      '.xml',
+      '.csv',
+      '.mp3',
+      '.wav',
+      '.ogg',
+      '.mp4',
+      '.webm',
+    ].some((ext) => fileName.endsWith(ext))
+
     if (isSupportedByMime || isSupportedByExtension) {
       // Open file in new tab using the dedicated file viewer route
       const fileViewerUrl = `/view/${file.id}`
@@ -1793,18 +1836,18 @@ const handleListRowClick = (row: any, column: any, event: Event) => {
 const navigateToDirectory = async (directoryId: number) => {
   console.log('navigateToDirectory called with ID:', directoryId)
   // Use router navigation instead of direct store calls
-  await router.push({ 
-    name: 'Files', 
-    query: { parent_id: directoryId.toString() } 
+  await router.push({
+    name: 'Files',
+    query: { parent_id: directoryId.toString() },
   })
 }
 
 const navigateToRoot = async () => {
   console.log('navigateToRoot called')
   // Use router navigation to root
-  await router.push({ 
-    name: 'Files', 
-    query: {} 
+  await router.push({
+    name: 'Files',
+    query: {},
   })
 }
 
@@ -1938,18 +1981,20 @@ const handleRename = async () => {
   try {
     // Call the API to rename the file
     await filesAPI.patch(selectedFileForRename.value.id, { name: newName })
-    
-    ElMessage.success(`${selectedFileForRename.value.item_type === 'directory' ? 'Folder' : 'File'} renamed successfully`)
-    
+
+    ElMessage.success(
+      `${selectedFileForRename.value.item_type === 'directory' ? 'Folder' : 'File'} renamed successfully`,
+    )
+
     // Close the dialog
     renameDialogVisible.value = false
-    
+
     // Refresh the file list to show the updated name
     await refreshFiles()
   } catch (error: any) {
     console.error('Rename error:', error)
     ElMessage.error(
-      `Rename failed: ${error.response?.data?.error || error.message || 'Unknown error'}`
+      `Rename failed: ${error.response?.data?.error || error.message || 'Unknown error'}`,
     )
   }
 }
@@ -1959,28 +2004,28 @@ const checkForConflict = async (fileName: string, relativePath: string) => {
   try {
     // If there's a relative path, we need to navigate to that subdirectory
     let targetDirectoryId = currentDirectory.value?.id
-    
+
     if (relativePath) {
       // Find or create the target directory
       targetDirectoryId = await findOrCreateDirectory(relativePath, currentDirectory.value?.id)
     }
-    
+
     // Get directory contents to check for conflicts
     const response = await filesAPI.listChildren(targetDirectoryId)
     const children = response.data.children || []
-    
+
     // Find existing file with the same name
-    const existingFile = children.find((item: any) => 
-      item.name === fileName && item.item_type === 'file'
+    const existingFile = children.find(
+      (item: any) => item.name === fileName && item.item_type === 'file',
     )
-    
+
     // Get all existing files in the directory for unique name generation
     const existingFiles = children.filter((item: any) => item.item_type === 'file')
-    
+
     return {
       hasConflict: !!existingFile,
       existingFile: existingFile || null,
-      existingFiles: existingFiles
+      existingFiles: existingFiles,
     }
   } catch (error) {
     console.error('Error checking for conflicts:', error)
@@ -1988,33 +2033,36 @@ const checkForConflict = async (fileName: string, relativePath: string) => {
   }
 }
 
-const findOrCreateDirectory = async (relativePath: string, parentId?: number): Promise<number | undefined> => {
+const findOrCreateDirectory = async (
+  relativePath: string,
+  parentId?: number,
+): Promise<number | undefined> => {
   try {
-    const pathParts = relativePath.split('/').filter(part => part.length > 0)
+    const pathParts = relativePath.split('/').filter((part) => part.length > 0)
     let currentParentId = parentId
-    
+
     for (const dirName of pathParts) {
       // Check if directory exists
       const response = await filesAPI.listChildren(currentParentId)
       const children = response.data.children || []
-      
-      let existingDir = children.find((item: any) => 
-        item.name === dirName && item.item_type === 'directory'
+
+      let existingDir = children.find(
+        (item: any) => item.name === dirName && item.item_type === 'directory',
       )
-      
+
       if (!existingDir) {
         // Create directory if it doesn't exist
         const createResponse = await filesAPI.createDirectory({
           name: dirName,
           parent_id: currentParentId,
-          visibility: uploadForm.value.visibility
+          visibility: uploadForm.value.visibility,
         })
         existingDir = createResponse.data
       }
-      
+
       currentParentId = existingDir.id
     }
-    
+
     return currentParentId
   } catch (error) {
     console.error('Error finding or creating directory:', error)
@@ -2022,7 +2070,13 @@ const findOrCreateDirectory = async (relativePath: string, parentId?: number): P
   }
 }
 
-const showConflictDialog = (file: File, fileName: string, relativePath: string, existingFile: any, existingFiles: FileItem[]): Promise<{action: 'rename' | 'overwrite' | 'skip', newName?: string}> => {
+const showConflictDialog = (
+  file: File,
+  fileName: string,
+  relativePath: string,
+  existingFile: any,
+  existingFiles: FileItem[],
+): Promise<{ action: 'rename' | 'overwrite' | 'skip'; newName?: string }> => {
   return new Promise((resolve) => {
     conflictData.value = {
       fileName,
@@ -2030,11 +2084,11 @@ const showConflictDialog = (file: File, fileName: string, relativePath: string, 
       existingFile,
       newFile: file,
       resolveAction: null,
-      newName: generateUniqueFileName(fileName, existingFiles)
+      newName: generateUniqueFileName(fileName, existingFiles),
     }
-    
+
     conflictDialogVisible.value = true
-    
+
     // Store the resolve function to be called by dialog handlers
     ;(conflictData.value as any).resolve = resolve
   })
@@ -2044,7 +2098,7 @@ const generateUniqueFileName = (originalName: string, existingFiles: FileItem[])
   const lastDotIndex = originalName.lastIndexOf('.')
   let nameWithoutExt: string
   let extension: string
-  
+
   if (lastDotIndex === -1) {
     nameWithoutExt = originalName
     extension = ''
@@ -2052,53 +2106,52 @@ const generateUniqueFileName = (originalName: string, existingFiles: FileItem[])
     nameWithoutExt = originalName.substring(0, lastDotIndex)
     extension = originalName.substring(lastDotIndex)
   }
-  
+
   // Check if the original name is already unique
-  const isOriginalUnique = !existingFiles.some(file => 
-    file.name === originalName && file.item_type === 'file'
+  const isOriginalUnique = !existingFiles.some(
+    (file) => file.name === originalName && file.item_type === 'file',
   )
-  
+
   if (isOriginalUnique) {
     return originalName
   }
-  
+
   // Find the next available number
   let counter = 1
   let newName: string
-  
+
   do {
     newName = `${nameWithoutExt} (${counter})${extension}`
     counter++
-  } while (existingFiles.some(file => 
-    file.name === newName && file.item_type === 'file'
-  ))
-  
+  } while (existingFiles.some((file) => file.name === newName && file.item_type === 'file'))
+
   return newName
 }
 
 const handleConflictResolve = () => {
   if (!conflictData.value) return
-  
+
   const resolve = (conflictData.value as any).resolve
   if (resolve) {
     resolve({
       action: conflictData.value.resolveAction!,
-      newName: conflictData.value.resolveAction === 'rename' ? conflictData.value.newName : undefined
+      newName:
+        conflictData.value.resolveAction === 'rename' ? conflictData.value.newName : undefined,
     })
   }
-  
+
   conflictDialogVisible.value = false
   conflictData.value = null
 }
 
 const handleConflictSkip = () => {
   if (!conflictData.value) return
-  
+
   const resolve = (conflictData.value as any).resolve
   if (resolve) {
     resolve({ action: 'skip' })
   }
-  
+
   conflictDialogVisible.value = false
   conflictData.value = null
 }
@@ -2298,7 +2351,6 @@ onMounted(async () => {
 onUnmounted(() => {
   cleanupImageObjectUrls()
 })
-
 </script>
 
 <style scoped>
@@ -2386,7 +2438,6 @@ onUnmounted(() => {
   gap: 16px;
   justify-content: space-between;
 }
-
 
 .view-toggle {
   flex-shrink: 0;
@@ -2620,17 +2671,17 @@ onUnmounted(() => {
     gap: 16px;
     padding: 12px;
   }
-  
+
   .large-file-card {
     width: 160px;
     min-height: 160px;
     padding: 12px;
   }
-  
+
   .large-file-name {
     font-size: 13px;
   }
-  
+
   .large-file-meta {
     font-size: 11px;
   }
@@ -2641,7 +2692,7 @@ onUnmounted(() => {
     gap: 12px;
     padding: 8px;
   }
-  
+
   .large-file-card {
     width: 140px;
     min-height: 140px;
@@ -2789,7 +2840,7 @@ onUnmounted(() => {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 14px;
   }
-  
+
   .picture-item {
     width: 180px;
     height: 180px;
@@ -2802,16 +2853,16 @@ onUnmounted(() => {
     gap: 12px;
     padding: 12px;
   }
-  
+
   .picture-item {
     width: 160px;
     height: 160px;
   }
-  
+
   .picture-filename {
     font-size: 13px;
   }
-  
+
   .picture-meta {
     font-size: 10px;
   }
@@ -2823,7 +2874,7 @@ onUnmounted(() => {
     gap: 10px;
     padding: 10px;
   }
-  
+
   .picture-item {
     width: 140px;
     height: 140px;

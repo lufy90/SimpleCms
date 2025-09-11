@@ -26,7 +26,7 @@
           </el-button>
         </el-button-group>
       </div>
-      
+
       <!-- Edit Mode -->
       <div v-if="isEditing" class="json-edit-mode">
         <div class="json-edit-container">
@@ -45,14 +45,14 @@
           </div>
         </div>
       </div>
-      
+
       <!-- View Mode -->
       <div v-else class="json-view-mode">
         <div v-if="error" class="error-message">
           <el-icon color="#f56c6c"><Warning /></el-icon>
           <span>Invalid JSON: {{ error }}</span>
         </div>
-        
+
         <div v-else class="json-body">
           <pre v-if="formatted" class="formatted-json">{{ formattedJson }}</pre>
           <pre v-else class="minified-json">{{ minifiedJson }}</pre>
@@ -64,7 +64,15 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { Document, DocumentCopy, CopyDocument, Warning, Edit, Check, Close } from '@element-plus/icons-vue'
+import {
+  Document,
+  DocumentCopy,
+  CopyDocument,
+  Warning,
+  Edit,
+  Check,
+  Close,
+} from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { filesAPI } from '@/services/api'
 
@@ -112,9 +120,13 @@ const minifiedJson = computed(() => {
 })
 
 // Watch for content changes
-watch(() => props.content, (newContent) => {
-  editedContent.value = newContent
-}, { immediate: true })
+watch(
+  () => props.content,
+  (newContent) => {
+    editedContent.value = newContent
+  },
+  { immediate: true },
+)
 
 // Watch for edit content changes to validate JSON
 watch(editedContent, (newContent) => {
@@ -200,14 +212,14 @@ const saveContent = async () => {
 
   try {
     isSaving.value = true
-    
+
     // Create FormData for file update
     const formData = new FormData()
     const blob = new Blob([editedContent.value], { type: 'application/json' })
     formData.append('file', blob, props.filename)
-    
+
     await filesAPI.updateContent(props.fileId, formData)
-    
+
     ElMessage.success('File saved successfully')
     isEditing.value = false
     emit('contentUpdated', editedContent.value)
@@ -229,13 +241,13 @@ const cancelEdit = async () => {
           confirmButtonText: 'Discard Changes',
           cancelButtonText: 'Continue Editing',
           type: 'warning',
-        }
+        },
       )
     } catch {
       return // User chose to continue editing
     }
   }
-  
+
   editedContent.value = props.content
   isEditing.value = false
   editError.value = null

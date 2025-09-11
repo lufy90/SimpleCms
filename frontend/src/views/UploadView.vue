@@ -74,7 +74,7 @@
           A file named <strong>{{ duplicateFile?.name }}</strong> already exists in this location.
         </p>
         <p>What would you like to do?</p>
-        
+
         <div class="file-info" v-if="duplicateFile">
           <p><strong>Existing file:</strong></p>
           <ul>
@@ -84,7 +84,7 @@
           </ul>
         </div>
       </div>
-      
+
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="handleSkipFile">Skip</el-button>
@@ -106,7 +106,7 @@
           <el-input v-model="renameForm.name" placeholder="Enter new filename" />
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="renameDialogVisible = false">Cancel</el-button>
@@ -147,7 +147,7 @@ const renameForm = ref({ name: '' })
 
 // Methods
 const handleFileChange = (file: any, fileList: any[]) => {
-  selectedFiles.value = fileList.map(f => f.raw)
+  selectedFiles.value = fileList.map((f) => f.raw)
 }
 
 const handleUpload = async () => {
@@ -157,12 +157,12 @@ const handleUpload = async () => {
   }
 
   isUploading.value = true
-  
+
   try {
     for (const file of selectedFiles.value) {
       await processFileUpload(file)
     }
-    
+
     ElMessage.success('All files processed successfully')
     selectedFiles.value = []
     if (uploadRef.value) {
@@ -179,14 +179,14 @@ const processFileUpload = async (file: File) => {
   console.log('Processing file upload:', {
     fileName: file.name,
     fileSize: file.size,
-    relativePath: uploadForm.value.path
+    relativePath: uploadForm.value.path,
   })
 
   // Check for duplicate file
   const duplicate = await filesStore.checkForDuplicateFile(
     file.name,
     undefined, // parentId - we'll handle this based on the path
-    uploadForm.value.path
+    uploadForm.value.path,
   )
 
   if (duplicate) {
@@ -195,7 +195,7 @@ const processFileUpload = async (file: File) => {
     duplicateFile.value = duplicate
     currentFile.value = file
     duplicateDialogVisible.value = true
-    
+
     // Wait for user decision
     return new Promise<void>((resolve) => {
       const checkDialog = () => {
@@ -215,7 +215,7 @@ const processFileUpload = async (file: File) => {
       undefined, // parentId
       uploadForm.value.visibility,
       [], // tags
-      uploadForm.value.path
+      uploadForm.value.path,
     )
   }
 }
@@ -232,42 +232,42 @@ const handleRenameFile = () => {
 
 const handleConfirmRename = async () => {
   if (!currentFile.value || !renameForm.value.name) return
-  
+
   try {
     // Create a new file with the renamed name
     const renamedFile = new File([currentFile.value], renameForm.value.name, {
       type: currentFile.value.type,
-      lastModified: currentFile.value.lastModified
+      lastModified: currentFile.value.lastModified,
     })
-    
+
     // Upload the renamed file
     await filesStore.uploadFile(
       renamedFile,
       undefined,
       uploadForm.value.visibility,
       [],
-      uploadForm.value.path
+      uploadForm.value.path,
     )
-    
+
     ElMessage.success(`${renameForm.value.name} uploaded successfully`)
   } catch (error) {
     ElMessage.error(`Failed to upload ${renameForm.value.name}`)
   }
-  
+
   renameDialogVisible.value = false
   duplicateDialogVisible.value = false
 }
 
 const handleOverwriteFile = async () => {
   if (!currentFile.value || !duplicateFile.value) return
-  
+
   try {
     console.log('Overwriting file:', {
       fileId: duplicateFile.value.id,
       fileName: currentFile.value.name,
-      fileSize: currentFile.value.size
+      fileSize: currentFile.value.size,
     })
-    
+
     // Update the existing file's content using PATCH request
     await filesStore.updateFileContent(duplicateFile.value.id, currentFile.value)
     ElMessage.success(`${currentFile.value.name} overwritten successfully`)
@@ -275,7 +275,7 @@ const handleOverwriteFile = async () => {
     console.error('Overwrite error:', error)
     ElMessage.error(`Failed to overwrite ${currentFile.value.name}`)
   }
-  
+
   duplicateDialogVisible.value = false
 }
 

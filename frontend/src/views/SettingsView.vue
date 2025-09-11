@@ -88,44 +88,24 @@
           </div>
 
           <!-- Users Table -->
-          <el-table
-            :data="filteredUsers"
-            v-loading="usersLoading"
-            class="users-table"
-            stripe
-          >
+          <el-table :data="filteredUsers" v-loading="usersLoading" class="users-table" stripe>
             <el-table-column prop="username" label="Username" width="150" />
             <el-table-column prop="email" label="Email" width="200" />
             <el-table-column prop="first_name" label="First Name" width="120" />
             <el-table-column prop="last_name" label="Last Name" width="120" />
             <el-table-column label="Groups" width="200">
               <template #default="{ row }">
-                <el-tag
-                  v-for="group in row.groups"
-                  :key="group.id"
-                  size="small"
-                  class="group-tag"
-                >
+                <el-tag v-for="group in row.groups" :key="group.id" size="small" class="group-tag">
                   {{ group.name }}
                 </el-tag>
               </template>
             </el-table-column>
             <el-table-column label="Actions" width="150">
               <template #default="{ row }">
-                <el-button
-                  size="small"
-                  @click="editUser(row)"
-                  type="primary"
-                  link
-                >
+                <el-button size="small" @click="editUser(row)" type="primary" link>
                   Edit
                 </el-button>
-                <el-button
-                  size="small"
-                  @click="deleteUser(row)"
-                  type="danger"
-                  link
-                >
+                <el-button size="small" @click="deleteUser(row)" type="danger" link>
                   Delete
                 </el-button>
               </template>
@@ -161,12 +141,7 @@
           </div>
 
           <!-- Groups Table -->
-          <el-table
-            :data="filteredGroups"
-            v-loading="groupsLoading"
-            class="groups-table"
-            stripe
-          >
+          <el-table :data="filteredGroups" v-loading="groupsLoading" class="groups-table" stripe>
             <el-table-column prop="name" label="Group Name" width="200" />
             <el-table-column label="Members" width="300">
               <template #default="{ row }">
@@ -178,20 +153,10 @@
             </el-table-column>
             <el-table-column label="Actions" width="150">
               <template #default="{ row }">
-                <el-button
-                  size="small"
-                  @click="editGroup(row)"
-                  type="primary"
-                  link
-                >
+                <el-button size="small" @click="editGroup(row)" type="primary" link>
                   Edit
                 </el-button>
-                <el-button
-                  size="small"
-                  @click="deleteGroup(row)"
-                  type="danger"
-                  link
-                >
+                <el-button size="small" @click="deleteGroup(row)" type="danger" link>
                   Delete
                 </el-button>
               </template>
@@ -199,7 +164,6 @@
           </el-table>
         </div>
       </el-tab-pane>
-
     </el-tabs>
 
     <!-- Create/Edit User Dialog -->
@@ -208,12 +172,7 @@
       :title="editingUser ? 'Edit User' : 'Create User'"
       width="500px"
     >
-      <el-form
-        ref="userFormRef"
-        :model="userForm"
-        :rules="userFormRules"
-        label-width="100px"
-      >
+      <el-form ref="userFormRef" :model="userForm" :rules="userFormRules" label-width="100px">
         <el-form-item label="Username" prop="username">
           <el-input v-model="userForm.username" />
         </el-form-item>
@@ -226,14 +185,11 @@
         <el-form-item label="Last Name" prop="last_name">
           <el-input v-model="userForm.last_name" />
         </el-form-item>
-        <el-form-item 
-          :label="editingUser ? 'New Password (optional)' : 'Password'" 
-          prop="password"
-        >
-          <el-input 
-            v-model="userForm.password" 
-            type="password" 
-            show-password 
+        <el-form-item :label="editingUser ? 'New Password (optional)' : 'Password'" prop="password">
+          <el-input
+            v-model="userForm.password"
+            type="password"
+            show-password
             :placeholder="editingUser ? 'Leave blank to keep current password' : 'Enter password'"
           />
         </el-form-item>
@@ -265,21 +221,12 @@
       :title="editingGroup ? 'Edit Group' : 'Create Group'"
       width="500px"
     >
-      <el-form
-        ref="groupFormRef"
-        :model="groupForm"
-        :rules="groupFormRules"
-        label-width="100px"
-      >
+      <el-form ref="groupFormRef" :model="groupForm" :rules="groupFormRules" label-width="100px">
         <el-form-item label="Group Name" prop="name">
           <el-input v-model="groupForm.name" />
         </el-form-item>
         <el-form-item label="Description" prop="description">
-          <el-input
-            v-model="groupForm.description"
-            type="textarea"
-            :rows="3"
-          />
+          <el-input v-model="groupForm.description" type="textarea" :rows="3" />
         </el-form-item>
         <el-form-item label="Members" prop="members">
           <el-select
@@ -351,25 +298,25 @@ const userForm = reactive({
   first_name: '',
   last_name: '',
   password: '',
-  groups: [] as number[]
+  groups: [] as number[],
 })
 
 const userFormRules = computed(() => ({
-  username: [
-    { required: true, message: 'Please enter username', trigger: 'blur' }
-  ],
+  username: [{ required: true, message: 'Please enter username', trigger: 'blur' }],
   email: [
     { required: true, message: 'Please enter email', trigger: 'blur' },
-    { type: 'email', message: 'Please enter valid email', trigger: 'blur' }
+    { type: 'email', message: 'Please enter valid email', trigger: 'blur' },
   ],
-  password: editingUser.value ? [
-    // For editing: password is optional, but if provided, must be at least 6 characters
-    { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' }
-  ] : [
-    // For creating: password is required
-    { required: true, message: 'Please enter password', trigger: 'blur' },
-    { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' }
-  ]
+  password: editingUser.value
+    ? [
+        // For editing: password is optional, but if provided, must be at least 6 characters
+        { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' },
+      ]
+    : [
+        // For creating: password is required
+        { required: true, message: 'Please enter password', trigger: 'blur' },
+        { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' },
+      ],
 }))
 
 // Group management
@@ -383,15 +330,12 @@ const groupFormRef = ref()
 const groupForm = reactive({
   name: '',
   description: '',
-  members: [] as number[]
+  members: [] as number[],
 })
 
 const groupFormRules = {
-  name: [
-    { required: true, message: 'Please enter group name', trigger: 'blur' }
-  ]
+  name: [{ required: true, message: 'Please enter group name', trigger: 'blur' }],
 }
-
 
 // Computed properties
 const availableGroups = computed(() => groups.value)
@@ -411,7 +355,7 @@ const loadUsers = async () => {
   } catch (error) {
     console.error('Failed to load users:', error)
     ElMessage.error('Failed to load users')
-    
+
     // Fallback to mock data for development
     users.value = [
       {
@@ -420,7 +364,7 @@ const loadUsers = async () => {
         email: 'admin@example.com',
         first_name: 'Admin',
         last_name: 'User',
-        groups: [{ id: 1, name: 'Administrators' }]
+        groups: [{ id: 1, name: 'Administrators' }],
       },
       {
         id: 2,
@@ -428,8 +372,8 @@ const loadUsers = async () => {
         email: 'user1@example.com',
         first_name: 'John',
         last_name: 'Doe',
-        groups: [{ id: 2, name: 'Users' }]
-      }
+        groups: [{ id: 2, name: 'Users' }],
+      },
     ]
     filteredUsers.value = users.value
   } finally {
@@ -446,21 +390,21 @@ const loadGroups = async () => {
   } catch (error) {
     console.error('Failed to load groups:', error)
     ElMessage.error('Failed to load groups')
-    
+
     // Fallback to mock data for development
     groups.value = [
       {
         id: 1,
         name: 'Administrators',
         description: 'System administrators',
-        members: [1]
+        members: [1],
       },
       {
         id: 2,
         name: 'Users',
         description: 'Regular users',
-        members: [2]
-      }
+        members: [2],
+      },
     ]
     filteredGroups.value = groups.value
   } finally {
@@ -473,13 +417,14 @@ const searchUsers = () => {
     filteredUsers.value = users.value
     return
   }
-  
+
   const query = userSearchQuery.value.toLowerCase()
-  filteredUsers.value = users.value.filter(user =>
-    user.username.toLowerCase().includes(query) ||
-    user.email.toLowerCase().includes(query) ||
-    user.first_name.toLowerCase().includes(query) ||
-    user.last_name.toLowerCase().includes(query)
+  filteredUsers.value = users.value.filter(
+    (user) =>
+      user.username.toLowerCase().includes(query) ||
+      user.email.toLowerCase().includes(query) ||
+      user.first_name.toLowerCase().includes(query) ||
+      user.last_name.toLowerCase().includes(query),
   )
 }
 
@@ -488,11 +433,9 @@ const searchGroups = () => {
     filteredGroups.value = groups.value
     return
   }
-  
+
   const query = groupSearchQuery.value.toLowerCase()
-  filteredGroups.value = groups.value.filter(group =>
-    group.name.toLowerCase().includes(query)
-  )
+  filteredGroups.value = groups.value.filter((group) => group.name.toLowerCase().includes(query))
 }
 
 const editUser = (user: User) => {
@@ -514,12 +457,12 @@ const deleteUser = async (user: User) => {
       {
         confirmButtonText: 'Delete',
         cancelButtonText: 'Cancel',
-        type: 'warning'
-      }
+        type: 'warning',
+      },
     )
-    
+
     await usersAPI.delete(user.id)
-    
+
     ElMessage.success('User deleted successfully')
     loadUsers()
   } catch (error) {
@@ -532,21 +475,21 @@ const deleteUser = async (user: User) => {
 const saveUser = async () => {
   try {
     await userFormRef.value.validate()
-    
+
     // Prepare data for API call
     const userData = { ...userForm }
-    
+
     // For updates, only include password if it's provided
     if (editingUser.value && !userData.password) {
       delete (userData as any).password
     }
-    
+
     if (editingUser.value) {
       await usersAPI.update(editingUser.value.id, userData)
     } else {
       await usersAPI.create(userData)
     }
-    
+
     ElMessage.success(editingUser.value ? 'User updated successfully' : 'User created successfully')
     showCreateUserDialog.value = false
     resetUserForm()
@@ -583,12 +526,12 @@ const deleteGroup = async (group: Group) => {
       {
         confirmButtonText: 'Delete',
         cancelButtonText: 'Cancel',
-        type: 'warning'
-      }
+        type: 'warning',
+      },
     )
-    
+
     await groupsAPI.delete(group.id)
-    
+
     ElMessage.success('Group deleted successfully')
     loadGroups()
   } catch (error) {
@@ -601,14 +544,16 @@ const deleteGroup = async (group: Group) => {
 const saveGroup = async () => {
   try {
     await groupFormRef.value.validate()
-    
+
     if (editingGroup.value) {
       await groupsAPI.update(editingGroup.value.id, groupForm)
     } else {
       await groupsAPI.create(groupForm)
     }
-    
-    ElMessage.success(editingGroup.value ? 'Group updated successfully' : 'Group created successfully')
+
+    ElMessage.success(
+      editingGroup.value ? 'Group updated successfully' : 'Group created successfully',
+    )
     showCreateGroupDialog.value = false
     resetGroupForm()
     loadGroups()
@@ -877,5 +822,4 @@ onMounted(() => {
 .dark .theme-preview h4 {
   color: #e5e5e5;
 }
-
 </style>

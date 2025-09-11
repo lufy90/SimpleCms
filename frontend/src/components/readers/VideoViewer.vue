@@ -30,7 +30,7 @@ import { VideoPlay, FullScreen } from '@element-plus/icons-vue'
 
 interface Props {
   src: string
-  filename: string
+  filename: string | 'File'
 }
 
 const props = defineProps<Props>()

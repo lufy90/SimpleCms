@@ -13,7 +13,7 @@
           Your browser does not support the audio tag.
         </audio>
       </div>
-      
+
       <div class="audio-info">
         <div class="audio-visualizer">
           <div class="waveform">

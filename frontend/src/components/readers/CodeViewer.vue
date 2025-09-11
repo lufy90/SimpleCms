@@ -26,19 +26,19 @@
           </el-button>
         </el-button-group>
       </div>
-      
+
       <!-- Edit Mode -->
-      <div v-if="isEditing" class="code-edit-mode" :class="{ 'with-line-numbers': showLineNumbers }">
+      <div
+        v-if="isEditing"
+        class="code-edit-mode"
+        :class="{ 'with-line-numbers': showLineNumbers }"
+      >
         <div v-if="showLineNumbers" class="line-numbers">
-          <div
-            v-for="lineNum in editLineCount"
-            :key="lineNum"
-            class="line-number"
-          >
+          <div v-for="lineNum in editLineCount" :key="lineNum" class="line-number">
             {{ lineNum }}
           </div>
         </div>
-        
+
         <div class="code-edit-container">
           <textarea
             ref="codeEditor"
@@ -50,19 +50,15 @@
           ></textarea>
         </div>
       </div>
-      
+
       <!-- View Mode -->
       <div v-else class="code-view-mode" :class="{ 'with-line-numbers': showLineNumbers }">
         <div v-if="showLineNumbers" class="line-numbers">
-          <div
-            v-for="lineNum in lineCount"
-            :key="lineNum"
-            class="line-number"
-          >
+          <div v-for="lineNum in lineCount" :key="lineNum" class="line-number">
             {{ lineNum }}
           </div>
         </div>
-        
+
         <div class="code-body">
           <pre><code :class="`language-${language}`">{{ content }}</code></pre>
         </div>
@@ -108,9 +104,13 @@ const editLineCount = computed(() => {
 })
 
 // Watch for content changes
-watch(() => props.content, (newContent) => {
-  editedContent.value = newContent
-}, { immediate: true })
+watch(
+  () => props.content,
+  (newContent) => {
+    editedContent.value = newContent
+  },
+  { immediate: true },
+)
 
 // Methods
 const adjustEditorHeight = () => {
@@ -177,14 +177,14 @@ const saveContent = async () => {
 
   try {
     isSaving.value = true
-    
+
     // Create FormData for file update
     const formData = new FormData()
     const blob = new Blob([editedContent.value], { type: 'text/plain' })
     formData.append('file', blob, props.filename)
-    
+
     await filesAPI.updateContent(props.fileId, formData)
-    
+
     ElMessage.success('File saved successfully')
     isEditing.value = false
     emit('contentUpdated', editedContent.value)
@@ -206,13 +206,13 @@ const cancelEdit = async () => {
           confirmButtonText: 'Discard Changes',
           cancelButtonText: 'Continue Editing',
           type: 'warning',
-        }
+        },
       )
     } catch {
       return // User chose to continue editing
     }
   }
-  
+
   editedContent.value = props.content
   isEditing.value = false
 }

@@ -118,7 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       // Clean up any invalid tokens first
       cleanupInvalidTokens()
-      
+
       const accessToken = Cookies.get('access_token')
       if (!accessToken) {
         return false
@@ -161,7 +161,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       isLoading.value = true
       const response = await authAPI.profile()
-      user.value = { ...user.value, ...profileData }
+      user.value = user.value ? { ...user.value, ...profileData } : null
       toast.success('Profile updated successfully')
       return true
     } catch (error: any) {

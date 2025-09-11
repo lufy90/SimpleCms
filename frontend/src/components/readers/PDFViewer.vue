@@ -7,9 +7,7 @@
           <el-button @click="zoomOut" :disabled="scale <= 0.5" size="small">
             <el-icon><ZoomOut /></el-icon>
           </el-button>
-          <el-button @click="resetZoom" size="small">
-            {{ Math.round(scale * 100) }}%
-          </el-button>
+          <el-button @click="resetZoom" size="small"> {{ Math.round(scale * 100) }}% </el-button>
           <el-button @click="zoomIn" :disabled="scale >= 3" size="small">
             <el-icon><ZoomIn /></el-icon>
           </el-button>
@@ -18,11 +16,9 @@
       <div v-if="error" class="error-message">
         <el-icon color="#f56c6c"><Warning /></el-icon>
         <span>{{ error }}</span>
-        <el-button @click="openInNewTab" type="primary">
-          Open in New Tab
-        </el-button>
+        <el-button @click="openInNewTab" type="primary"> Open in New Tab </el-button>
       </div>
-      
+
       <div v-else class="pdf-container">
         <iframe
           :src="pdfUrl"

@@ -1,15 +1,9 @@
 <template>
   <div class="image-viewer">
     <div class="image-container">
-      <img
-        :src="src"
-        :alt="alt"
-        class="image"
-        @load="onImageLoad"
-        @error="onImageError"
-      />
+      <img :src="src" :alt="alt" class="image" @load="onImageLoad" @error="onImageError" />
     </div>
-    
+
     <!-- Image Controls -->
     <div class="image-controls">
       <el-button-group>
@@ -26,10 +20,8 @@
           <el-icon><FullScreen /></el-icon>
         </el-button>
       </el-button-group>
-      
-      <div class="zoom-info">
-        {{ Math.round(scale * 100) }}%
-      </div>
+
+      <div class="zoom-info">{{ Math.round(scale * 100) }}%</div>
     </div>
   </div>
 </template>
@@ -57,13 +49,13 @@ const imageStyle = computed(() => {
     return {
       maxWidth: '100%',
       maxHeight: '100%',
-      objectFit: 'contain'
+      objectFit: 'contain',
     }
   }
-  
+
   return {
     transform: `scale(${scale.value})`,
-    transformOrigin: 'center center'
+    transformOrigin: 'center center',
   }
 })
 

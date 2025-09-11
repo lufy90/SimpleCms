@@ -1,8 +1,12 @@
 import { ref, computed } from 'vue'
 
 // Office document server configuration
-const documentServerUrl = ref(import.meta.env.VITE_ONLYOFFICE_DOCUMENT_SERVER_URL || 'http://10.0.1.6')
-const secretKey = ref(import.meta.env.VITE_ONLYOFFICE_SECRET_KEY || 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd')
+const documentServerUrl = ref(
+  import.meta.env.VITE_ONLYOFFICE_DOCUMENT_SERVER_URL || 'http://192.168.1.101',
+)
+const secretKey = ref(
+  import.meta.env.VITE_ONLYOFFICE_SECRET_KEY || 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd',
+)
 
 // Office document types and their extensions
 const officeDocumentTypes = {
@@ -14,8 +18,8 @@ const officeDocumentTypes = {
       'application/msword',
       'application/vnd.oasis.opendocument.text',
       'application/rtf',
-      'text/plain'
-    ]
+      'text/plain',
+    ],
   },
   excel: {
     name: 'Excel Spreadsheet',
@@ -24,8 +28,8 @@ const officeDocumentTypes = {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
       'application/vnd.oasis.opendocument.spreadsheet',
-      'text/csv'
-    ]
+      'text/csv',
+    ],
   },
   powerpoint: {
     name: 'PowerPoint Presentation',
@@ -33,69 +37,67 @@ const officeDocumentTypes = {
     mimeTypes: [
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'application/vnd.ms-powerpoint',
-      'application/vnd.oasis.opendocument.presentation'
-    ]
-  }
+      'application/vnd.oasis.opendocument.presentation',
+    ],
+  },
 }
 
 // Office document detection
 const isOfficeDocument = (file: any): boolean => {
   if (!file) return false
-  
+
   const mimeType = file.storage?.mime_type || ''
   const extension = file.storage?.extension || ''
   const fileName = file.name.toLowerCase()
-  
+
   // Check by MIME type
   for (const type of Object.values(officeDocumentTypes)) {
     if (type.mimeTypes.includes(mimeType)) {
       return true
     }
   }
-  
+
   // Check by extension
   for (const type of Object.values(officeDocumentTypes)) {
-    if (type.extensions.some(ext => 
-      extension === ext || fileName.endsWith(`.${ext}`)
-    )) {
+    if (type.extensions.some((ext) => extension === ext || fileName.endsWith(`.${ext}`))) {
       return true
     }
   }
-  
+
   return false
 }
 
 // Get document type
 const getDocumentType = (file: any): string | null => {
   if (!file) return null
-  
+
   const mimeType = file.storage?.mime_type || ''
   const extension = file.storage?.extension || ''
   const fileName = file.name.toLowerCase()
-  
+
   // Check by MIME type first
   for (const [type, config] of Object.entries(officeDocumentTypes)) {
     if (config.mimeTypes.includes(mimeType)) {
       return type
     }
   }
-  
+
   // Check by extension
   for (const [type, config] of Object.entries(officeDocumentTypes)) {
-    if (config.extensions.some(ext => 
-      extension === ext || fileName.endsWith(`.${ext}`)
-    )) {
+    if (config.extensions.some((ext) => extension === ext || fileName.endsWith(`.${ext}`))) {
       return type
     }
   }
-  
+
   return null
 }
 
 // Get document type name
 const getDocumentTypeName = (file: any): string => {
   const type = getDocumentType(file)
-  return type ? officeDocumentTypes[type as keyof typeof officeDocumentTypes].name : 'Office Document'
+  return type
+    ? officeDocumentTypes[type as keyof typeof officeDocumentTypes].name
+    : 'Office Document'
 }
 
 // Get supported extensions
@@ -119,25 +121,25 @@ const getSupportedMimeTypes = (): string[] => {
 // Configuration validation
 const validateConfig = (): { valid: boolean; errors: string[] } => {
   const errors: string[] = []
-  
+
   if (!documentServerUrl.value) {
     errors.push('Document server URL is required')
   }
-  
+
   if (!secretKey.value) {
     errors.push('Secret key is required')
   }
-  
+
   // Validate URL format
   try {
     new URL(documentServerUrl.value)
   } catch {
     errors.push('Document server URL is invalid')
   }
-  
+
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   }
 }
 
@@ -154,7 +156,7 @@ const updateConfig = (newConfig: { documentServerUrl?: string; secretKey?: strin
 // Computed properties
 const config = computed(() => ({
   documentServerUrl: documentServerUrl.value,
-  secretKey: secretKey.value
+  secretKey: secretKey.value,
 }))
 
 const supportedExtensions = computed(() => getSupportedExtensions())
@@ -167,22 +169,22 @@ export function useOfficeConfig() {
     documentServerUrl,
     secretKey,
     config,
-    
+
     // Document detection
     isOfficeDocument,
     getDocumentType,
     getDocumentTypeName,
-    
+
     // Supported formats
     supportedExtensions,
     supportedMimeTypes,
-    
+
     // Configuration management
     validateConfig,
     updateConfig,
-    
+
     // Document types
-    officeDocumentTypes
+    officeDocumentTypes,
   }
 }
 

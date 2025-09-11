@@ -22,7 +22,7 @@
     <!-- File Content -->
     <div v-else-if="file" class="file-content">
       <!-- File Header -->
-      <div class="file-header" v-if="fileType!=='office'">
+      <div class="file-header" v-if="fileType !== 'office'">
         <div class="file-info">
           <h1>{{ file.name }}</h1>
           <div class="file-meta">
@@ -59,21 +59,21 @@
       <div class="file-reader-content">
         <!-- Image Viewer -->
         <ImageViewer
-          v-if="fileType === 'image'"
+          v-if="fileType === 'image' && fileContent"
           :src="fileContent"
           :alt="file.name"
         />
 
         <!-- PDF Viewer -->
         <PDFViewer
-          v-else-if="fileType === 'pdf'"
+          v-else-if="fileType === 'pdf' && fileContent"
           :src="fileContent"
           :filename="file.name"
         />
 
         <!-- Text Viewer -->
         <TextViewer
-          v-else-if="fileType === 'text'"
+          v-else-if="fileType === 'text' && fileContent"
           :content="fileContent"
           :filename="file.name"
           :mime-type="file.storage?.mime_type"
@@ -83,7 +83,7 @@
 
         <!-- JSON Viewer -->
         <JSONViewer
-          v-else-if="fileType === 'json'"
+          v-else-if="fileType === 'json' && fileContent"
           :content="fileContent"
           :filename="file.name"
           :file-id="file.id"
@@ -92,7 +92,7 @@
 
         <!-- Code Viewer -->
         <CodeViewer
-          v-else-if="fileType === 'code'"
+          v-else-if="fileType === 'code' && fileContent"
           :content="fileContent"
           :filename="file.name"
           :language="detectedLanguage"
@@ -102,14 +102,14 @@
 
         <!-- Video Viewer -->
         <VideoViewer
-          v-else-if="fileType === 'video'"
+          v-else-if="fileType === 'video' && fileContent"
           :src="fileContent"
           :filename="file.name"
         />
 
         <!-- Audio Viewer -->
         <AudioViewer
-          v-else-if="fileType === 'audio'"
+          v-else-if="fileType === 'audio' && fileContent"
           :src="fileContent"
           :filename="file.name"
         />
@@ -126,11 +126,7 @@
         />
 
         <!-- Unsupported File Type -->
-        <UnsupportedViewer
-          v-else
-          :file="file"
-          @download="handleDownload"
-        />
+        <UnsupportedViewer v-else :file="file" @download="handleDownload" />
       </div>
     </div>
   </div>
@@ -188,58 +184,62 @@ const officeConfig = useOfficeConfig()
 // Computed properties
 const fileType = computed(() => {
   if (!file.value) return null
-  
+
   // Check for office documents first
   if (officeConfig.isOfficeDocument(file.value)) {
     return 'office'
   }
-  
+
   const mimeType = file.value.storage?.mime_type || ''
   const fileName = file.value.name.toLowerCase()
-  
+
   // Image types
   if (mimeType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName)) {
     return 'image'
   }
-  
+
   // PDF
   if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
     return 'pdf'
   }
-  
+
   // Video
   if (mimeType.startsWith('video/') || /\.(mp4|webm|ogg|avi|mov)$/i.test(fileName)) {
     return 'video'
   }
-  
+
   // Audio
   if (mimeType.startsWith('audio/') || /\.(mp3|wav|ogg|m4a)$/i.test(fileName)) {
     return 'audio'
   }
-  
+
   // JSON
   if (mimeType === 'application/json' || fileName.endsWith('.json')) {
     return 'json'
   }
-  
+
   // Code files
-  if (/\.(js|ts|jsx|tsx|py|java|cpp|c|cs|php|rb|go|rs|swift|kt|scala|sh|bash|sql|html|css|scss|less|xml|yaml|yml|toml|ini|conf)$/i.test(fileName)) {
+  if (
+    /\.(js|ts|jsx|tsx|py|java|cpp|c|cs|php|rb|go|rs|swift|kt|scala|sh|bash|sql|html|css|scss|less|xml|yaml|yml|toml|ini|conf)$/i.test(
+      fileName,
+    )
+  ) {
     return 'code'
   }
-  
+
   // Text files
   if (mimeType.startsWith('text/') || /\.(txt|md|log|csv)$/i.test(fileName)) {
     return 'text'
   }
-  
+
   return 'unsupported'
 })
 
 const detectedLanguage = computed(() => {
   if (!file.value) return 'text'
-  
+
   const fileName = file.value.name.toLowerCase()
-  
+
   // Language detection based on file extension
   const languageMap: Record<string, string> = {
     '.js': 'javascript',
@@ -272,43 +272,47 @@ const detectedLanguage = computed(() => {
     '.ini': 'ini',
     '.conf': 'ini',
     '.md': 'markdown',
-    '.json': 'json'
+    '.json': 'json',
   }
-  
+
   for (const [ext, lang] of Object.entries(languageMap)) {
     if (fileName.endsWith(ext)) {
       return lang
     }
   }
-  
+
   return 'text'
 })
 
 // Methods
 const loadFile = async () => {
   if (!props.fileId) return
-  
+
   loading.value = true
   error.value = null
   fileContent.value = null
-  
+
   try {
     // First, get file details
     const fileResponse = await filesAPI.get(Number(props.fileId))
     file.value = fileResponse.data
-    
+
     // Then load file content
     if (fileType.value === 'office') {
       // For office documents, we don't need to load content as the OfficeDocumentViewer handles it
       fileContent.value = null
-    } else if (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio') {
+    } else if (
+      fileType.value === 'image' ||
+      fileType.value === 'video' ||
+      fileType.value === 'audio'
+    ) {
       // For media files, create object URL from blob
-      const response = await filesAPI.download(file.value.id)
+      const response = await filesAPI.download(file.value!.id)
       const blob = new Blob([response.data])
       fileContent.value = URL.createObjectURL(blob)
     } else {
       // For text-based files, get as text
-      const response = await filesAPI.download(file.value.id)
+      const response = await filesAPI.download(file.value!.id)
       const text = await response.data.text()
       fileContent.value = text
     }
@@ -330,21 +334,21 @@ const goBack = () => {
 
 const handleDownload = async () => {
   if (!file.value) return
-  
+
   try {
     const response = await filesAPI.download(file.value.id, { download: 'true' })
     const blob = new Blob([response.data])
     const url = URL.createObjectURL(blob)
-    
+
     const link = document.createElement('a')
     link.href = url
     link.download = file.value.name
     link.style.display = 'none'
-    
+
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    
+
     URL.revokeObjectURL(url)
     ElMessage.success(`Downloaded ${file.value.name}`)
   } catch (error: any) {
@@ -355,7 +359,7 @@ const handleDownload = async () => {
 
 const handleOpenInNewTab = () => {
   if (!file.value) return
-  
+
   // Open file in new tab using the dedicated file viewer route
   const fileViewerUrl = `/view/${file.value.id}`
   window.open(fileViewerUrl, '_blank')
@@ -381,11 +385,11 @@ const handleDocumentError = (error: string) => {
 
 const formatFileSize = (bytes: number) => {
   if (bytes === 0) return '0 Bytes'
-  
+
   const k = 1024
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
@@ -395,7 +399,7 @@ const formatDate = (dateString: string) => {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   })
 }
 
@@ -411,13 +415,16 @@ watch(
       loadFile()
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 // Cleanup on unmount
 onMounted(() => {
   return () => {
-    if (fileContent.value && (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio')) {
+    if (
+      fileContent.value &&
+      (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio')
+    ) {
       URL.revokeObjectURL(fileContent.value)
     }
   }

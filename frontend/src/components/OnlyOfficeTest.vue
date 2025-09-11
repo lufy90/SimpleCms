@@ -4,7 +4,7 @@
     <div v-if="loading" class="loading">Loading OnlyOffice script...</div>
     <div v-else-if="error" class="error">{{ error }}</div>
     <div v-else class="success">OnlyOffice script loaded successfully!</div>
-    
+
     <div class="debug-info">
       <h3>Debug Information:</h3>
       <p><strong>Script URL:</strong> {{ scriptUrl }}</p>
@@ -12,7 +12,7 @@
       <p><strong>Loading State:</strong> {{ loading }}</p>
       <p><strong>Error:</strong> {{ error || 'None' }}</p>
     </div>
-    
+
     <button @click="testLoad" :disabled="loading">Test Load Script</button>
   </div>
 </template>
@@ -31,34 +31,34 @@ const testLoad = () => {
   loading.value = true
   error.value = null
   docsApiAvailable.value = false
-  
+
   scriptUrl.value = `${officeConfig.documentServerUrl.value}/web-apps/apps/api/documents/api.js`
-  
+
   console.log('Testing script load from:', scriptUrl.value)
-  
+
   const script = document.createElement('script')
   script.src = scriptUrl.value
-  
+
   const timeout = setTimeout(() => {
     console.error('Script loading timeout')
     error.value = 'Script loading timeout after 10 seconds'
     loading.value = false
   }, 10000)
-  
+
   script.onload = () => {
     console.log('Script loaded successfully')
     clearTimeout(timeout)
     docsApiAvailable.value = typeof (window as any).DocsAPI !== 'undefined'
     loading.value = false
   }
-  
+
   script.onerror = (err) => {
     console.error('Script loading error:', err)
     clearTimeout(timeout)
     error.value = 'Failed to load script. Check network connection and proxy settings.'
     loading.value = false
   }
-  
+
   document.head.appendChild(script)
 }
 

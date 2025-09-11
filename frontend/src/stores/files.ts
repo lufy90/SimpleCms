@@ -291,25 +291,28 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const searchFiles = async (query: string, params?: { 
-    node_id?: number;
-    recursive?: boolean; 
-    type?: string; 
-    limit?: number 
-  }) => {
+  const searchFiles = async (
+    query: string,
+    params?: {
+      node_id?: number
+      recursive?: boolean
+      type?: string
+      limit?: number
+    },
+  ) => {
     try {
       isLoading.value = true
       const response = await filesAPI.search(query, params)
       files.value = response.data.results
       return {
         success: true,
-        data: response.data
+        data: response.data,
       }
     } catch (error: any) {
       toast.error('Search failed')
       return {
         success: false,
-        error: error.message
+        error: error.message,
       }
     } finally {
       isLoading.value = false
@@ -355,7 +358,11 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const updateFileContent = async (fileId: number, file: File, onProgress?: (progressEvent: any) => void) => {
+  const updateFileContent = async (
+    fileId: number,
+    file: File,
+    onProgress?: (progressEvent: any) => void,
+  ) => {
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -366,7 +373,7 @@ export const useFilesStore = defineStore('files', () => {
       } else {
         await filesAPI.updateContent(fileId, formData)
       }
-      
+
       toast.success('File content updated successfully')
 
       // Refresh file list
@@ -398,10 +405,7 @@ export const useFilesStore = defineStore('files', () => {
 
       // Check for exact filename match
       const duplicate = currentFiles.find(
-        (file) => 
-          file.name === fileName && 
-          file.item_type === 'file' &&
-          file.parent === parentId
+        (file) => file.name === fileName && file.item_type === 'file' && file.parent === parentId,
       )
 
       return duplicate || null
