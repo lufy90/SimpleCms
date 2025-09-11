@@ -135,7 +135,8 @@ def get_document_config(request, file_id):
                     'about': True,
                     'feedback': False,
                     'goback': {
-                        'url': f"{FRONTEND_URL}/files?parent_id={parent_id}"
+                        'url': f"{FRONTEND_URL}/view/{file_item.id}",
+                        'text': 'Open in New Tab'
                     }
                 },
                 'callbackUrl': f"{API_BASE_URL}/api/office/callback/",
