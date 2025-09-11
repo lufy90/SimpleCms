@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 
 // Office document server configuration
-const documentServerUrl = ref(import.meta.env.VITE_ONLYOFFICE_DOCUMENT_SERVER_URL || 'http://192.168.1.101')
+const documentServerUrl = ref(import.meta.env.VITE_ONLYOFFICE_DOCUMENT_SERVER_URL || 'http://10.0.1.6')
 const secretKey = ref(import.meta.env.VITE_ONLYOFFICE_SECRET_KEY || 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd')
 
 // Office document types and their extensions

@@ -26,6 +26,7 @@ from .models import FileItem
 DOCUMENT_SERVER_URL = getattr(settings, 'ONLYOFFICE_DOCUMENT_SERVER_URL', 'http://192.168.1.101')
 SECRET_KEY = getattr(settings, 'ONLYOFFICE_SECRET_KEY', 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd')
 API_BASE_URL = getattr(settings, 'API_BASE_URL', 'http://10.0.1.2:8002')
+FRONTEND_URL = getattr(settings, 'FRONTEND_URL', 'http://10.0.1.2:3000')
 
 
 def generate_document_key(file_id, user_id):
@@ -61,7 +62,7 @@ def get_document_config(request, file_id):
     """
     try:
         file_item = FileItem.objects.get(id=file_id)
-        
+        parent_id = file_item.parent.id if file_item.parent else None
         # Check if user has access to the file
         if not file_item.can_access(request.user, 'read'):
             return Response(
@@ -77,6 +78,8 @@ def get_document_config(request, file_id):
         
         # Get file extension
         file_extension = file_item.storage.extension if file_item.storage else 'docx'
+        if file_extension.startswith('.'):
+            file_extension = file_extension[1:]
         
         # OnlyOffice supported file types
         supported_extensions = {
@@ -132,7 +135,7 @@ def get_document_config(request, file_id):
                     'about': True,
                     'feedback': False,
                     'goback': {
-                        'url': f"{API_BASE_URL}/files"
+                        'url': f"{FRONTEND_URL}/files?parent_id={parent_id}"
                     }
                 },
                 'callbackUrl': f"{API_BASE_URL}/api/office/callback/",
@@ -179,16 +182,12 @@ def office_download(request, file_id):
     Download file for OnlyOffice Document Server (no authentication required)
     """
     try:
-        print(f"Office download request for file_id: {file_id}")
         file_item = FileItem.objects.get(id=file_id)
-        print(f"File item found: {file_item.name}")
         
         # Get file path
         file_path = file_item.storage.get_file_path()
-        print(f"File path: {file_path}")
         
         if not os.path.exists(file_path):
-            print(f"File does not exist at path: {file_path}")
             return Response(
                 {'error': 'File not found'}, 
                 status=status.HTTP_404_NOT_FOUND
@@ -197,8 +196,6 @@ def office_download(request, file_id):
         # Read file content
         with open(file_path, 'rb') as f:
             file_content = f.read()
-        
-        print(f"File content read, size: {len(file_content)} bytes")
         
         # Determine content type
         content_type = 'application/octet-stream'
@@ -252,6 +249,8 @@ def document_callback(request):
     try:
         # Parse the callback data
         callback_data = json.loads(request.body.decode('utf-8'))
+
+        print(f"Document callback received: {callback_data}")
         
         # Verify the signature if provided
         if 'signature' in callback_data:
@@ -264,12 +263,8 @@ def document_callback(request):
         # Handle different callback statuses
         status_code = callback_data.get('status', 0)
         
-        if status_code == 2:  # Document is being edited
-            # Document is being edited, no action needed
-            pass
-            
-        elif status_code == 3:  # Document is ready for saving
-            # Document is ready for saving
+        # Only status codes 2 and 6 should trigger file updates
+        if status_code in [2, 6]:  # Document is being edited or document state is saved
             file_id = callback_data.get('key', '').split('_')[1] if '_' in callback_data.get('key', '') else None
             
             if file_id:
@@ -278,30 +273,82 @@ def document_callback(request):
                     
                     # Download the updated document from OnlyOffice
                     download_url = callback_data.get('url')
-                    if download_url:
-                        response = requests.get(download_url)
+                    
+                    if download_url:    
+                        response = requests.get(download_url, stream=True)
                         if response.status_code == 200:
                             # Update the file content
                             file_path = file_item.storage.get_file_path()
                             with open(file_path, 'wb') as f:
                                 f.write(response.content)
                             
+                            # Get user information from callback data
+                            user_info = None
+                            try:
+                                history = callback_data.get('history', {})
+                                changes = history.get('changes', [])
+                                if changes:
+                                    user_info = changes[-1].get('user')
+                            except (KeyError, IndexError, AttributeError) as e:
+                                print(f"Could not extract user info from callback data: {e}")
+                            
                             # Update file metadata
                             file_item.updated_at = timezone.now()
+                            
+                            # Update modifier if user info is available
+                            if user_info and isinstance(user_info, dict):
+                                user_id_str = user_info.get('id')
+                                user_name = user_info.get('name', 'Unknown')
+                                if user_id_str:
+                                    try:
+                                        # Convert string ID to integer
+                                        user_id = int(user_id_str)
+                                        # Try to find the user by ID
+                                        from django.contrib.auth.models import User
+                                        modifier = User.objects.get(id=user_id)
+                                        file_item.modifier = modifier
+                                        print(f"Updated modifier to user {user_name} (ID: {user_id})")
+                                    except (ValueError, TypeError) as e:
+                                        print(f"Invalid user ID format '{user_id_str}': {e}")
+                                    except User.DoesNotExist:
+                                        print(f"User with ID {user_id} not found, keeping current modifier")
+                                else:
+                                    print("No user ID found in callback data")
+                            else:
+                                print("No user information available in callback data")
+                            
                             file_item.save()
                             
+                            print(f"File {file_id} updated successfully for status code {status_code}")
+                        else:
+                            print(f"Failed to download updated document for file {file_id}, status: {response.status_code}")
+                            if response.text:
+                                print(f"Response content: {response.text}")
+                    else:
+                        print(f"No download URL provided for file {file_id} with status code {status_code}")
+                            
                 except FileItem.DoesNotExist:
-                    pass
+                    print(f"FileItem with id {file_id} does not exist for status code {status_code}")
                 except Exception as e:
-                    print(f"Error updating file {file_id}: {e}")
+                    print(f"Error updating file {file_id} for status code {status_code}: {e}")
+            else:
+                print(f"No valid file_id found in callback data for status code {status_code}")
         
-        elif status_code == 6:  # Document is being edited, but the current document state is saved
-            # Document state is saved
-            pass
+        else:
+            # Log other status codes without updating files
+            status_messages = {
+                0: "No document with the key identifier could be found",
+                1: "Document is being edited",
+                3: "Document is ready for saving",
+                4: "Document saving error has occurred",
+                5: "Document is closed with no changes",
+                7: "Error has occurred while force saving the document",
+                8: "Force saving document is in progress"
+            }
             
-        elif status_code == 7:  # Error has occurred while force saving the document
-            # Error occurred while saving
-            print(f"Error saving document: {callback_data}")
+            status_message = status_messages.get(status_code, f"Unknown status code: {status_code}")
+            print(f"Document callback status {status_code}: {status_message}")
+            print(f"Callback data: {callback_data}")
         
         return JsonResponse({'error': 0})
         

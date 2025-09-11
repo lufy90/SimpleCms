@@ -22,7 +22,7 @@
     <!-- File Content -->
     <div v-else-if="file" class="file-content">
       <!-- File Header -->
-      <div class="file-header">
+      <div class="file-header" v-if="fileType!=='office'">
         <div class="file-info">
           <h1>{{ file.name }}</h1>
           <div class="file-meta">
