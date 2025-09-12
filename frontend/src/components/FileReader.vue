@@ -37,7 +37,7 @@
 
       <!-- Text Viewer -->
       <TextViewer
-        v-else-if="fileType === 'text'"
+        v-else-if="fileType === 'text' && fileContent !== null"
         :content="fileContent"
         :filename="file?.name || 'File'"
         :mime-type="file?.storage?.mime_type"
@@ -47,7 +47,7 @@
 
       <!-- JSON Viewer -->
       <JSONViewer
-        v-else-if="fileType === 'json'"
+        v-else-if="fileType === 'json' && fileContent !== null"
         :content="fileContent"
         :filename="file?.name || 'File'"
         :file-id="file?.id"
@@ -56,7 +56,7 @@
 
       <!-- Code Viewer -->
       <CodeViewer
-        v-else-if="fileType === 'code'"
+        v-else-if="fileType === 'code' && fileContent !== null"
         :content="fileContent"
         :filename="file?.name || 'File'"
         :language="detectedLanguage"
@@ -167,8 +167,8 @@ const error = ref<string | null>(null)
 const fileType = computed(() => {
   if (!props.file) return null
 
-  // Check for office documents first
-  if (officeConfig.isOfficeDocument(props.file)) {
+  // Check for office documents first - but only if OnlyOffice is available
+  if (officeConfig.isOfficeDocument(props.file) && officeConfig.isOnlyOfficeAvailable.value) {
     return 'office'
   }
 
@@ -371,8 +371,10 @@ const handleClose = () => {
 // Watch for file changes
 watch(
   () => props.file,
-  (newFile) => {
+  async (newFile) => {
     if (newFile && visible.value) {
+      // Load OnlyOffice settings first
+      await officeConfig.ensureSettingsLoaded()
       loadFileContent()
     }
   },
@@ -380,8 +382,10 @@ watch(
 )
 
 // Watch for dialog visibility
-watch(visible, (newVisible) => {
+watch(visible, async (newVisible) => {
   if (newVisible && props.file) {
+    // Load OnlyOffice settings first
+    await officeConfig.ensureSettingsLoaded()
     loadFileContent()
   } else if (!newVisible) {
     handleClose()

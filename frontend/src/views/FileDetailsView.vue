@@ -73,7 +73,7 @@
 
         <!-- Text Viewer -->
         <TextViewer
-          v-else-if="fileType === 'text' && fileContent"
+          v-else-if="fileType === 'text' && fileContent !== null"
           :content="fileContent"
           :filename="file.name"
           :mime-type="file.storage?.mime_type"
@@ -83,7 +83,7 @@
 
         <!-- JSON Viewer -->
         <JSONViewer
-          v-else-if="fileType === 'json' && fileContent"
+          v-else-if="fileType === 'json' && fileContent !== null"
           :content="fileContent"
           :filename="file.name"
           :file-id="file.id"
@@ -92,7 +92,7 @@
 
         <!-- Code Viewer -->
         <CodeViewer
-          v-else-if="fileType === 'code' && fileContent"
+          v-else-if="fileType === 'code' && fileContent !== null"
           :content="fileContent"
           :filename="file.name"
           :language="detectedLanguage"
@@ -155,6 +155,7 @@ interface FileItem {
   id: number
   name: string
   item_type: 'file' | 'directory'
+  parent?: number | null
   created_at: string
   storage?: {
     mime_type?: string
@@ -185,8 +186,8 @@ const officeConfig = useOfficeConfig()
 const fileType = computed(() => {
   if (!file.value) return null
 
-  // Check for office documents first
-  if (officeConfig.isOfficeDocument(file.value)) {
+  // Check for office documents first - but only if OnlyOffice is available
+  if (officeConfig.isOfficeDocument(file.value) && officeConfig.isOnlyOfficeAvailable.value) {
     return 'office'
   }
 
@@ -329,7 +330,13 @@ const retryLoad = () => {
 }
 
 const goBack = () => {
-  router.go(-1)
+  if (file.value?.parent) {
+    // Navigate to parent directory detail view
+    router.push({ path: "/files", query: { parent_id: file.value.parent } })
+  } else {
+    // If no parent, go to root files list
+    router.push('/files')
+  }
 }
 
 const handleDownload = async () => {
@@ -410,8 +417,10 @@ const getFileTypeTagType = (itemType: string) => {
 // Watch for fileId changes
 watch(
   () => props.fileId,
-  (newFileId) => {
+  async (newFileId) => {
     if (newFileId) {
+      // Load OnlyOffice settings first
+      await officeConfig.ensureSettingsLoaded()
       loadFile()
     }
   },

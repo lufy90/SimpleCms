@@ -1,18 +1,65 @@
 import { ref, computed } from 'vue'
+import api from './api'
 
-// Office document server configuration
-const documentServerUrl = ref(
-  import.meta.env.VITE_ONLYOFFICE_DOCUMENT_SERVER_URL || 'http://192.168.1.101',
-)
-const secretKey = ref(
-  import.meta.env.VITE_ONLYOFFICE_SECRET_KEY || 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd',
-)
+// Office document server configuration - now fetched from backend API
+const documentServerUrl = ref('')
+const apiBaseUrl = ref('')
+const frontendUrl = ref('')
+const settingsLoaded = ref(false)
+const settingsError = ref('')
+const onlyOfficeAvailable = ref(false)
+
+// Load OnlyOffice settings from backend API
+const loadOnlyOfficeSettings = async () => {
+  if (settingsLoaded.value) {
+    return // Settings already loaded
+  }
+
+  try {
+    const response = await api.get('/api/office/settings/')
+    const settings = response.data
+
+    documentServerUrl.value = settings.documentServerUrl
+    apiBaseUrl.value = settings.apiBaseUrl
+    frontendUrl.value = settings.frontendUrl
+    onlyOfficeAvailable.value = settings.available || false
+    settingsLoaded.value = true
+    settingsError.value = ''
+  } catch (error: any) {
+    console.error('Failed to load OnlyOffice settings:', error)
+    settingsError.value = error.response?.data?.error || 'Failed to load OnlyOffice settings'
+    settingsLoaded.value = true
+    onlyOfficeAvailable.value = false
+
+    // Clear all settings on API failure - OnlyOffice will not be available
+    documentServerUrl.value = ''
+    apiBaseUrl.value = ''
+    frontendUrl.value = ''
+  }
+}
+
+// Ensure settings are loaded before use
+const ensureSettingsLoaded = async () => {
+  if (!settingsLoaded.value) {
+    await loadOnlyOfficeSettings()
+  }
+}
+
+// Check if OnlyOffice is available
+const isOnlyOfficeAvailable = computed(() => {
+  return (
+    settingsLoaded.value &&
+    !settingsError.value &&
+    onlyOfficeAvailable.value &&
+    documentServerUrl.value
+  )
+})
 
 // Office document types and their extensions
 const officeDocumentTypes = {
   word: {
     name: 'Word Document',
-    extensions: ['docx', 'doc', 'odt', 'rtf', 'txt'],
+    extensions: ['docx', 'doc', 'odt', 'rtf'],
     mimeTypes: [
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
@@ -122,19 +169,29 @@ const getSupportedMimeTypes = (): string[] => {
 const validateConfig = (): { valid: boolean; errors: string[] } => {
   const errors: string[] = []
 
+  if (settingsError.value) {
+    errors.push(`OnlyOffice configuration error: ${settingsError.value}`)
+    return {
+      valid: false,
+      errors,
+    }
+  }
+
+  if (!onlyOfficeAvailable.value) {
+    errors.push('OnlyOffice is not available')
+  }
+
   if (!documentServerUrl.value) {
-    errors.push('Document server URL is required')
+    errors.push('OnlyOffice document server is not available')
   }
 
-  if (!secretKey.value) {
-    errors.push('Secret key is required')
-  }
-
-  // Validate URL format
-  try {
-    new URL(documentServerUrl.value)
-  } catch {
-    errors.push('Document server URL is invalid')
+  // Validate URL format if we have a URL
+  if (documentServerUrl.value) {
+    try {
+      new URL(documentServerUrl.value)
+    } catch {
+      errors.push('Document server URL is invalid')
+    }
   }
 
   return {
@@ -143,20 +200,12 @@ const validateConfig = (): { valid: boolean; errors: string[] } => {
   }
 }
 
-// Update configuration
-const updateConfig = (newConfig: { documentServerUrl?: string; secretKey?: string }) => {
-  if (newConfig.documentServerUrl !== undefined) {
-    documentServerUrl.value = newConfig.documentServerUrl
-  }
-  if (newConfig.secretKey !== undefined) {
-    secretKey.value = newConfig.secretKey
-  }
-}
-
 // Computed properties
 const config = computed(() => ({
   documentServerUrl: documentServerUrl.value,
-  secretKey: secretKey.value,
+  apiBaseUrl: apiBaseUrl.value,
+  frontendUrl: frontendUrl.value,
+  available: onlyOfficeAvailable.value,
 }))
 
 const supportedExtensions = computed(() => getSupportedExtensions())
@@ -167,8 +216,13 @@ export function useOfficeConfig() {
   return {
     // Configuration
     documentServerUrl,
-    secretKey,
+    apiBaseUrl,
+    frontendUrl,
     config,
+    settingsLoaded,
+    settingsError,
+    isOnlyOfficeAvailable,
+    onlyOfficeAvailable,
 
     // Document detection
     isOfficeDocument,
@@ -181,7 +235,8 @@ export function useOfficeConfig() {
 
     // Configuration management
     validateConfig,
-    updateConfig,
+    loadOnlyOfficeSettings,
+    ensureSettingsLoaded,
 
     // Document types
     officeDocumentTypes,
@@ -192,5 +247,7 @@ export function useOfficeConfig() {
 export type OfficeDocumentType = 'word' | 'excel' | 'powerpoint'
 export type OfficeConfig = {
   documentServerUrl: string
-  secretKey: string
+  apiBaseUrl: string
+  frontendUrl: string
+  available: boolean
 }

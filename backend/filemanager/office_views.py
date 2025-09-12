@@ -23,10 +23,28 @@ from .models import FileItem
 
 
 # OnlyOffice Document Server Configuration
-DOCUMENT_SERVER_URL = getattr(settings, 'ONLYOFFICE_DOCUMENT_SERVER_URL', 'http://192.168.1.101')
-SECRET_KEY = getattr(settings, 'ONLYOFFICE_SECRET_KEY', 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd')
+DOCUMENT_SERVER_URL = getattr(settings, 'ONLYOFFICE_DOCUMENT_SERVER_URL', None)
+SECRET_KEY = getattr(settings, 'ONLYOFFICE_SECRET_KEY', None)
 API_BASE_URL = getattr(settings, 'API_BASE_URL', 'http://10.0.1.2:8002')
 FRONTEND_URL = getattr(settings, 'FRONTEND_URL', 'http://10.0.1.2:3000')
+
+
+def is_onlyoffice_configured():
+    """
+    Check if OnlyOffice is properly configured
+    """
+    return DOCUMENT_SERVER_URL is not None and SECRET_KEY is not None
+
+
+def validate_onlyoffice_config():
+    """
+    Validate OnlyOffice configuration and return error message if invalid
+    """
+    if not DOCUMENT_SERVER_URL:
+        return "ONLYOFFICE_DOCUMENT_SERVER_URL is not configured"
+    if not SECRET_KEY:
+        return "ONLYOFFICE_SECRET_KEY is not configured"
+    return None
 
 
 def generate_document_key(file_id, user_id):
@@ -56,13 +74,51 @@ def generate_jwt_token(payload, secret_key):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def get_onlyoffice_settings(request):
+    """
+    Get OnlyOffice settings for frontend (without secret key)
+    """
+    try:
+        # Check if OnlyOffice is properly configured
+        config_error = validate_onlyoffice_config()
+        if config_error:
+            return Response({
+                'error': config_error,
+                'available': False
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        
+        # Only return non-sensitive configuration
+        settings_data = {
+            'documentServerUrl': DOCUMENT_SERVER_URL,
+            'apiBaseUrl': API_BASE_URL,
+            'frontendUrl': FRONTEND_URL,
+            'available': True
+        }
+        
+        return Response(settings_data)
+        
+    except Exception as e:
+        return Response({
+            'error': f'Failed to get OnlyOffice settings: {str(e)}',
+            'available': False
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_document_config(request, file_id):
     """
     Get OnlyOffice document configuration for a file
     """
     try:
+        # Check if OnlyOffice is configured first
+        config_error = validate_onlyoffice_config()
+        if config_error:
+            return Response({
+                'error': f'OnlyOffice is not available: {config_error}'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        
         file_item = FileItem.objects.get(id=file_id)
-        parent_id = file_item.parent.id if file_item.parent else None
         # Check if user has access to the file
         if not file_item.can_access(request.user, 'read'):
             return Response(
@@ -110,6 +166,7 @@ def get_document_config(request, file_id):
                 'key': doc_key,
                 'title': file_item.name,
                 'url': file_url,
+                
                 'permissions': {
                     'edit': file_item.can_write(request.user),
                     'download': True,
@@ -126,7 +183,7 @@ def get_document_config(request, file_id):
                 'customization': {
                     'autosave': True,
                     'forcesave': True,
-                    'chat': False,
+                    'chat': True,
                     'comments': file_item.can_write(request.user),
                     'help': True,
                     'hideRightMenu': False,
@@ -148,20 +205,15 @@ def get_document_config(request, file_id):
         }
         
         # Generate JWT token for OnlyOffice
-        if SECRET_KEY:
-            token = generate_jwt_token(config, SECRET_KEY)
-            if token:
-                return Response({
-                    'config': config,
-                    'token': token
-                })
-            else:
-                return Response({
-                    'error': 'Failed to generate JWT token'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        token = generate_jwt_token(config, SECRET_KEY)
+        if token:
+            return Response({
+                'config': config,
+                'token': token
+            })
         else:
             return Response({
-                'error': 'OnlyOffice secret key not configured'
+                'error': 'Failed to generate JWT token'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
     except FileItem.DoesNotExist:
@@ -243,18 +295,99 @@ def office_download(request, file_id):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def office_upload(request, file_id):
+    """
+    Upload document from OnlyOffice Document Server
+    Note: This endpoint is called by OnlyOffice, not by authenticated users
+    """
+    try:
+        # Check if OnlyOffice is configured first
+        config_error = validate_onlyoffice_config()
+        if config_error:
+            return Response({
+                'error': f'OnlyOffice is not available: {config_error}'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        
+        file_item = FileItem.objects.get(id=file_id)
+        
+        # Verify the request is from OnlyOffice by checking the signature
+        if 'signature' in request.POST and SECRET_KEY:
+            # Verify signature
+            payload = {k: v for k, v in request.POST.items() if k != 'signature'}
+            expected_signature = generate_signature(payload, SECRET_KEY)
+            
+            if request.POST['signature'] != expected_signature:
+                return Response(
+                    {'error': 'Invalid signature'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        # Get the uploaded file content
+        if 'file' not in request.FILES:
+            return Response(
+                {'error': 'No file provided'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        uploaded_file = request.FILES['file']
+        
+        # Get file path
+        file_path = file_item.storage.get_file_path()
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        # Save the uploaded file
+        with open(file_path, 'wb') as f:
+            for chunk in uploaded_file.chunks():
+                f.write(chunk)
+        
+        # Update file metadata
+        file_item.updated_at = timezone.now()
+        # Note: We can't set modifier since this is called by OnlyOffice, not a user
+        file_item.save()
+        
+        print(f"File {file_id} uploaded successfully from OnlyOffice")
+        
+        return Response({
+            'status': 'success',
+            'message': 'File uploaded successfully'
+        })
+        
+    except FileItem.DoesNotExist:
+        return Response(
+            {'error': 'File not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        print(f"Error uploading file {file_id}: {str(e)}")
+        return Response(
+            {'error': f'Failed to upload file: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def document_callback(request):
     """
     Handle OnlyOffice document server callbacks
     """
     try:
+        # Check if OnlyOffice is configured first
+        config_error = validate_onlyoffice_config()
+        if config_error:
+            return JsonResponse({
+                'error': f'OnlyOffice is not available: {config_error}'
+            }, status=503)
+        
         # Parse the callback data
         callback_data = json.loads(request.body.decode('utf-8'))
 
         print(f"Document callback received: {callback_data}")
         
         # Verify the signature if provided
-        if 'signature' in callback_data:
+        if 'signature' in callback_data and SECRET_KEY:
             payload = {k: v for k, v in callback_data.items() if k != 'signature'}
             expected_signature = generate_signature(payload, SECRET_KEY)
             
@@ -367,6 +500,14 @@ def get_document_server_info(request):
     Get OnlyOffice document server information
     """
     try:
+        # Check if OnlyOffice is configured first
+        config_error = validate_onlyoffice_config()
+        if config_error:
+            return Response({
+                'error': f'OnlyOffice is not available: {config_error}',
+                'available': False
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        
         # Test connection to document server
         response = requests.get(f"{DOCUMENT_SERVER_URL}/healthcheck", timeout=5)
         
@@ -423,6 +564,13 @@ def convert_document(request, file_id):
     Convert a document to a different format using OnlyOffice
     """
     try:
+        # Check if OnlyOffice is configured first
+        config_error = validate_onlyoffice_config()
+        if config_error:
+            return Response({
+                'error': f'OnlyOffice is not available: {config_error}'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        
         file_item = FileItem.objects.get(id=file_id)
         
         # Check if user has access to the file

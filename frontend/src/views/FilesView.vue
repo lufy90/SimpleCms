@@ -40,10 +40,29 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button type="success" @click="showCreateDirectoryDialog">
-          <el-icon><FolderAdd /></el-icon>
-          New Folder
-        </el-button>
+        <el-dropdown @command="handleCreateCommand" trigger="click">
+          <el-button type="success">
+            <el-icon><FolderAdd /></el-icon>
+            New
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="directory">
+                <el-icon><FolderAdd /></el-icon>
+                New Folder
+              </el-dropdown-item>
+              <el-dropdown-item command="text">
+                <el-icon><Document /></el-icon>
+                Text File
+              </el-dropdown-item>
+              <el-dropdown-item command="office" divided>
+                <el-icon><Document /></el-icon>
+                Office Document
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button @click="refreshFiles">
           <el-icon><Refresh /></el-icon>
           Refresh
@@ -693,6 +712,9 @@
         <el-descriptions-item label="Extension" v-if="selectedFileForDetails.extension">
           {{ selectedFileForDetails.extension }}
         </el-descriptions-item>
+        <el-descriptions-item label="MIME Type" v-if="selectedFileForDetails.mime_type">
+          <code>{{ selectedFileForDetails.mime_type }}</code>
+        </el-descriptions-item>
         <el-descriptions-item label="Visibility">
           <el-tag :type="getVisibilityTagType(selectedFileForDetails.visibility)" size="small">
             {{ selectedFileForDetails.visibility }}
@@ -708,7 +730,7 @@
           {{ formatDate(selectedFileForDetails.updated_at) }}
         </el-descriptions-item>
         <el-descriptions-item label="Path" :span="2">
-          <code>{{ selectedFileForDetails.relative_path }}</code>
+          <code>{{ getFilePath(selectedFileForDetails) }}</code>
         </el-descriptions-item>
         <el-descriptions-item label="Permissions" :span="2">
           <div class="permissions-display">
@@ -1111,6 +1133,43 @@ const breadcrumbPath = ref<Array<{ id: number | null; name: string; path: string
   { id: null, name: 'root', path: '/' },
 ])
 
+// Utility functions for path construction
+const getFilePath = (file: FileItem | null): string => {
+  if (!file) return ''
+  
+  // If the file has a relative_path, use it (fallback for backward compatibility)
+  if (file.relative_path) {
+    return file.relative_path
+  }
+  
+  // Build path from parents array
+  if (file.parents && file.parents.length > 0) {
+    const parentNames = file.parents.map(parent => parent.name)
+    return '/' + parentNames.join('/') + '/' + file.name
+  }
+  
+  // If no parents, it's a root-level file
+  return '/' + file.name
+}
+
+const getDirectoryPath = (directory: FileItem | { id: number; name: string; relative_path?: string } | null): string => {
+  if (!directory) return '/'
+  
+  // If the directory has a relative_path, use it (fallback for backward compatibility)
+  if (directory.relative_path) {
+    return directory.relative_path
+  }
+  
+  // Build path from parents array (only for full FileItem objects)
+  if ('parents' in directory && directory.parents && directory.parents.length > 0) {
+    const parentNames = directory.parents.map(parent => parent.name)
+    return '/' + parentNames.join('/') + '/' + directory.name
+  }
+  
+  // If no parents, it's a root-level directory
+  return '/' + directory.name
+}
+
 // Update breadcrumb when directory changes
 const updateBreadcrumb = async () => {
   console.log('updateBreadcrumb called, currentDirectory:', currentDirectory.value)
@@ -1149,7 +1208,7 @@ const updateBreadcrumb = async () => {
       newBreadcrumb.push({
         id: parent.id,
         name: parent.name,
-        path: parent.relative_path,
+        path: parent.relative_path || getDirectoryPath(parent),
       })
     })
   } else {
@@ -1162,7 +1221,7 @@ const updateBreadcrumb = async () => {
   newBreadcrumb.push({
     id: currentDirectory.value.id,
     name: currentDirectory.value.name,
-    path: currentDirectory.value.relative_path,
+    path: currentDirectory.value.relative_path || getDirectoryPath(currentDirectory.value),
   })
 
   console.log('Built complete breadcrumb:', newBreadcrumb)
@@ -1483,6 +1542,97 @@ const showCreateDirectoryDialog = () => {
           ElMessage.success('Folder created successfully')
           // Refresh the current directory contents
           await refreshFiles()
+        }
+      }
+    })
+    .catch(() => {
+      // User cancelled
+    })
+}
+
+const handleCreateCommand = (command: string) => {
+  switch (command) {
+    case 'directory':
+      showCreateDirectoryDialog()
+      break
+    case 'text':
+      showCreateTextFileDialog()
+      break
+    case 'office':
+      showCreateOfficeDocumentDialog()
+      break
+  }
+}
+
+const showCreateTextFileDialog = () => {
+  ElMessageBox.prompt('Enter file name:', 'Create Text File', {
+    confirmButtonText: 'Create',
+    cancelButtonText: 'Cancel',
+    inputPattern: /^[^\/\\]+$/,
+    inputErrorMessage: 'File name cannot contain slashes or backslashes',
+    inputPlaceholder: 'my-file.txt',
+  })
+    .then(async ({ value }) => {
+      if (value) {
+        try {
+          const parentId = currentDirectory.value?.id
+          const response = await filesAPI.createTextFile({
+            name: value,
+            content: '',
+            parent_id: parentId,
+            visibility: 'private'
+          })
+          
+          if (response.data) {
+            ElMessage.success('Text file created successfully')
+            await refreshFiles()
+          }
+        } catch (error: any) {
+          ElMessage.error(error.response?.data?.error || 'Failed to create text file')
+        }
+      }
+    })
+    .catch(() => {
+      // User cancelled
+    })
+}
+
+const showCreateOfficeDocumentDialog = () => {
+  ElMessageBox.prompt('Enter document name:', 'Create Office Document', {
+    confirmButtonText: 'Create',
+    cancelButtonText: 'Cancel',
+    inputPattern: /^[^\/\\]+$/,
+    inputErrorMessage: 'Document name cannot contain slashes or backslashes',
+    inputPlaceholder: 'my-document.docx',
+  })
+    .then(async ({ value }) => {
+      if (value) {
+        try {
+          const parentId = currentDirectory.value?.id
+          
+          // Determine document type from extension
+          let documentType = 'docx'
+          if (value.endsWith('.xlsx')) {
+            documentType = 'xlsx'
+          } else if (value.endsWith('.pptx')) {
+            documentType = 'pptx'
+          } else if (!value.endsWith('.docx')) {
+            value += '.docx' // Default to Word document
+          }
+          
+          const response = await filesAPI.createOfficeDocument({
+            name: value,
+            document_type: documentType as 'docx' | 'xlsx' | 'pptx',
+            parent_id: parentId,
+            visibility: 'private'
+          })
+          
+          if (response.data) {
+            ElMessage.success(`${documentType.toUpperCase()} document created successfully`)
+            await refreshFiles()
+          }
+        } catch (error: any) {
+          ElMessage.error(error.response?.data?.error || 'Failed to create office document')
         }
       }
     })
@@ -2278,6 +2428,7 @@ const formatDate = (dateString: string | null): string => {
     return '-'
   }
 }
+
 
 // Sorting methods for table columns
 const sortByName = (a: any, b: any): number => {

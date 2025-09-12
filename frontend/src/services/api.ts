@@ -268,6 +268,21 @@ export const filesAPI = {
       },
       onUploadProgress: onProgress,
     }),
+
+  // Create new files
+  createTextFile: (data: {
+    name: string
+    content?: string
+    parent_id?: number
+    visibility?: string
+  }) => api.post('/api/create-file/', { type: 'text', ...data }),
+
+  createOfficeDocument: (data: {
+    name: string
+    document_type: 'docx' | 'xlsx' | 'pptx'
+    parent_id?: number
+    visibility?: string
+  }) => api.post('/api/create-file/', { type: 'office', ...data }),
 }
 
 // Upload API

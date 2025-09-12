@@ -225,7 +225,8 @@ class FileItem(models.Model):
                 self.storage.file_size = stat.st_size
                 
                 # Get mime type, fallback to 'application/octet-stream' if None
-                mime_type, _ = mimetypes.guess_type(self.storage.get_file_path())
+                mime_type_result = mimetypes.guess_type(self.storage.get_file_path())
+                mime_type = mime_type_result[0] if mime_type_result else None
                 self.storage.mime_type = mime_type or 'application/octet-stream'
                 
                 self.storage.extension = Path(self.storage.original_filename).suffix.lower()
@@ -622,7 +623,7 @@ class FileAccessLog(models.Model):
         ('user_shared', 'User Shared'),
         ('group_shared', 'Group Shared'),
     ])
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    ip_address = models.CharField(max_length=45, null=True, blank=True)  # IPv6 max length is 45
     user_agent = models.TextField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     

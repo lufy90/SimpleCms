@@ -129,7 +129,8 @@ class FilePathManager:
         try:
             if os.path.exists(file_path):
                 stat = os.stat(file_path)
-                mime_type, _ = mimetypes.guess_type(file_path)
+                mime_type_result = mimetypes.guess_type(file_path)
+                mime_type = mime_type_result[0] if mime_type_result else None
                 return {
                     'size': stat.st_size,
                     'mime_type': mime_type or 'application/octet-stream',

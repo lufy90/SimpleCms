@@ -26,7 +26,11 @@ class GroupSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'members']
     
     def get_members(self, obj):
-        return list(obj.user_set.values_list('id', flat=True))
+        try:
+            return list(obj.user_set.values_list('id', flat=True))
+        except Exception as e:
+            # Fallback in case of any query issues
+            return []
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -86,10 +90,10 @@ class GroupCreateUpdateSerializer(serializers.ModelSerializer):
 
 
 class FileStorageSerializer(serializers.ModelSerializer):
-    """Serializer for FileStorage model"""
+    """Serializer for FileStorage model - excludes sensitive fields"""
     class Meta:
         model = FileStorage
-        fields = ['uuid', 'original_filename', 'file_size', 'mime_type', 'extension', 'checksum', 'created_at']
+        fields = ['original_filename', 'file_size', 'mime_type', 'extension', 'created_at']
 
 
 
@@ -155,7 +159,6 @@ class FileItemSerializer(serializers.ModelSerializer):
     effective_permissions = serializers.SerializerMethodField()
     
     # New fields for UUID-based system
-    storage = FileStorageSerializer(read_only=True)
     thumbnail = serializers.SerializerMethodField()
     sharing_status = serializers.SerializerMethodField()
     
@@ -165,7 +168,7 @@ class FileItemSerializer(serializers.ModelSerializer):
             'id', 'name', 'item_type', 'parent', 'parents', 'created_at', 'updated_at',
             'owner', 'visibility', 'shared_users', 'shared_groups', 'children_count', 'tags', 
             'file_info', 'permissions', 'can_read', 'can_write', 'can_delete', 
-            'can_share', 'can_admin', 'effective_permissions', 'storage', 'thumbnail', 'sharing_status'
+            'can_share', 'can_admin', 'effective_permissions', 'thumbnail', 'sharing_status'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'owner', 'children_count', 
                            'tags', 'file_info', 'permissions', 'can_read', 'can_write', 
@@ -207,9 +210,7 @@ class FileItemSerializer(serializers.ModelSerializer):
             return {
                 'size': obj.storage.file_size,
                 'mime_type': obj.storage.mime_type,
-                'extension': obj.storage.extension,
-                'checksum': obj.storage.checksum,
-                'uuid': str(obj.storage.uuid)
+                'extension': obj.storage.extension
             }
         return None
     
@@ -279,7 +280,6 @@ class FileItemSerializer(serializers.ModelSerializer):
         if obj.thumbnail:
             request = self.context.get('request')
             thumbnail_data = {
-                'uuid': str(obj.thumbnail.uuid),
                 'thumbnail_size': obj.thumbnail.thumbnail_size,
                 'width': obj.thumbnail.width,
                 'height': obj.thumbnail.height,

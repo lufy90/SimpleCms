@@ -17,6 +17,7 @@ from .models import (
     FileItem, FileTag, FileTagRelation, FileAccessLog, 
     FileAccessPermission, FilePermissionRequest, FileStorage, FileThumbnail
 )
+from .utils import FilePathManager
 from .serializers import (
     FileItemSerializer, FileItemCreateSerializer, FileItemUpdateSerializer,
     FileTagSerializer, FileTagRelationSerializer, FileAccessLogSerializer,
@@ -1968,3 +1969,292 @@ class GroupManagementViewSet(viewsets.ModelViewSet):
         group = self.get_object()
         group.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FileCreationView(generics.CreateAPIView):
+    """Handle creation of new files (text files and office documents)"""
+    permission_classes = [IsAuthenticated]
+    
+    def create_text_file(self, request):
+        """Create a new text file"""
+        try:
+            name = request.data.get('name', '')
+            content = request.data.get('content', '')
+            parent_id = request.data.get('parent_id')
+            visibility = request.data.get('visibility', 'private')
+            
+            if not name:
+                return Response({'error': 'File name is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Ensure .txt extension
+            if not name.endswith('.txt'):
+                name += '.txt'
+            
+            # Get parent directory
+            parent_directory = None
+            if parent_id:
+                try:
+                    parent_directory = FileItem.objects.get(id=parent_id, item_type='directory')
+                    if not parent_directory.can_access(request.user, 'write'):
+                        return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
+                except FileItem.DoesNotExist:
+                    return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Use the same pattern as file upload - get UUID-based path
+            file_path_manager = FilePathManager()
+            file_path, relative_path_for_db = file_path_manager.get_upload_path(name, '')
+            
+            # Extract just the UUID filename for storage in FileStorage.file_path
+            uuid_filename = os.path.basename(file_path)
+            
+            # Write content to file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            # Get file information
+            file_info = file_path_manager.get_file_info(file_path)
+            
+            # Create FileStorage record
+            file_storage = FileStorage.objects.create(
+                original_filename=name,
+                file_path=uuid_filename,  # Store only the UUID filename, not the full path
+                file_size=file_info['size'],
+                mime_type=file_info['mime_type'],
+                extension=file_info['extension'],
+                checksum=file_info.get('checksum', '')
+            )
+            
+            # Calculate and update checksum
+            file_storage.checksum = file_storage.calculate_checksum()
+            file_storage.save()
+            
+            # Create FileItem record
+            file_item = FileItem.objects.create(
+                name=name,
+                item_type='file',
+                parent=parent_directory,
+                storage=file_storage,
+                owner=request.user,
+                visibility=visibility
+            )
+            
+            return Response({
+                'message': 'Text file created successfully',
+                'file': FileItemSerializer(file_item, context={'request': request}).data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({'error': f'Failed to create text file: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def create_office_document(self, request):
+        """Create a new office document"""
+        try:
+            name = request.data.get('name', '')
+            document_type = request.data.get('document_type', 'docx')  # docx, xlsx, pptx
+            parent_id = request.data.get('parent_id')
+            visibility = request.data.get('visibility', 'private')
+            
+            if not name:
+                return Response({'error': 'File name is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Map document types to extensions and templates
+            document_templates = {
+                'docx': {
+                    'extension': '.docx',
+                    'mime_type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'template_path': None  # We'll create empty documents
+                },
+                'xlsx': {
+                    'extension': '.xlsx',
+                    'mime_type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'template_path': None
+                },
+                'pptx': {
+                    'extension': '.pptx',
+                    'mime_type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                    'template_path': None
+                }
+            }
+            
+            if document_type not in document_templates:
+                return Response({'error': 'Invalid document type'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            template = document_templates[document_type]
+            
+            # Ensure correct extension
+            if not name.endswith(template['extension']):
+                name += template['extension']
+            
+            # Get parent directory
+            parent_directory = None
+            if parent_id:
+                try:
+                    parent_directory = FileItem.objects.get(id=parent_id, item_type='directory')
+                    if not parent_directory.can_access(request.user, 'write'):
+                        return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
+                except FileItem.DoesNotExist:
+                    return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Use the same pattern as file upload - get UUID-based path
+            file_path_manager = FilePathManager()
+            file_path, relative_path_for_db = file_path_manager.get_upload_path(name, '')
+            
+            # Extract just the UUID filename for storage in FileStorage.file_path
+            uuid_filename = os.path.basename(file_path)
+            
+            # Create empty office document (we'll create minimal valid files)
+            self._create_empty_office_document(file_path, document_type)
+            
+            # Get file information
+            file_info = file_path_manager.get_file_info(file_path)
+            
+            # Create FileStorage record
+            file_storage = FileStorage.objects.create(
+                original_filename=name,
+                file_path=uuid_filename,  # Store only the UUID filename, not the full path
+                file_size=file_info['size'],
+                mime_type=template['mime_type'],
+                extension=template['extension'],
+                checksum=file_info.get('checksum', '')
+            )
+            
+            # Calculate and update checksum
+            file_storage.checksum = file_storage.calculate_checksum()
+            file_storage.save()
+            
+            # Create FileItem record
+            file_item = FileItem.objects.create(
+                name=name,
+                item_type='file',
+                parent=parent_directory,
+                storage=file_storage,
+                owner=request.user,
+                visibility=visibility
+            )
+            
+            return Response({
+                'message': f'{document_type.upper()} document created successfully',
+                'file': FileItemSerializer(file_item, context={'request': request}).data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({'error': f'Failed to create office document: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _create_empty_office_document(self, file_path, document_type):
+        """Create an empty office document file"""
+        import zipfile
+        import xml.etree.ElementTree as ET
+        
+        if document_type == 'docx':
+            # Create minimal Word document
+            with zipfile.ZipFile(file_path, 'w') as docx:
+                # Add minimal document.xml
+                doc_xml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:t></w:t>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>'''
+                docx.writestr('word/document.xml', doc_xml)
+                
+                # Add minimal [Content_Types].xml
+                content_types = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>'''
+                docx.writestr('[Content_Types].xml', content_types)
+                
+                # Add minimal _rels/.rels
+                rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>'''
+                docx.writestr('_rels/.rels', rels)
+                
+                # Add minimal word/_rels/document.xml.rels
+                word_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+</Relationships>'''
+                docx.writestr('word/_rels/document.xml.rels', word_rels)
+        
+        elif document_type == 'xlsx':
+            # Create minimal Excel document
+            with zipfile.ZipFile(file_path, 'w') as xlsx:
+                # Add minimal xl/workbook.xml
+                workbook_xml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheets>
+    <sheet name="Sheet1" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>'''
+                xlsx.writestr('xl/workbook.xml', workbook_xml)
+                
+                # Add minimal xl/worksheets/sheet1.xml
+                sheet_xml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+  </sheetData>
+</worksheet>'''
+                xlsx.writestr('xl/worksheets/sheet1.xml', sheet_xml)
+                
+                # Add minimal [Content_Types].xml
+                content_types = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>'''
+                xlsx.writestr('[Content_Types].xml', content_types)
+                
+                # Add minimal _rels/.rels
+                rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>'''
+                xlsx.writestr('_rels/.rels', rels)
+        
+        elif document_type == 'pptx':
+            # Create minimal PowerPoint document
+            with zipfile.ZipFile(file_path, 'w') as pptx:
+                # Add minimal ppt/presentation.xml
+                presentation_xml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:sldMasterIdLst>
+    <p:sldMasterId id="2147483648" r:id="rId1"/>
+  </p:sldMasterIdLst>
+  <p:sldIdLst>
+    <p:sldId id="256" r:id="rId2"/>
+  </p:sldIdLst>
+</p:presentation>'''
+                pptx.writestr('ppt/presentation.xml', presentation_xml)
+                
+                # Add minimal [Content_Types].xml
+                content_types = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+</Types>'''
+                pptx.writestr('[Content_Types].xml', content_types)
+                
+                # Add minimal _rels/.rels
+                rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>'''
+                pptx.writestr('_rels/.rels', rels)
+    
+    def post(self, request, *args, **kwargs):
+        """Handle file creation based on type"""
+        file_type = request.data.get('type', 'text')
+        
+        if file_type == 'text':
+            return self.create_text_file(request)
+        elif file_type == 'office':
+            return self.create_office_document(request)
+        else:
+            return Response({'error': 'Invalid file type'}, status=status.HTTP_400_BAD_REQUEST)

@@ -52,7 +52,7 @@
 
         <!-- Text Viewer -->
         <TextViewer
-          v-else-if="fileType === 'text' && textContent"
+          v-else-if="fileType === 'text' && textContent !== null"
           :content="textContent"
           :filename="file?.name || ''"
           :file-id="file?.id"
@@ -61,7 +61,7 @@
 
         <!-- JSON Viewer -->
         <JSONViewer
-          v-else-if="fileType === 'json' && textContent"
+          v-else-if="fileType === 'json' && textContent !== null"
           :content="textContent"
           :filename="file?.name || ''"
           :file-id="file?.id"
@@ -70,7 +70,7 @@
 
         <!-- Code Viewer -->
         <CodeViewer
-          v-else-if="fileType === 'code' && textContent"
+          v-else-if="fileType === 'code' && textContent !== null"
           :content="textContent"
           :filename="file?.name || ''"
           :language="detectLanguage(file?.name || '')"
@@ -157,8 +157,8 @@ const officeConfig = useOfficeConfig()
 const fileType = computed(() => {
   if (!file.value) return 'unknown'
 
-  // Check for office documents first
-  if (officeConfig.isOfficeDocument(file.value)) {
+  // Check for office documents first - but only if OnlyOffice is available
+  if (officeConfig.isOfficeDocument(file.value) && officeConfig.isOnlyOfficeAvailable.value) {
     return 'office'
   }
 
@@ -389,7 +389,9 @@ const handleDocumentError = (error: string) => {
 }
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
+  // Load OnlyOffice settings first
+  await officeConfig.ensureSettingsLoaded()
   loadFile()
 })
 

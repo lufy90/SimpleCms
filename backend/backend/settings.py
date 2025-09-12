@@ -211,7 +211,9 @@ FILE_MANAGER_ROOT = BASE_DIR / 'media/upload/'  # Root directory for all file op
 MAX_UPLOAD_SIZE = 104857600
 
 # OnlyOffice Document Server Configuration
-ONLYOFFICE_DOCUMENT_SERVER_URL = 'http://192.168.1.101'
+ONLYOFFICE_DOCUMENT_SERVER_URL = 'http://10.0.1.6'
 ONLYOFFICE_SECRET_KEY = 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd'
-API_BASE_URL = 'http://192.168.1.134:8002'  # Update this to match your frontend URL
-FRONTEND_URL = 'http://192.168.1.134:3000'  # Update this to match your frontend URL
+#API_BASE_URL = 'http://192.168.1.134:8002'  # Update this to match your API URL
+#FRONTEND_URL = 'http://192.168.1.134:3000'  # Update this to match your frontend URL
+API_BASE_URL = 'http://10.0.1.2:8002'
+FRONTEND_URL = 'http://10.0.1.2:3000' # frontend url, for customize ONLYOFFICE documenment goback url

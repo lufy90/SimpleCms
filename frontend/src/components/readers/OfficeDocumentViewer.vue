@@ -80,21 +80,6 @@ const officeConfig = useOfficeConfig()
 // Computed
 const editorHeight = computed(() => props.height)
 
-// OnlyOffice document types mapping
-const documentTypes = {
-  docx: 'word',
-  doc: 'word',
-  xlsx: 'cell',
-  xls: 'cell',
-  pptx: 'slide',
-  ppt: 'slide',
-  odt: 'word',
-  ods: 'cell',
-  odp: 'slide',
-  rtf: 'word',
-  txt: 'word',
-}
-
 // Methods
 const getDocumentType = () => {
   if (!props.file) return 'Document'
@@ -119,23 +104,6 @@ const getDocumentType = () => {
   return typeMap[extension] || 'Office Document'
 }
 
-const getDocumentKey = () => {
-  // Generate a unique key for the document
-  return `doc_${props.file.id}_${Date.now()}`
-}
-
-const getDocumentUrl = async () => {
-  try {
-    // Get the file download URL
-    const response = await filesAPI.download(props.file.id)
-    const blob = new Blob([response.data])
-    const url = URL.createObjectURL(blob)
-    return url
-  } catch (err) {
-    throw new Error('Failed to load document')
-  }
-}
-
 const getOfficeConfig = async () => {
   try {
     const response = await api.get(`/api/office/config/${props.file.id}/`)
@@ -143,11 +111,6 @@ const getOfficeConfig = async () => {
   } catch (err) {
     throw new Error('Failed to get office configuration')
   }
-}
-
-const getCallbackUrl = () => {
-  // Return the callback URL for document saving
-  return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/office/callback/`
 }
 
 const initializeDocumentEditor = async () => {
@@ -158,6 +121,16 @@ const initializeDocumentEditor = async () => {
   try {
     loading.value = true
     error.value = null
+
+    // Ensure OnlyOffice settings are loaded
+    await officeConfig.ensureSettingsLoaded()
+
+    // Check if OnlyOffice is available
+    if (!officeConfig.isOnlyOfficeAvailable.value) {
+      throw new Error(
+        'OnlyOffice document editor is not available. Please use the regular file viewer instead.',
+      )
+    }
 
     // Get configuration from backend (includes JWT token)
     const officeResponse = await getOfficeConfig()
