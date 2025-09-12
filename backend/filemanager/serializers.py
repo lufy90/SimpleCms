@@ -289,7 +289,7 @@ class FileItemSerializer(serializers.ModelSerializer):
             
             # Add URL if request context is available
             if request:
-                thumbnail_data['url'] = request.build_absolute_uri(f'/api/files/{obj.id}/thumbnail/')
+                thumbnail_data['url'] = f'/api/files/{obj.id}/thumbnail/'
             
             return thumbnail_data
         return None

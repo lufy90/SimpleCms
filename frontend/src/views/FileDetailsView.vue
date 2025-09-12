@@ -332,7 +332,7 @@ const retryLoad = () => {
 const goBack = () => {
   if (file.value?.parent) {
     // Navigate to parent directory detail view
-    router.push({ path: "/files", query: { parent_id: file.value.parent } })
+    router.push({ path: '/files', query: { parent_id: file.value.parent } })
   } else {
     // If no parent, go to root files list
     router.push('/files')

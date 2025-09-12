@@ -1136,36 +1136,38 @@ const breadcrumbPath = ref<Array<{ id: number | null; name: string; path: string
 // Utility functions for path construction
 const getFilePath = (file: FileItem | null): string => {
   if (!file) return ''
-  
+
   // If the file has a relative_path, use it (fallback for backward compatibility)
   if (file.relative_path) {
     return file.relative_path
   }
-  
+
   // Build path from parents array
   if (file.parents && file.parents.length > 0) {
-    const parentNames = file.parents.map(parent => parent.name)
+    const parentNames = file.parents.map((parent) => parent.name)
     return '/' + parentNames.join('/') + '/' + file.name
   }
-  
+
   // If no parents, it's a root-level file
   return '/' + file.name
 }
 
-const getDirectoryPath = (directory: FileItem | { id: number; name: string; relative_path?: string } | null): string => {
+const getDirectoryPath = (
+  directory: FileItem | { id: number; name: string; relative_path?: string } | null,
+): string => {
   if (!directory) return '/'
-  
+
   // If the directory has a relative_path, use it (fallback for backward compatibility)
   if (directory.relative_path) {
     return directory.relative_path
   }
-  
+
   // Build path from parents array (only for full FileItem objects)
   if ('parents' in directory && directory.parents && directory.parents.length > 0) {
-    const parentNames = directory.parents.map(parent => parent.name)
+    const parentNames = directory.parents.map((parent) => parent.name)
     return '/' + parentNames.join('/') + '/' + directory.name
   }
-  
+
   // If no parents, it's a root-level directory
   return '/' + directory.name
 }
@@ -1580,9 +1582,9 @@ const showCreateTextFileDialog = () => {
             name: value,
             content: '',
             parent_id: parentId,
-            visibility: 'private'
+            visibility: 'private',
           })
-          
+
           if (response.data) {
             ElMessage.success('Text file created successfully')
             await refreshFiles()
@@ -1609,7 +1611,7 @@ const showCreateOfficeDocumentDialog = () => {
       if (value) {
         try {
           const parentId = currentDirectory.value?.id
-          
+
           // Determine document type from extension
           let documentType = 'docx'
           if (value.endsWith('.xlsx')) {
@@ -1619,14 +1621,14 @@ const showCreateOfficeDocumentDialog = () => {
           } else if (!value.endsWith('.docx')) {
             value += '.docx' // Default to Word document
           }
-          
+
           const response = await filesAPI.createOfficeDocument({
             name: value,
             document_type: documentType as 'docx' | 'xlsx' | 'pptx',
             parent_id: parentId,
-            visibility: 'private'
+            visibility: 'private',
           })
-          
+
           if (response.data) {
             ElMessage.success(`${documentType.toUpperCase()} document created successfully`)
             await refreshFiles()
@@ -2428,7 +2430,6 @@ const formatDate = (dateString: string | null): string => {
     return '-'
   }
 }
-
 
 // Sorting methods for table columns
 const sortByName = (a: any, b: any): number => {

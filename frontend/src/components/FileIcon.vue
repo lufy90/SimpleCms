@@ -230,15 +230,9 @@ const loadThumbnail = async () => {
     loadingThumbnail.value = true
     thumbnailError.value = false
 
-    // Use thumbnail URL if available, otherwise fetch from API
-    if (props.file.thumbnail?.url) {
-      thumbnailUrl.value = props.file.thumbnail.url
-    } else {
-      // Fallback to API call
-      const response = await filesAPI.getThumbnail(props.file.id)
-      const blob = new Blob([response.data], { type: 'image/jpeg' })
-      thumbnailUrl.value = URL.createObjectURL(blob)
-    }
+    const response = await filesAPI.getThumbnail(props.file.id)
+    const blob = new Blob([response.data], { type: 'image/jpeg' })
+    thumbnailUrl.value = URL.createObjectURL(blob)
   } catch (error) {
     console.warn('Failed to load thumbnail:', error)
     thumbnailError.value = true
