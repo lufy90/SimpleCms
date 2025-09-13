@@ -332,10 +332,10 @@ export const permissionsAPI = {
 
   // Search methods for user and group selection
   searchUsers: (params: { query: string }) =>
-    api.get('/api/users/search/', { params: { q: params.query } }),
+    api.get('/api/search/users/', { params: { q: params.query } }),
 
   searchGroups: (params: { query: string }) =>
-    api.get('/api/groups/search/', { params: { q: params.query } }),
+    api.get('/api/search/groups/', { params: { q: params.query } }),
 }
 
 // Users API
@@ -370,7 +370,7 @@ export const usersAPI = {
 
   // Search method (existing)
   search: (params: { query: string }) =>
-    api.get('/api/users/search/', { params: { q: params.query } }),
+    api.get('/api/search/users/', { params: { q: params.query } }),
 }
 
 // Groups API

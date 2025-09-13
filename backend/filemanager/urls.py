@@ -24,8 +24,8 @@ urlpatterns = [
     path('api/deleted-files/hard-delete/', views.DeletedFilesViewSet.as_view({'post': 'hard_delete'}), name='deleted-files-hard-delete'),
     
     # User and Group search for file sharing
-    path('api/users/search/', views.UserSearchView.as_view(), name='user-search'),
-    path('api/groups/search/', views.GroupSearchView.as_view(), name='group-search'),
+    path('api/search/users/', views.UserSearchView.as_view(), name='user-search'),
+    path('api/search/groups/', views.GroupSearchView.as_view(), name='group-search'),
     
     # OnlyOffice Document Server integration
     path('api/office/settings/', office_views.get_onlyoffice_settings, name='office-settings'),

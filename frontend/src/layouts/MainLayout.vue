@@ -195,8 +195,17 @@ const userInitials = computed(() => {
 
 const currentRoute = computed(() => router.currentRoute.value)
 const currentDirectoryId = computed(() => {
-  const parentId = currentRoute.value.query.parent_id
-  return parentId ? Number(parentId) : null
+  // Check if we're on the Files route and get parent_id from query
+  if (currentRoute.value.name === 'Files') {
+    const parentId = currentRoute.value.query.parent_id
+    console.log('Files route - Parent ID from query:', parentId)
+    return parentId ? Number(parentId) : null
+  }
+  
+  // For other routes, check params
+  const paramsId = currentRoute.value.params.id
+  console.log('Other route - ID from params:', paramsId)
+  return paramsId ? Number(paramsId) : null
 })
 
 const currentPath = computed(() => {
