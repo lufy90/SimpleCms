@@ -157,6 +157,7 @@ class FileItemSerializer(serializers.ModelSerializer):
     can_share = serializers.SerializerMethodField()
     can_admin = serializers.SerializerMethodField()
     effective_permissions = serializers.SerializerMethodField()
+    url = serializers.SerializerMethodField()
     
     # New fields for UUID-based system
     thumbnail = serializers.SerializerMethodField()
@@ -168,11 +169,11 @@ class FileItemSerializer(serializers.ModelSerializer):
             'id', 'name', 'item_type', 'parent', 'parents', 'created_at', 'updated_at',
             'owner', 'visibility', 'shared_users', 'shared_groups', 'children_count', 'tags', 
             'file_info', 'permissions', 'can_read', 'can_write', 'can_delete', 
-            'can_share', 'can_admin', 'effective_permissions', 'thumbnail', 'sharing_status'
+            'can_share', 'can_admin', 'effective_permissions', 'thumbnail', 'sharing_status', 'url'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'owner', 'children_count', 
                            'tags', 'file_info', 'permissions', 'can_read', 'can_write', 
-                           'can_delete', 'can_share', 'can_admin', 'effective_permissions']
+                           'can_delete', 'can_share', 'can_admin', 'effective_permissions', 'url']
     
     def get_parents(self, obj):
         """Build parent hierarchy for breadcrumb navigation - only for user's own files"""
@@ -289,9 +290,16 @@ class FileItemSerializer(serializers.ModelSerializer):
             
             # Add URL if request context is available
             if request:
-                thumbnail_data['url'] = f'/api/files/{obj.id}/thumbnail/'
+                thumbnail_data['url'] = request.build_absolute_uri(f'/api/files/{obj.id}/thumbnail/')
             
             return thumbnail_data
+        return None
+    
+    def get_url(self, obj):
+        """Get the URL for the file"""
+        request = self.context.get('request')
+        if request and obj.item_type == 'file':
+            return request.build_absolute_uri(f'/api/files/{obj.id}/download/')
         return None
     
     def to_representation(self, instance):

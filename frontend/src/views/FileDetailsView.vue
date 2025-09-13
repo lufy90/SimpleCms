@@ -76,7 +76,7 @@
           v-else-if="fileType === 'text' && fileContent !== null"
           :content="fileContent"
           :filename="file.name"
-          :mime-type="file.storage?.mime_type"
+          :mime-type="file.file_info?.mime_type"
           :file-id="file.id"
           @content-updated="handleContentUpdated"
         />
@@ -157,12 +157,11 @@ interface FileItem {
   item_type: 'file' | 'directory'
   parent?: number | null
   created_at: string
-  storage?: {
-    mime_type?: string
-  }
   file_info?: {
     size?: number
+    mime_type?: string
   }
+  url?: string
 }
 
 interface Props {
@@ -191,7 +190,7 @@ const fileType = computed(() => {
     return 'office'
   }
 
-  const mimeType = file.value.storage?.mime_type || ''
+  const mimeType = file.value.file_info?.mime_type || ''
   const fileName = file.value.name.toLowerCase()
 
   // Image types
@@ -311,7 +310,12 @@ const loadFile = async () => {
       const response = await filesAPI.download(file.value!.id)
       const blob = new Blob([response.data])
       fileContent.value = URL.createObjectURL(blob)
-    } else {
+    } else if (fileType.value==='pdf'){
+      const response = await filesAPI.download(file.value!.id)
+      const blob = new Blob([response.data], { type: "application/pdf" })
+      fileContent.value = URL.createObjectURL(blob)
+    }
+    else {
       // For text-based files, get as text
       const response = await filesAPI.download(file.value!.id)
       const text = await response.data.text()
@@ -367,9 +371,14 @@ const handleDownload = async () => {
 const handleOpenInNewTab = () => {
   if (!file.value) return
 
-  // Open file in new tab using the dedicated file viewer route
-  const fileViewerUrl = `/view/${file.value.id}`
-  window.open(fileViewerUrl, '_blank')
+  if (file.value.file_info?.mime_type === 'application/pdf') {
+    // Open file in new tab using download url
+    window.open(file.value.url, '_blank')
+  } else {
+    // Open file in new tab using the dedicated file viewer route
+    const fileViewerUrl = `/view/${file.value.id}`
+    window.open(fileViewerUrl, '_blank')
+  }
 }
 
 const handleContentUpdated = (newContent: string) => {

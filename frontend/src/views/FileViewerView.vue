@@ -44,7 +44,7 @@
         />
 
         <!-- PDF Viewer -->
-        <PDFViewer
+        <PDFViewerSimple
           v-else-if="fileType === 'pdf' && fileContent"
           :src="fileContent"
           :filename="file?.name || ''"
@@ -118,7 +118,7 @@ import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
 import ImageViewer from '@/components/readers/ImageViewer.vue'
-import PDFViewer from '@/components/readers/PDFViewer.vue'
+import PDFViewerSimple from '@/components/readers/PDFViewerSimple.vue'
 import TextViewer from '@/components/readers/TextViewer.vue'
 import JSONViewer from '@/components/readers/JSONViewer.vue'
 import CodeViewer from '@/components/readers/CodeViewer.vue'
@@ -296,7 +296,13 @@ const loadFile = async () => {
     const currentFileType = fileType.value
     if (currentFileType !== 'office') {
       const contentResponse = await filesAPI.download(parseInt(fileId))
-      const blob = new Blob([contentResponse.data])
+      var blob;
+      if (currentFileType === 'pdf') {
+        blob = new Blob([contentResponse.data], { type: "application/pdf" })
+      } else {
+        blob = new Blob([contentResponse.data])
+      }
+      
       const objectUrl = URL.createObjectURL(blob)
       fileContent.value = objectUrl
 

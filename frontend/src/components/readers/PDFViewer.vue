@@ -23,7 +23,10 @@
         <iframe
           :src="pdfUrl"
           class="pdf-iframe"
-          :style="{ transform: `scale(${scale})` }"
+          :style="{ 
+            transform: `scale(${scale})`,
+            height: iframeHeight
+          }"
           @load="onPdfLoad"
           @error="onPdfError"
         />
@@ -33,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Document, ZoomIn, ZoomOut, Warning } from '@element-plus/icons-vue'
 
 interface Props {
@@ -46,10 +49,20 @@ const props = defineProps<Props>()
 // State
 const scale = ref(1)
 const error = ref<string | null>(null)
+const windowHeight = ref(window.innerHeight)
 
 // Computed
 const pdfUrl = computed(() => {
   return `${props.src}#toolbar=1&navpanes=1&scrollbar=1`
+})
+
+const iframeHeight = computed(() => {
+  // Calculate height based on viewport, accounting for header and controls
+  const headerHeight = 60 // Approximate header height
+  const controlsHeight = 50 // PDF controls height
+  const padding = 100 // Additional padding
+  
+  return `${windowHeight.value - headerHeight - controlsHeight - padding}px`
 })
 
 // Methods
@@ -80,6 +93,20 @@ const onPdfLoad = () => {
 const onPdfError = () => {
   error.value = 'Failed to load PDF. Your browser may not support PDF viewing.'
 }
+
+// Window resize handler
+const handleResize = () => {
+  windowHeight.value = window.innerHeight
+}
+
+// Lifecycle
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
 </script>
 
 <style scoped>
@@ -134,12 +161,11 @@ const onPdfError = () => {
   align-items: center;
   justify-content: center;
   min-height: 100%;
-  padding: 20px;
+  padding: 0;
 }
 
 .pdf-iframe {
   width: 100%;
-  height: 600px;
   border: none;
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);

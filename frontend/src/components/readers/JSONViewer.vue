@@ -349,7 +349,7 @@ const cancelEdit = async () => {
 
 .json-editor {
   width: 100%;
-  min-height: 1.5em;
+  min-height: 100%;
   padding: 12px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 13px;

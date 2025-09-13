@@ -56,9 +56,17 @@
                 <el-icon><Document /></el-icon>
                 Text File
               </el-dropdown-item>
-              <el-dropdown-item command="office" divided>
-                <el-icon><Document /></el-icon>
-                Office Document
+              <el-dropdown-item command="word" divided>
+                <el-icon style="color: #409EFF;"><Document /></el-icon>
+                Word Document
+              </el-dropdown-item>
+              <el-dropdown-item command="excel">
+                <el-icon style="color: #67C23A;"><Document /></el-icon>
+                Excel Spreadsheet
+              </el-dropdown-item>
+              <el-dropdown-item command="powerpoint">
+                <el-icon style="color: #F56C6C;"><Document /></el-icon>
+                PowerPoint Presentation
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -913,7 +921,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { useFilesStore, type FileItem } from '@/stores/files'
 import { uploadAPI, filesAPI } from '@/services/api'
 import {
-  Grid,
   List,
   Menu,
   Picture,
@@ -1560,8 +1567,14 @@ const handleCreateCommand = (command: string) => {
     case 'text':
       showCreateTextFileDialog()
       break
-    case 'office':
-      showCreateOfficeDocumentDialog()
+    case 'word':
+      showCreateWordDocumentDialog()
+      break
+    case 'excel':
+      showCreateExcelDocumentDialog()
+      break
+    case 'powerpoint':
+      showCreatePowerPointDocumentDialog()
       break
   }
 }
@@ -1599,8 +1612,8 @@ const showCreateTextFileDialog = () => {
     })
 }
 
-const showCreateOfficeDocumentDialog = () => {
-  ElMessageBox.prompt('Enter document name:', 'Create Office Document', {
+const showCreateWordDocumentDialog = () => {
+  ElMessageBox.prompt('Enter document name:', 'Create Word Document', {
     confirmButtonText: 'Create',
     cancelButtonText: 'Cancel',
     inputPattern: /^[^\/\\]+$/,
@@ -1611,30 +1624,97 @@ const showCreateOfficeDocumentDialog = () => {
       if (value) {
         try {
           const parentId = currentDirectory.value?.id
-
-          // Determine document type from extension
-          let documentType = 'docx'
-          if (value.endsWith('.xlsx')) {
-            documentType = 'xlsx'
-          } else if (value.endsWith('.pptx')) {
-            documentType = 'pptx'
-          } else if (!value.endsWith('.docx')) {
-            value += '.docx' // Default to Word document
+          if (!value.endsWith('.docx')) {
+            value += '.docx'
           }
 
           const response = await filesAPI.createOfficeDocument({
             name: value,
-            document_type: documentType as 'docx' | 'xlsx' | 'pptx',
+            document_type: 'docx',
             parent_id: parentId,
             visibility: 'private',
           })
 
           if (response.data) {
-            ElMessage.success(`${documentType.toUpperCase()} document created successfully`)
+            ElMessage.success('Word document created successfully')
             await refreshFiles()
           }
         } catch (error: any) {
-          ElMessage.error(error.response?.data?.error || 'Failed to create office document')
+          ElMessage.error(error.response?.data?.error || 'Failed to create Word document')
+        }
+      }
+    })
+    .catch(() => {
+      // User cancelled
+    })
+}
+
+const showCreateExcelDocumentDialog = () => {
+  ElMessageBox.prompt('Enter spreadsheet name:', 'Create Excel Spreadsheet', {
+    confirmButtonText: 'Create',
+    cancelButtonText: 'Cancel',
+    inputPattern: /^[^\/\\]+$/,
+    inputErrorMessage: 'Document name cannot contain slashes or backslashes',
+    inputPlaceholder: 'my-spreadsheet.xlsx',
+  })
+    .then(async ({ value }) => {
+      if (value) {
+        try {
+          const parentId = currentDirectory.value?.id
+          if (!value.endsWith('.xlsx')) {
+            value += '.xlsx'
+          }
+
+          const response = await filesAPI.createOfficeDocument({
+            name: value,
+            document_type: 'xlsx',
+            parent_id: parentId,
+            visibility: 'private',
+          })
+
+          if (response.data) {
+            ElMessage.success('Excel spreadsheet created successfully')
+            await refreshFiles()
+          }
+        } catch (error: any) {
+          ElMessage.error(error.response?.data?.error || 'Failed to create Excel spreadsheet')
+        }
+      }
+    })
+    .catch(() => {
+      // User cancelled
+    })
+}
+
+const showCreatePowerPointDocumentDialog = () => {
+  ElMessageBox.prompt('Enter presentation name:', 'Create PowerPoint Presentation', {
+    confirmButtonText: 'Create',
+    cancelButtonText: 'Cancel',
+    inputPattern: /^[^\/\\]+$/,
+    inputErrorMessage: 'Document name cannot contain slashes or backslashes',
+    inputPlaceholder: 'my-presentation.pptx',
+  })
+    .then(async ({ value }) => {
+      if (value) {
+        try {
+          const parentId = currentDirectory.value?.id
+          if (!value.endsWith('.pptx')) {
+            value += '.pptx'
+          }
+
+          const response = await filesAPI.createOfficeDocument({
+            name: value,
+            document_type: 'pptx',
+            parent_id: parentId,
+            visibility: 'private',
+          })
+
+          if (response.data) {
+            ElMessage.success('PowerPoint presentation created successfully')
+            await refreshFiles()
+          }
+        } catch (error: any) {
+          ElMessage.error(error.response?.data?.error || 'Failed to create PowerPoint presentation')
         }
       }
     })

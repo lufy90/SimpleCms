@@ -280,12 +280,15 @@ const loadFileContent = async () => {
   error.value = null
   fileContent.value = null
 
+  console.log('fileType:',fileType.value)
+
   try {
-    if (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio') {
+    if (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio' || fileType.value == 'pdf') {
       // For media files, create object URL from blob
       const response = await filesAPI.download(props.file.id)
       const blob = new Blob([response.data])
       fileContent.value = URL.createObjectURL(blob)
+      console.log('xxxxxxxxxxxxxxxxxxxxxxxxxurl:',fileContent.value)
     } else {
       // For text-based files, get as text
       const response = await filesAPI.download(props.file.id)
