@@ -48,6 +48,7 @@ interface FileItem {
   id: number
   name: string
   item_type: 'file' | 'directory'
+  mime_type?: string
   file_info?: {
     mime_type?: string
     size?: number
