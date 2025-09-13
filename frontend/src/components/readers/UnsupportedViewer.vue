@@ -48,10 +48,8 @@ interface FileItem {
   id: number
   name: string
   item_type: 'file' | 'directory'
-  storage?: {
-    mime_type?: string
-  }
   file_info?: {
+    mime_type?: string
     size?: number
   }
 }
@@ -70,7 +68,7 @@ defineEmits<{
 const getFileType = () => {
   if (!props.file) return 'Unknown'
 
-  const mimeType = props.file.storage?.mime_type
+  const mimeType = props.file.mime_type || props.file.file_info?.mime_type
   if (mimeType) {
     return mimeType
   }

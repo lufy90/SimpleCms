@@ -71,7 +71,9 @@ interface FileItem {
     created_at: string
     url: string
   } | null
-  storage?: {
+  mime_type?: string
+  extension?: string
+  file_info?: {
     mime_type?: string
   }
 }
@@ -105,7 +107,7 @@ const detectFileType = (file: FileItem) => {
     return docType || 'office'
   }
 
-  const mimeType = file.storage?.mime_type || ''
+  const mimeType = file.mime_type || file.file_info?.mime_type || ''
   const fileName = file.name.toLowerCase()
 
   // Image types

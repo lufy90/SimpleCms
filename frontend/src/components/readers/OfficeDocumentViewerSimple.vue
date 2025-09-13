@@ -84,7 +84,10 @@ const getDocumentType = () => {
   if (!props.file) return 'Document'
 
   const extension =
-    props.file.storage?.extension || props.file.name.split('.').pop()?.toLowerCase() || ''
+    props.file.extension ||
+    props.file.file_info?.extension ||
+    props.file.name.split('.').pop()?.toLowerCase() ||
+    ''
 
   const typeMap: Record<string, string> = {
     docx: 'Word Document',

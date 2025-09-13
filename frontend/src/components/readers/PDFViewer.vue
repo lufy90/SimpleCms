@@ -23,9 +23,9 @@
         <iframe
           :src="pdfUrl"
           class="pdf-iframe"
-          :style="{ 
+          :style="{
             transform: `scale(${scale})`,
-            height: iframeHeight
+            height: iframeHeight,
           }"
           @load="onPdfLoad"
           @error="onPdfError"
@@ -61,7 +61,7 @@ const iframeHeight = computed(() => {
   const headerHeight = 60 // Approximate header height
   const controlsHeight = 50 // PDF controls height
   const padding = 100 // Additional padding
-  
+
   return `${windowHeight.value - headerHeight - controlsHeight - padding}px`
 })
 

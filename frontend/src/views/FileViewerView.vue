@@ -44,11 +44,12 @@
         />
 
         <!-- PDF Viewer -->
-        <PDFViewerSimple
+        <!-- We now open pdf in browser instead of using PDFViewerSimple -->
+        <!-- <PDFViewerSimple
           v-else-if="fileType === 'pdf' && fileContent"
           :src="fileContent"
           :filename="file?.name || ''"
-        />
+        -->
 
         <!-- Text Viewer -->
         <TextViewer
@@ -118,7 +119,6 @@ import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
 import ImageViewer from '@/components/readers/ImageViewer.vue'
-import PDFViewerSimple from '@/components/readers/PDFViewerSimple.vue'
 import TextViewer from '@/components/readers/TextViewer.vue'
 import JSONViewer from '@/components/readers/JSONViewer.vue'
 import CodeViewer from '@/components/readers/CodeViewer.vue'
@@ -132,11 +132,11 @@ interface FileItem {
   id: number
   name: string
   item_type: 'file' | 'directory'
-  storage?: {
+  mime_type?: string
+  extension?: string
+  file_info?: {
     mime_type?: string
     extension?: string
-  }
-  file_info?: {
     size?: number
   }
 }
@@ -162,8 +162,8 @@ const fileType = computed(() => {
     return 'office'
   }
 
-  const mimeType = file.value.storage?.mime_type || ''
-  const extension = file.value.storage?.extension || ''
+  const mimeType = file.value.mime_type || file.value.file_info?.mime_type || ''
+  const extension = file.value.extension || file.value.file_info?.extension || ''
   const fileName = file.value.name.toLowerCase()
 
   // Image files
@@ -296,13 +296,13 @@ const loadFile = async () => {
     const currentFileType = fileType.value
     if (currentFileType !== 'office') {
       const contentResponse = await filesAPI.download(parseInt(fileId))
-      var blob;
+      var blob
       if (currentFileType === 'pdf') {
-        blob = new Blob([contentResponse.data], { type: "application/pdf" })
+        blob = new Blob([contentResponse.data], { type: 'application/pdf' })
       } else {
         blob = new Blob([contentResponse.data])
       }
-      
+
       const objectUrl = URL.createObjectURL(blob)
       fileContent.value = objectUrl
 
@@ -352,12 +352,12 @@ const retry = () => {
 const getFileType = () => {
   if (!file.value) return 'Unknown'
 
-  const mimeType = file.value.storage?.mime_type
+  const mimeType = file.value.mime_type || file.value.file_info?.mime_type
   if (mimeType) {
     return mimeType
   }
 
-  const extension = file.value.storage?.extension
+  const extension = file.value.extension || file.value.file_info?.extension
   if (extension) {
     return extension.toUpperCase()
   }

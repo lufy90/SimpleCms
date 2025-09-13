@@ -57,15 +57,15 @@
                 Text File
               </el-dropdown-item>
               <el-dropdown-item command="word" divided>
-                <el-icon style="color: #409EFF;"><Document /></el-icon>
+                <el-icon style="color: #409eff"><Document /></el-icon>
                 Word Document
               </el-dropdown-item>
               <el-dropdown-item command="excel">
-                <el-icon style="color: #67C23A;"><Document /></el-icon>
+                <el-icon style="color: #67c23a"><Document /></el-icon>
                 Excel Spreadsheet
               </el-dropdown-item>
               <el-dropdown-item command="powerpoint">
-                <el-icon style="color: #F56C6C;"><Document /></el-icon>
+                <el-icon style="color: #f56c6c"><Document /></el-icon>
                 PowerPoint Presentation
               </el-dropdown-item>
             </el-dropdown-menu>
@@ -1814,8 +1814,8 @@ const handleSearch = async (value: string) => {
 
 // Image file detection
 const isImageFile = (file: any): boolean => {
-  const mimeType = file.storage?.mime_type || ''
-  const extension = file.storage?.extension || ''
+  const mimeType = file.mime_type || file.file_info?.mime_type || ''
+  const extension = file.extension || file.file_info?.extension || ''
   const fileName = file.name.toLowerCase()
 
   // Check by MIME type
@@ -1823,7 +1823,7 @@ const isImageFile = (file: any): boolean => {
     return true
   }
 
-  // Check by file extension from storage
+  // Check by file extension from file_info
   if (extension && /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(extension)) {
     return true
   }
@@ -1983,7 +1983,7 @@ const handleFileClick = async (file: any) => {
 const openFileInBrowser = async (file: any) => {
   try {
     // Check if file type can be displayed in browser
-    const mimeType = file.storage?.mime_type || ''
+    const mimeType = file.mime_type || file.file_info?.mime_type || ''
     const fileName = file.name.toLowerCase()
 
     // Define file types that can be opened in browser

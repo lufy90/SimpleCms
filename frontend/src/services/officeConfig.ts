@@ -65,7 +65,6 @@ const officeDocumentTypes = {
       'application/msword',
       'application/vnd.oasis.opendocument.text',
       'application/rtf',
-      'text/plain',
     ],
   },
   excel: {
@@ -93,8 +92,8 @@ const officeDocumentTypes = {
 const isOfficeDocument = (file: any): boolean => {
   if (!file) return false
 
-  const mimeType = file.storage?.mime_type || ''
-  const extension = file.storage?.extension || ''
+  const mimeType = file.mime_type || file.file_info?.mime_type || ''
+  const extension = file.extension || file.file_info?.extension || ''
   const fileName = file.name.toLowerCase()
 
   // Check by MIME type
@@ -118,8 +117,8 @@ const isOfficeDocument = (file: any): boolean => {
 const getDocumentType = (file: any): string | null => {
   if (!file) return null
 
-  const mimeType = file.storage?.mime_type || ''
-  const extension = file.storage?.extension || ''
+  const mimeType = file.mime_type || file.file_info?.mime_type || ''
+  const extension = file.extension || file.file_info?.extension || ''
   const fileName = file.name.toLowerCase()
 
   // Check by MIME type first

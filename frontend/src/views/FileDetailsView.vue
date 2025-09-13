@@ -310,12 +310,11 @@ const loadFile = async () => {
       const response = await filesAPI.download(file.value!.id)
       const blob = new Blob([response.data])
       fileContent.value = URL.createObjectURL(blob)
-    } else if (fileType.value==='pdf'){
+    } else if (fileType.value === 'pdf') {
       const response = await filesAPI.download(file.value!.id)
-      const blob = new Blob([response.data], { type: "application/pdf" })
+      const blob = new Blob([response.data], { type: 'application/pdf' })
       fileContent.value = URL.createObjectURL(blob)
-    }
-    else {
+    } else {
       // For text-based files, get as text
       const response = await filesAPI.download(file.value!.id)
       const text = await response.data.text()

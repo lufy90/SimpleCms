@@ -40,7 +40,7 @@
         v-else-if="fileType === 'text' && fileContent !== null"
         :content="fileContent"
         :filename="file?.name || 'File'"
-        :mime-type="file?.storage?.mime_type"
+        :mime-type="file?.mime_type || file?.file_info?.mime_type"
         :file-id="file?.id"
         @content-updated="handleContentUpdated"
       />
@@ -131,10 +131,10 @@ interface FileItem {
   id: number
   name: string
   item_type: 'file' | 'directory'
-  storage?: {
-    mime_type?: string
-  }
+  mime_type?: string
+  extension?: string
   file_info?: {
+    mime_type?: string
     size?: number
   }
 }
@@ -172,7 +172,7 @@ const fileType = computed(() => {
     return 'office'
   }
 
-  const mimeType = props.file.storage?.mime_type || ''
+  const mimeType = props.file.mime_type || props.file.file_info?.mime_type || ''
   const fileName = props.file.name.toLowerCase()
 
   // Image types
@@ -280,15 +280,20 @@ const loadFileContent = async () => {
   error.value = null
   fileContent.value = null
 
-  console.log('fileType:',fileType.value)
+  console.log('fileType:', fileType.value)
 
   try {
-    if (fileType.value === 'image' || fileType.value === 'video' || fileType.value === 'audio' || fileType.value == 'pdf') {
+    if (
+      fileType.value === 'image' ||
+      fileType.value === 'video' ||
+      fileType.value === 'audio' ||
+      fileType.value == 'pdf'
+    ) {
       // For media files, create object URL from blob
       const response = await filesAPI.download(props.file.id)
       const blob = new Blob([response.data])
       fileContent.value = URL.createObjectURL(blob)
-      console.log('xxxxxxxxxxxxxxxxxxxxxxxxxurl:',fileContent.value)
+      console.log('xxxxxxxxxxxxxxxxxxxxxxxxxurl:', fileContent.value)
     } else {
       // For text-based files, get as text
       const response = await filesAPI.download(props.file.id)

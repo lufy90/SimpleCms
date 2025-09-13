@@ -57,6 +57,8 @@ export interface FileItem {
     modified: number
     accessed: number
     permissions: string
+    mime_type?: string
+    extension?: string
   }
   permissions: string[]
   can_read: boolean
