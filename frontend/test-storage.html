@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Storage Test</title>
+</head>
+<body>
+    <h1>Storage System Test</h1>
+    <div id="output"></div>
+    
+    <script type="module">
+        // Simulate the storage system
+        import Cookies from 'js-cookie';
+        
+        // Check if we're running in Electron
+        const isElectron = () => {
+            const hasElectronProcess = typeof window !== 'undefined' && 
+                   window.process && 
+                   window.process.type === 'renderer';
+            
+            const hasElectronAPI = typeof window !== 'undefined' && 
+                   window.electronAPI;
+            
+            const hasElectronEnv = typeof window !== 'undefined' && 
+                   window.navigator && 
+                   window.navigator.userAgent && 
+                   window.navigator.userAgent.includes('Electron');
+            
+            return hasElectronProcess || hasElectronAPI || hasElectronEnv;
+        };
+        
+        // Storage implementations
+        const webStorage = {
+            get: (key) => {
+                const value = Cookies.get(key);
+                console.log(`[Web Storage] GET ${key}:`, value ? '***' : 'undefined');
+                return value;
+            },
+            set: (key, value, options) => {
+                Cookies.set(key, value, options);
+                console.log(`[Web Storage] SET ${key}:`, '***');
+            },
+            remove: (key) => {
+                Cookies.remove(key);
+                console.log(`[Web Storage] REMOVE ${key}`);
+            }
+        };
+        
+        const electronStorage = {
+            get: (key) => {
+                try {
+                    const value = localStorage.getItem(key) || undefined;
+                    console.log(`[Electron Storage] GET ${key}:`, value ? '***' : 'undefined');
+                    return value;
+                } catch (error) {
+                    console.error('Failed to get item from localStorage:', error);
+                    return undefined;
+                }
+            },
+            set: (key, value, options) => {
+                try {
+                    localStorage.setItem(key, value);
+                    console.log(`[Electron Storage] SET ${key}:`, '***');
+                } catch (error) {
+                    console.error('Failed to set item in localStorage:', error);
+                }
+            },
+            remove: (key) => {
+                try {
+                    localStorage.removeItem(key);
+                    console.log(`[Electron Storage] REMOVE ${key}`);
+                } catch (error) {
+                    console.error('Failed to remove item from localStorage:', error);
+                }
+            }
+        };
+        
+        // Choose storage
+        const storage = (() => {
+            const isElectronEnv = isElectron();
+            console.log('[Storage] Using storage type:', isElectronEnv ? 'localStorage (Electron)' : 'cookies (Web)');
+            
+            if (isElectronEnv) {
+                return electronStorage;
+            }
+            
+            try {
+                const testKey = '__storage_test__';
+                webStorage.set(testKey, 'test');
+                const testValue = webStorage.get(testKey);
+                webStorage.remove(testKey);
+                
+                if (testValue === 'test') {
+                    console.log('[Storage] Cookies working, using web storage');
+                    return webStorage;
+                } else {
+                    console.log('[Storage] Cookies not working, falling back to localStorage');
+                    return electronStorage;
+                }
+            } catch (error) {
+                console.log('[Storage] Cookies failed, falling back to localStorage:', error);
+                return electronStorage;
+            }
+        })();
+        
+        // Test the storage
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            console.log(message);
+            output.innerHTML += '<p>' + message + '</p>';
+        }
+        
+        log('Environment detection:');
+        log('- hasWindow: ' + (typeof window !== 'undefined'));
+        log('- hasProcess: ' + !!(window.process));
+        log('- processType: ' + (window.process?.type || 'undefined'));
+        log('- hasElectronAPI: ' + !!window.electronAPI);
+        log('- userAgent: ' + (window.navigator?.userAgent || 'undefined'));
+        log('- isElectron: ' + isElectron());
+        
+        log('\nTesting storage...');
+        
+        // Test setting and getting
+        storage.set('test_key', 'test_value');
+        const retrieved = storage.get('test_key');
+        log('Retrieved value: ' + retrieved);
+        
+        // Test removal
+        storage.remove('test_key');
+        const afterRemoval = storage.get('test_key');
+        log('After removal: ' + (afterRemoval || 'undefined'));
+        
+        log('\nStorage test completed!');
+    </script>
+</body>
+</html>

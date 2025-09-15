@@ -16,8 +16,17 @@ export default defineConfig({
     },
   },
   server: {
-          port: 3000,
-          //host: "localhost",
-          host: "0.0.0.0"
+    port: 3001, // Changed to 3001 to match Electron main.js
+    host: "0.0.0.0"
   },
+  base: './', // Important for Electron file:// protocol
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined
+      }
+    }
+  }
 })

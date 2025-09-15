@@ -12,6 +12,11 @@ import router from './router'
 import i18n from './i18n'
 import { useThemeStore } from './stores/theme'
 
+// Import debug utilities in development
+if (import.meta.env.DEV) {
+  import('./utils/debug')
+}
+
 const app = createApp(App)
 
 // Register Element Plus icons

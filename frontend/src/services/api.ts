@@ -1,5 +1,5 @@
 import axios from 'axios'
-import Cookies from 'js-cookie'
+import { tokenStorage } from '@/utils/storage'
 
 // Create axios instance
 const api = axios.create({
@@ -17,9 +17,14 @@ const uploadApi = axios.create({
 const addAuthInterceptor = (axiosInstance: typeof api) => {
   axiosInstance.interceptors.request.use(
     (config) => {
-      const token = Cookies.get('access_token')
+      const token = tokenStorage.getAccessToken()
+      console.log('[API Interceptor] Request to:', config.url)
+      console.log('[API Interceptor] Token available:', !!token)
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
+        console.log('[API Interceptor] Authorization header set')
+      } else {
+        console.log('[API Interceptor] No token available, request will be unauthenticated')
       }
       return config
     },
@@ -43,8 +48,7 @@ const addResponseInterceptor = (axiosInstance: typeof api) => {
       // Don't retry refresh token requests to avoid infinite loops
       if (originalRequest.url?.includes('/api/auth/refresh/')) {
         // If refresh token request fails, clear tokens and redirect to login
-        Cookies.remove('access_token')
-        Cookies.remove('refresh_token')
+        tokenStorage.removeAllTokens()
         window.location.href = '/login'
         return Promise.reject(error)
       }
@@ -53,7 +57,7 @@ const addResponseInterceptor = (axiosInstance: typeof api) => {
         originalRequest._retry = true
 
         try {
-          const refreshToken = Cookies.get('refresh_token')
+          const refreshToken = tokenStorage.getRefreshToken()
           if (refreshToken) {
             // Use a separate axios instance for refresh to avoid interceptor loops
             const refreshResponse = await axios.post(
@@ -68,23 +72,21 @@ const addResponseInterceptor = (axiosInstance: typeof api) => {
             )
 
             const { access, refresh } = refreshResponse.data
-            Cookies.set('access_token', access, { expires: 1 / 24 }) // 1 hour
-            Cookies.set('refresh_token', refresh, { expires: 7 }) // 7 days
+            tokenStorage.setAccessToken(access)
+            tokenStorage.setRefreshToken(refresh)
 
             originalRequest.headers.Authorization = `Bearer ${access}`
             return axiosInstance(originalRequest)
           } else {
             // No refresh token available, redirect to login
-            Cookies.remove('access_token')
-            Cookies.remove('refresh_token')
+            tokenStorage.removeAllTokens()
             window.location.href = '/login'
             return Promise.reject(error)
           }
         } catch (refreshError) {
           // Refresh failed, clear tokens and redirect to login
           console.error('Token refresh failed:', refreshError)
-          Cookies.remove('access_token')
-          Cookies.remove('refresh_token')
+          tokenStorage.removeAllTokens()
           window.location.href = '/login'
           return Promise.reject(refreshError)
         }
@@ -101,8 +103,8 @@ addResponseInterceptor(uploadApi)
 
 // Utility function to check and clean up invalid tokens
 export const cleanupInvalidTokens = () => {
-  const accessToken = Cookies.get('access_token')
-  const refreshToken = Cookies.get('refresh_token')
+  const accessToken = tokenStorage.getAccessToken()
+  const refreshToken = tokenStorage.getRefreshToken()
 
   // If we have tokens, try to validate them
   if (accessToken || refreshToken) {
@@ -113,12 +115,12 @@ export const cleanupInvalidTokens = () => {
         const now = Math.floor(Date.now() / 1000)
         if (payload.exp < now) {
           // Access token is expired, remove it
-          Cookies.remove('access_token')
+          tokenStorage.removeAccessToken()
         }
       }
     } catch (error) {
       // Token is malformed, remove it
-      Cookies.remove('access_token')
+      tokenStorage.removeAccessToken()
     }
 
     try {
@@ -127,12 +129,12 @@ export const cleanupInvalidTokens = () => {
         const now = Math.floor(Date.now() / 1000)
         if (payload.exp < now) {
           // Refresh token is expired, remove it
-          Cookies.remove('refresh_token')
+          tokenStorage.removeRefreshToken()
         }
       }
     } catch (error) {
       // Token is malformed, remove it
-      Cookies.remove('refresh_token')
+      tokenStorage.removeRefreshToken()
     }
   }
 }

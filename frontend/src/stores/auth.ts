@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import Cookies from 'js-cookie'
+import { tokenStorage } from '@/utils/storage'
 import { authAPI, cleanupInvalidTokens } from '@/services/api'
 import { toast } from 'vue3-toastify'
 
@@ -46,9 +46,11 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await authAPI.login(credentials)
       const { access, refresh, user: userData } = response.data
 
-      // Store tokens in cookies
-      Cookies.set('access_token', access, { expires: 1 / 24 }) // 1 hour
-      Cookies.set('refresh_token', refresh, { expires: 7 }) // 7 days
+      // Store tokens
+      console.log('[Auth Store] Storing tokens after login')
+      tokenStorage.setAccessToken(access)
+      tokenStorage.setRefreshToken(refresh)
+      console.log('[Auth Store] Tokens stored successfully')
 
       // Update state
       user.value = userData
@@ -77,9 +79,9 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await authAPI.register(userData)
       const { access, refresh, user: newUser } = response.data
 
-      // Store tokens in cookies
-      Cookies.set('access_token', access, { expires: 1 / 24 })
-      Cookies.set('refresh_token', refresh, { expires: 7 })
+      // Store tokens
+      tokenStorage.setAccessToken(access)
+      tokenStorage.setRefreshToken(refresh)
 
       // Update state
       user.value = newUser
@@ -98,18 +100,17 @@ export const useAuthStore = defineStore('auth', () => {
 
   const logout = async () => {
     try {
-      const refreshToken = Cookies.get('refresh_token')
+      const refreshToken = tokenStorage.getRefreshToken()
       if (refreshToken) {
         await authAPI.logout(refreshToken)
       }
     } catch (error) {
       console.error('Logout error:', error)
     } finally {
-      // Clear state and cookies
+      // Clear state and tokens
       user.value = null
       isAuthenticated.value = false
-      Cookies.remove('access_token')
-      Cookies.remove('refresh_token')
+      tokenStorage.removeAllTokens()
       toast.success('Logged out successfully')
     }
   }
@@ -119,7 +120,7 @@ export const useAuthStore = defineStore('auth', () => {
       // Clean up any invalid tokens first
       cleanupInvalidTokens()
 
-      const accessToken = Cookies.get('access_token')
+      const accessToken = tokenStorage.getAccessToken()
       if (!accessToken) {
         return false
       }
@@ -133,8 +134,7 @@ export const useAuthStore = defineStore('auth', () => {
       console.error('Auth check failed:', error)
       user.value = null
       isAuthenticated.value = false
-      Cookies.remove('access_token')
-      Cookies.remove('refresh_token')
+      tokenStorage.removeAllTokens()
       return false
     }
   }
