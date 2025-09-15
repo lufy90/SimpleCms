@@ -4,9 +4,9 @@
       <div class="login-header">
         <div class="logo">
           <el-icon size="48" color="#409eff"><Folder /></el-icon>
-          <h1>File Manager</h1>
+          <h1>{{ $t('files.fileManager') }}</h1>
         </div>
-        <p class="subtitle">Sign in to access your files</p>
+        <p class="subtitle">{{ $t('auth.signInToAccess') }}</p>
       </div>
 
       <el-form
@@ -19,7 +19,7 @@
         <el-form-item prop="username">
           <el-input
             v-model="loginForm.username"
-            placeholder="Username"
+            :placeholder="$t('auth.username')"
             prefix-icon="User"
             size="large"
             clearable
@@ -31,7 +31,7 @@
           <el-input
             v-model="loginForm.password"
             type="password"
-            placeholder="Password"
+            :placeholder="$t('auth.password')"
             prefix-icon="Lock"
             size="large"
             show-password
@@ -48,23 +48,23 @@
             class="login-button"
             block
           >
-            Sign In
+            {{ $t('auth.signIn') }}
           </el-button>
         </el-form-item>
       </el-form>
 
       <div class="login-footer">
         <p>
-          Don't have an account?
-          <router-link to="/register" class="register-link">Sign up</router-link>
+          {{ $t('auth.dontHaveAccount') }}
+          <router-link to="/register" class="register-link">{{ $t('auth.signUp') }}</router-link>
         </p>
       </div>
 
       <!-- Demo Credentials -->
       <div class="demo-credentials" v-if="showDemoCredentials">
-        <el-divider>Demo Credentials</el-divider>
-        <div class="demo-item"><strong>Admin:</strong> admin / admin123</div>
-        <div class="demo-item"><strong>User:</strong> alice / password123</div>
+        <el-divider>{{ $t('auth.demoCredentials') }}</el-divider>
+        <div class="demo-item"><strong>{{ $t('auth.admin') }}:</strong> admin / admin123</div>
+        <div class="demo-item"><strong>{{ $t('auth.user') }}:</strong> alice / password123</div>
       </div>
     </div>
   </div>
@@ -73,12 +73,14 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { Folder, User, Lock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 // Form refs
 const loginFormRef = ref<FormInstance>()
@@ -92,12 +94,12 @@ const loginForm = reactive({
 // Form validation rules
 const loginRules: FormRules = {
   username: [
-    { required: true, message: 'Please enter username', trigger: 'blur' },
-    { min: 3, message: 'Username must be at least 3 characters', trigger: 'blur' },
+    { required: true, message: t('validation.usernameRequired'), trigger: 'blur' },
+    { min: 3, message: t('validation.usernameMinLength'), trigger: 'blur' },
   ],
   password: [
-    { required: true, message: 'Please enter password', trigger: 'blur' },
-    { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' },
+    { required: true, message: t('validation.passwordRequired'), trigger: 'blur' },
+    { min: 6, message: t('validation.passwordMinLength'), trigger: 'blur' },
   ],
 }
 

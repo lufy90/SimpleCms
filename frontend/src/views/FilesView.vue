@@ -2,7 +2,7 @@
   <div class="files-view">
     <div class="page-header">
       <div class="header-left">
-        <h1>{{ currentDirectory ? currentDirectory.name : 'Files' }}</h1>
+        <h1>{{ currentDirectory ? currentDirectory.name : $t('navigation.files') }}</h1>
       </div>
       <div class="header-actions">
         <!-- File input for multiple files -->
@@ -24,18 +24,18 @@
         <el-dropdown @command="handleUploadCommand" trigger="click">
           <el-button type="primary">
             <el-icon><Upload /></el-icon>
-            Upload
+            {{ $t('common.upload') }}
             <el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="files">
                 <el-icon><Document /></el-icon>
-                Multiple Files
+                {{ $t('files.multipleFiles') }}
               </el-dropdown-item>
               <el-dropdown-item command="directory">
                 <el-icon><Folder /></el-icon>
-                Directory Structure
+                {{ $t('files.directoryStructure') }}
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -43,37 +43,37 @@
         <el-dropdown @command="handleCreateCommand" trigger="click">
           <el-button type="success">
             <el-icon><FolderAdd /></el-icon>
-            New
+            {{ $t('common.create') }}
             <el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="directory">
                 <el-icon><FolderAdd /></el-icon>
-                New Folder
+                {{ $t('files.newFolder') }}
               </el-dropdown-item>
               <el-dropdown-item command="text">
                 <el-icon><Document /></el-icon>
-                Text File
+                {{ $t('files.textFile') }}
               </el-dropdown-item>
               <el-dropdown-item command="word" divided>
                 <el-icon style="color: #409eff"><Document /></el-icon>
-                Word Document
+                {{ $t('files.wordDocument') }}
               </el-dropdown-item>
               <el-dropdown-item command="excel">
                 <el-icon style="color: #67c23a"><Document /></el-icon>
-                Excel Spreadsheet
+                {{ $t('files.excelSpreadsheet') }}
               </el-dropdown-item>
               <el-dropdown-item command="powerpoint">
                 <el-icon style="color: #f56c6c"><Document /></el-icon>
-                PowerPoint Presentation
+                {{ $t('files.powerPointPresentation') }}
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
         <el-button @click="refreshFiles">
           <el-icon><Refresh /></el-icon>
-          Refresh
+          {{ $t('common.refresh') }}
         </el-button>
         <!-- <el-button 
           v-if="currentDirectory" 
@@ -89,28 +89,28 @@
     <!-- Bulk Operations Toolbar -->
     <div v-if="selectedFileIds.size > 0" class="bulk-operations-toolbar">
       <div class="bulk-info">
-        <span>{{ selectedFileIds.size }} item(s) selected</span>
+        <span>{{ selectedFileIds.size }} {{ $t('files.bulkOperations.itemsSelected') }}</span>
       </div>
       <div class="bulk-actions">
         <el-button @click="showCopyDialog" type="primary" size="small">
           <el-icon><CopyDocument /></el-icon>
-          Copy
+          {{ $t('common.copy') }}
         </el-button>
         <el-button @click="showMoveDialog" type="warning" size="small">
           <el-icon><Position /></el-icon>
-          Move
+          {{ $t('common.move') }}
         </el-button>
         <el-button @click="bulkDownload" type="success" size="small" :disabled="!hasSelectedFiles">
           <el-icon><Download /></el-icon>
-          Download
+          {{ $t('common.download') }}
         </el-button>
         <el-button @click="confirmDelete" type="danger" size="small">
           <el-icon><Delete /></el-icon>
-          Delete
+          {{ $t('common.delete') }}
         </el-button>
         <el-button @click="clearSelection" size="small">
           <el-icon><Close /></el-icon>
-          Clear
+          {{ $t('common.clear') }}
         </el-button>
       </div>
     </div>
@@ -135,7 +135,7 @@
     <div class="search-bar">
       <el-input
         v-model="searchQuery"
-        placeholder="Search files..."
+        :placeholder="$t('files.placeholders.searchFiles')"
         prefix-icon="Search"
         clearable
         @input="handleSearch"
@@ -149,7 +149,7 @@
           size="default"
         >
           <el-icon><Grid /></el-icon>
-          Grid
+          {{ $t('files.viewTypes.grid') }}
         </el-button>
         <el-button
           :type="viewType === 'large' ? 'primary' : 'default'"
@@ -157,7 +157,7 @@
           size="default"
         >
           <el-icon><Menu /></el-icon>
-          Large
+          {{ $t('files.viewTypes.large') }}
         </el-button>
         <el-button
           :type="viewType === 'picture' ? 'primary' : 'default'"
@@ -165,7 +165,7 @@
           size="default"
         >
           <el-icon><Picture /></el-icon>
-          Pictures
+          {{ $t('files.viewTypes.pictures') }}
         </el-button>
         <el-button
           :type="viewType === 'list' ? 'primary' : 'default'"
@@ -173,15 +173,15 @@
           size="default"
         >
           <el-icon><List /></el-icon>
-          List
+          {{ $t('files.viewTypes.list') }}
         </el-button>
       </el-button-group>
     </div>
 
     <!-- File List -->
     <div class="file-list-container">
-      <el-empty v-if="filteredFiles.length === 0 && !isLoading" description="No files found">
-        <el-button type="primary" @click="triggerFileSelection"> Upload Files </el-button>
+      <el-empty v-if="filteredFiles.length === 0 && !isLoading" :description="$t('files.noFilesFound')">
+        <el-button type="primary" @click="triggerFileSelection"> {{ $t('files.uploadFiles') }} </el-button>
       </el-empty>
 
       <!-- Large View (Picture Wall) -->
@@ -209,7 +209,7 @@
               @command="(command: string) => handleFileAction(command, file)"
               trigger="click"
             >
-              <el-button type="info" size="small" title="Actions" circle>
+              <el-button type="info" size="small" title="Actions" circle @click.stop>
                 <el-icon><More /></el-icon>
               </el-button>
               <template #dropdown>
@@ -276,7 +276,7 @@
               @command="(command: string) => handleFileAction(command, file)"
               trigger="click"
             >
-              <el-button type="info" size="small" title="Actions" circle>
+              <el-button type="info" size="small" title="Actions" circle @click.stop>
                 <el-icon><More /></el-icon>
               </el-button>
               <template #dropdown>
@@ -341,7 +341,7 @@
               @command="(command: string) => handleFileAction(command, file)"
               trigger="click"
             >
-              <el-button type="info" size="small" title="Actions" circle>
+              <el-button type="info" size="small" title="Actions" circle @click.stop>
                 <el-icon><More /></el-icon>
               </el-button>
               <template #dropdown>
@@ -398,7 +398,7 @@
 
         <el-table-column
           prop="name"
-          label="Name"
+          :label="$t('files.columns.name')"
           min-width="200"
           sortable
           :sort-method="sortByName"
@@ -411,23 +411,23 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="size" label="Size" width="120" sortable :sort-method="sortBySize">
+        <el-table-column prop="size" :label="$t('files.columns.size')" width="120" sortable :sort-method="sortBySize">
           <template #default="{ row }">
             <span v-if="row.file_info?.size">{{ formatFileSize(row.file_info.size) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="item_type" label="Type" width="100" sortable />
-        <el-table-column prop="visibility" label="Visibility" width="120" sortable>
+        <el-table-column prop="item_type" :label="$t('files.columns.type')" width="100" sortable />
+        <el-table-column prop="visibility" :label="$t('files.columns.visibility')" width="120" sortable>
           <template #default="{ row }">
             <el-tag :type="getVisibilityTagType(row.visibility)" size="small">
-              {{ row.visibility }}
+              {{ $t(`files.visibility.${row.visibility}`) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column
           prop="created_at"
-          label="Created"
+          :label="$t('files.columns.created')"
           width="180"
           sortable
           :sort-method="sortByDate"
@@ -438,14 +438,14 @@
         </el-table-column>
 
         <!-- Actions Column -->
-        <el-table-column label="Actions" width="200" fixed="right">
+        <el-table-column :label="$t('files.columns.actions')" width="200" fixed="right">
           <template #default="{ row }">
             <div class="list-actions">
               <el-button
                 type="primary"
                 size="small"
                 @click.stop="handleFileAction('copy', row)"
-                title="Copy"
+                :title="$t('common.copy')"
                 circle
               >
                 <el-icon><CopyDocument /></el-icon>
@@ -454,7 +454,7 @@
                 type="warning"
                 size="small"
                 @click.stop="handleFileAction('move', row)"
-                title="Move"
+                :title="$t('common.move')"
                 circle
               >
                 <el-icon><Position /></el-icon>
@@ -463,7 +463,7 @@
                 type="success"
                 size="small"
                 @click.stop="handleFileAction('download', row)"
-                title="Download"
+                :title="$t('common.download')"
                 :disabled="row.item_type !== 'file'"
                 circle
               >
@@ -476,9 +476,10 @@
                 <el-button
                   type="info"
                   size="small"
-                  title="More Actions"
+                  :title="$t('files.columns.actions')"
                   circle
                   style="margin-left: 12px"
+                  @click.stop
                 >
                   <el-icon><More /></el-icon>
                 </el-button>
@@ -486,19 +487,19 @@
                   <el-dropdown-menu>
                     <el-dropdown-item command="details">
                       <el-icon><Document /></el-icon>
-                      Details
+                      {{ $t('files.dialogs.fileDetails') }}
                     </el-dropdown-item>
                     <el-dropdown-item command="share" :disabled="!row.can_share">
                       <el-icon><Share /></el-icon>
-                      Share
+                      {{ $t('common.share') }}
                     </el-dropdown-item>
                     <el-dropdown-item command="rename" :disabled="!row.can_write">
                       <el-icon><Edit /></el-icon>
-                      Rename
+                      {{ $t('common.rename') }}
                     </el-dropdown-item>
                     <el-dropdown-item command="delete" divided>
                       <el-icon><Delete /></el-icon>
-                      Delete
+                      {{ $t('common.delete') }}
                     </el-dropdown-item>
                     <!-- Future operations can be added here -->
                   </el-dropdown-menu>
@@ -512,10 +513,11 @@
       <!-- List View Summary -->
       <div class="list-view-summary">
         <p class="summary-text">
-          Total: <strong>{{ filteredFiles.length }}</strong> items ({{
-            filteredFiles.filter((f) => f.item_type === 'file').length
-          }}
-          files, {{ filteredFiles.filter((f) => f.item_type === 'directory').length }} directories)
+          {{ $t('files.messages.totalItems', { 
+            total: filteredFiles.length,
+            files: filteredFiles.filter((f) => f.item_type === 'file').length,
+            directories: filteredFiles.filter((f) => f.item_type === 'directory').length
+          }) }}
         </p>
       </div>
     </div>
@@ -918,6 +920,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useFilesStore, type FileItem } from '@/stores/files'
 import { uploadAPI, filesAPI } from '@/services/api'
 import {
@@ -957,6 +960,7 @@ const props = withDefaults(defineProps<Props>(), {
 const router = useRouter()
 const route = useRoute()
 const filesStore = useFilesStore()
+const { t } = useI18n()
 
 // State
 const viewType = ref<'grid' | 'large' | 'picture' | 'list'>('list')

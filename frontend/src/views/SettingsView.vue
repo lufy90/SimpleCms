@@ -1,58 +1,58 @@
 <template>
   <div class="settings-container">
     <div class="settings-header">
-      <h1>Settings</h1>
-      <p>Manage users, groups</p>
+      <h1>{{ $t('settings.title') }}</h1>
+      <p>{{ $t('settings.subtitle') }}</p>
     </div>
 
     <el-tabs v-model="activeTab" class="settings-tabs">
       <!-- Theme Settings Tab -->
-      <el-tab-pane label="Theme Settings" name="theme">
+      <el-tab-pane :label="$t('settings.tabs.themeSettings')" name="theme">
         <div class="tab-content">
           <div class="section-header">
-            <h2>Appearance</h2>
+            <h2>{{ $t('settings.theme.appearance') }}</h2>
           </div>
 
           <div class="theme-settings">
             <div class="setting-item">
               <div class="setting-label">
-                <h3>Theme</h3>
-                <p>Choose your preferred theme</p>
+                <h3>{{ $t('settings.theme.theme') }}</h3>
+                <p>{{ $t('settings.theme.chooseTheme') }}</p>
               </div>
               <div class="setting-control">
                 <el-radio-group v-model="themeStore.theme" @change="handleThemeChange">
                   <el-radio-button label="light">
                     <el-icon><Sunny /></el-icon>
-                    Light
+                    {{ $t('settings.theme.light') }}
                   </el-radio-button>
                   <el-radio-button label="dark">
                     <el-icon><Moon /></el-icon>
-                    Dark
+                    {{ $t('settings.theme.dark') }}
                   </el-radio-button>
                   <el-radio-button label="auto">
                     <el-icon><Monitor /></el-icon>
-                    Auto
+                    {{ $t('settings.theme.auto') }}
                   </el-radio-button>
                 </el-radio-group>
               </div>
             </div>
 
             <div class="theme-preview">
-              <h4>Preview</h4>
+              <h4>{{ $t('settings.theme.preview') }}</h4>
               <div class="preview-container" :class="{ 'dark-preview': themeStore.isDarkMode }">
                 <div class="preview-sidebar">
-                  <div class="preview-header">File Manager</div>
+                  <div class="preview-header">{{ $t('settings.theme.fileManager') }}</div>
                   <div class="preview-tree">
-                    <div class="preview-item">📁 Documents</div>
-                    <div class="preview-item">📁 Images</div>
-                    <div class="preview-item">📄 file.txt</div>
+                    <div class="preview-item">📁 {{ $t('settings.theme.documents') }}</div>
+                    <div class="preview-item">📁 {{ $t('settings.theme.images') }}</div>
+                    <div class="preview-item">📄 {{ $t('settings.theme.sampleFile') }}.txt</div>
                   </div>
                 </div>
                 <div class="preview-main">
-                  <div class="preview-nav">Files / Documents</div>
+                  <div class="preview-nav">{{ $t('navigation.files') }} / {{ $t('settings.theme.documents') }}</div>
                   <div class="preview-content">
-                    <div class="preview-card">Sample file 1</div>
-                    <div class="preview-card">Sample file 2</div>
+                    <div class="preview-card">{{ $t('settings.theme.sampleFile') }} 1</div>
+                    <div class="preview-card">{{ $t('settings.theme.sampleFile') }} 2</div>
                   </div>
                 </div>
               </div>
@@ -62,13 +62,13 @@
       </el-tab-pane>
 
       <!-- User Management Tab -->
-      <el-tab-pane label="User Management" name="users">
+      <el-tab-pane :label="$t('settings.tabs.userManagement')" name="users">
         <div class="tab-content">
           <div class="section-header">
-            <h2>Users</h2>
+            <h2>{{ $t('settings.users.title') }}</h2>
             <el-button type="primary" @click="showCreateUserDialog = true">
               <el-icon><Plus /></el-icon>
-              Add User
+              {{ $t('settings.users.addUser') }}
             </el-button>
           </div>
 
@@ -76,7 +76,7 @@
           <div class="search-section">
             <el-input
               v-model="userSearchQuery"
-              placeholder="Search users..."
+              :placeholder="$t('settings.users.searchUsers')"
               @input="searchUsers"
               clearable
               class="search-input"
@@ -89,24 +89,24 @@
 
           <!-- Users Table -->
           <el-table :data="filteredUsers" v-loading="usersLoading" class="users-table" stripe>
-            <el-table-column prop="username" label="Username" width="150" />
-            <el-table-column prop="email" label="Email" width="200" />
-            <el-table-column prop="first_name" label="First Name" width="120" />
-            <el-table-column prop="last_name" label="Last Name" width="120" />
-            <el-table-column label="Groups" width="200">
+            <el-table-column prop="username" :label="$t('settings.users.username')" width="150" />
+            <el-table-column prop="email" :label="$t('settings.users.email')" width="200" />
+            <el-table-column prop="first_name" :label="$t('settings.users.firstName')" width="120" />
+            <el-table-column prop="last_name" :label="$t('settings.users.lastName')" width="120" />
+            <el-table-column :label="$t('settings.users.groups')" width="200">
               <template #default="{ row }">
                 <el-tag v-for="group in row.groups" :key="group.id" size="small" class="group-tag">
                   {{ group.name }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="Actions" width="150">
+            <el-table-column :label="$t('settings.users.actions')" width="150">
               <template #default="{ row }">
                 <el-button size="small" @click="editUser(row)" type="primary" link>
-                  Edit
+                  {{ $t('settings.users.edit') }}
                 </el-button>
                 <el-button size="small" @click="deleteUser(row)" type="danger" link>
-                  Delete
+                  {{ $t('settings.users.delete') }}
                 </el-button>
               </template>
             </el-table-column>
@@ -115,13 +115,13 @@
       </el-tab-pane>
 
       <!-- Group Management Tab -->
-      <el-tab-pane label="Group Management" name="groups">
+      <el-tab-pane :label="$t('settings.tabs.groupManagement')" name="groups">
         <div class="tab-content">
           <div class="section-header">
-            <h2>Groups</h2>
+            <h2>{{ $t('settings.groups.title') }}</h2>
             <el-button type="primary" @click="showCreateGroupDialog = true">
               <el-icon><Plus /></el-icon>
-              Add Group
+              {{ $t('settings.groups.addGroup') }}
             </el-button>
           </div>
 
@@ -129,7 +129,7 @@
           <div class="search-section">
             <el-input
               v-model="groupSearchQuery"
-              placeholder="Search groups..."
+              :placeholder="$t('settings.groups.searchGroups')"
               @input="searchGroups"
               clearable
               class="search-input"
@@ -142,22 +142,22 @@
 
           <!-- Groups Table -->
           <el-table :data="filteredGroups" v-loading="groupsLoading" class="groups-table" stripe>
-            <el-table-column prop="name" label="Group Name" width="200" />
-            <el-table-column label="Members" width="300">
+            <el-table-column prop="name" :label="$t('settings.groups.groupName')" width="200" />
+            <el-table-column :label="$t('settings.groups.members')" width="300">
               <template #default="{ row }">
                 <span v-if="row.members && row.members.length > 0">
-                  {{ row.members.length }} member(s)
+                  {{ row.members.length }} {{ $t('settings.groups.memberCount') }}
                 </span>
-                <span v-else class="no-members">No members</span>
+                <span v-else class="no-members">{{ $t('settings.groups.noMembers') }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="Actions" width="150">
+            <el-table-column :label="$t('settings.groups.actions')" width="150">
               <template #default="{ row }">
                 <el-button size="small" @click="editGroup(row)" type="primary" link>
-                  Edit
+                  {{ $t('settings.groups.edit') }}
                 </el-button>
                 <el-button size="small" @click="deleteGroup(row)" type="danger" link>
-                  Delete
+                  {{ $t('settings.groups.delete') }}
                 </el-button>
               </template>
             </el-table-column>
@@ -169,35 +169,35 @@
     <!-- Create/Edit User Dialog -->
     <el-dialog
       v-model="showCreateUserDialog"
-      :title="editingUser ? 'Edit User' : 'Create User'"
+      :title="editingUser ? $t('settings.users.editUser') : $t('settings.users.createUser')"
       width="500px"
     >
       <el-form ref="userFormRef" :model="userForm" :rules="userFormRules" label-width="100px">
-        <el-form-item label="Username" prop="username">
+        <el-form-item :label="$t('settings.users.username')" prop="username">
           <el-input v-model="userForm.username" />
         </el-form-item>
-        <el-form-item label="Email" prop="email">
+        <el-form-item :label="$t('settings.users.email')" prop="email">
           <el-input v-model="userForm.email" type="email" />
         </el-form-item>
-        <el-form-item label="First Name" prop="first_name">
+        <el-form-item :label="$t('settings.users.firstName')" prop="first_name">
           <el-input v-model="userForm.first_name" />
         </el-form-item>
-        <el-form-item label="Last Name" prop="last_name">
+        <el-form-item :label="$t('settings.users.lastName')" prop="last_name">
           <el-input v-model="userForm.last_name" />
         </el-form-item>
-        <el-form-item :label="editingUser ? 'New Password (optional)' : 'Password'" prop="password">
+        <el-form-item :label="editingUser ? $t('settings.users.newPasswordOptional') : $t('settings.users.password')" prop="password">
           <el-input
             v-model="userForm.password"
             type="password"
             show-password
-            :placeholder="editingUser ? 'Leave blank to keep current password' : 'Enter password'"
+            :placeholder="editingUser ? $t('settings.users.leaveBlankToKeep') : $t('settings.users.enterPassword')"
           />
         </el-form-item>
-        <el-form-item label="Groups" prop="groups">
+        <el-form-item :label="$t('settings.users.groups')" prop="groups">
           <el-select
             v-model="userForm.groups"
             multiple
-            placeholder="Select groups"
+            :placeholder="$t('settings.users.selectGroups')"
             style="width: 100%"
           >
             <el-option
@@ -210,29 +210,29 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showCreateUserDialog = false">Cancel</el-button>
-        <el-button type="primary" @click="saveUser">Save</el-button>
+        <el-button @click="showCreateUserDialog = false">{{ $t('settings.users.cancel') }}</el-button>
+        <el-button type="primary" @click="saveUser">{{ $t('settings.users.save') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- Create/Edit Group Dialog -->
     <el-dialog
       v-model="showCreateGroupDialog"
-      :title="editingGroup ? 'Edit Group' : 'Create Group'"
+      :title="editingGroup ? $t('settings.groups.editGroup') : $t('settings.groups.createGroup')"
       width="500px"
     >
       <el-form ref="groupFormRef" :model="groupForm" :rules="groupFormRules" label-width="100px">
-        <el-form-item label="Group Name" prop="name">
+        <el-form-item :label="$t('settings.groups.groupName')" prop="name">
           <el-input v-model="groupForm.name" />
         </el-form-item>
-        <el-form-item label="Description" prop="description">
+        <el-form-item :label="$t('settings.groups.description')" prop="description">
           <el-input v-model="groupForm.description" type="textarea" :rows="3" />
         </el-form-item>
-        <el-form-item label="Members" prop="members">
+        <el-form-item :label="$t('settings.groups.members')" prop="members">
           <el-select
             v-model="groupForm.members"
             multiple
-            placeholder="Select members"
+            :placeholder="$t('settings.groups.selectMembers')"
             style="width: 100%"
           >
             <el-option
@@ -245,8 +245,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showCreateGroupDialog = false">Cancel</el-button>
-        <el-button type="primary" @click="saveGroup">Save</el-button>
+        <el-button @click="showCreateGroupDialog = false">{{ $t('settings.groups.cancel') }}</el-button>
+        <el-button type="primary" @click="saveGroup">{{ $t('settings.groups.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -254,10 +254,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Sunny, Moon, Monitor } from '@element-plus/icons-vue'
 import { usersAPI, groupsAPI } from '@/services/api'
 import { useThemeStore } from '@/stores/theme'
+
+const { t } = useI18n()
 
 // Types
 interface User {
@@ -302,20 +305,20 @@ const userForm = reactive({
 })
 
 const userFormRules = computed(() => ({
-  username: [{ required: true, message: 'Please enter username', trigger: 'blur' }],
+  username: [{ required: true, message: t('validation.usernameRequired'), trigger: 'blur' }],
   email: [
-    { required: true, message: 'Please enter email', trigger: 'blur' },
-    { type: 'email', message: 'Please enter valid email', trigger: 'blur' },
+    { required: true, message: t('validation.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('validation.emailInvalid'), trigger: 'blur' },
   ],
   password: editingUser.value
     ? [
         // For editing: password is optional, but if provided, must be at least 6 characters
-        { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' },
+        { min: 6, message: t('validation.passwordMinLength'), trigger: 'blur' },
       ]
     : [
         // For creating: password is required
-        { required: true, message: 'Please enter password', trigger: 'blur' },
-        { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' },
+        { required: true, message: t('validation.passwordRequired'), trigger: 'blur' },
+        { min: 6, message: t('validation.passwordMinLength'), trigger: 'blur' },
       ],
 }))
 
@@ -334,7 +337,7 @@ const groupForm = reactive({
 })
 
 const groupFormRules = {
-  name: [{ required: true, message: 'Please enter group name', trigger: 'blur' }],
+  name: [{ required: true, message: t('validation.groupNameRequired'), trigger: 'blur' }],
 }
 
 // Computed properties
@@ -354,7 +357,7 @@ const loadUsers = async () => {
     filteredUsers.value = users.value
   } catch (error) {
     console.error('Failed to load users:', error)
-    ElMessage.error('Failed to load users')
+    ElMessage.error(t('settings.users.failedToLoadUsers'))
 
     // Fallback to mock data for development
     users.value = [
@@ -389,7 +392,7 @@ const loadGroups = async () => {
     filteredGroups.value = groups.value
   } catch (error) {
     console.error('Failed to load groups:', error)
-    ElMessage.error('Failed to load groups')
+    ElMessage.error(t('settings.groups.failedToLoadGroups'))
 
     // Fallback to mock data for development
     groups.value = [
@@ -452,22 +455,22 @@ const editUser = (user: User) => {
 const deleteUser = async (user: User) => {
   try {
     await ElMessageBox.confirm(
-      `Are you sure you want to delete user "${user.username}"?`,
-      'Confirm Delete',
+      t('settings.users.confirmDelete', { username: user.username }),
+      t('common.confirmDelete'),
       {
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       },
     )
 
     await usersAPI.delete(user.id)
 
-    ElMessage.success('User deleted successfully')
+    ElMessage.success(t('settings.users.userDeletedSuccessfully'))
     loadUsers()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('Failed to delete user')
+      ElMessage.error(t('settings.users.failedToDeleteUser'))
     }
   }
 }
@@ -490,13 +493,13 @@ const saveUser = async () => {
       await usersAPI.create(userData)
     }
 
-    ElMessage.success(editingUser.value ? 'User updated successfully' : 'User created successfully')
+    ElMessage.success(editingUser.value ? t('settings.users.userUpdatedSuccessfully') : t('settings.users.userCreatedSuccessfully'))
     showCreateUserDialog.value = false
     resetUserForm()
     loadUsers()
   } catch (error) {
     console.error('Failed to save user:', error)
-    ElMessage.error('Failed to save user')
+    ElMessage.error(t('settings.users.failedToSaveUser'))
   }
 }
 
@@ -521,22 +524,22 @@ const editGroup = (group: Group) => {
 const deleteGroup = async (group: Group) => {
   try {
     await ElMessageBox.confirm(
-      `Are you sure you want to delete group "${group.name}"?`,
-      'Confirm Delete',
+      t('settings.groups.confirmDelete', { name: group.name }),
+      t('common.confirmDelete'),
       {
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       },
     )
 
     await groupsAPI.delete(group.id)
 
-    ElMessage.success('Group deleted successfully')
+    ElMessage.success(t('settings.groups.groupDeletedSuccessfully'))
     loadGroups()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('Failed to delete group')
+      ElMessage.error(t('settings.groups.failedToDeleteGroup'))
     }
   }
 }
@@ -552,14 +555,14 @@ const saveGroup = async () => {
     }
 
     ElMessage.success(
-      editingGroup.value ? 'Group updated successfully' : 'Group created successfully',
+      editingGroup.value ? t('settings.groups.groupUpdatedSuccessfully') : t('settings.groups.groupCreatedSuccessfully'),
     )
     showCreateGroupDialog.value = false
     resetGroupForm()
     loadGroups()
   } catch (error) {
     console.error('Failed to save group:', error)
-    ElMessage.error('Failed to save group')
+    ElMessage.error(t('settings.groups.failedToSaveGroup'))
   }
 }
 

@@ -9,6 +9,7 @@ import 'vue3-toastify/dist/index.css'
 
 import App from './App.vue'
 import router from './router'
+import i18n from './i18n'
 import { useThemeStore } from './stores/theme'
 
 const app = createApp(App)
@@ -21,6 +22,7 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 const pinia = createPinia()
 app.use(pinia)
 app.use(router)
+app.use(i18n)
 app.use(ElementPlus)
 app.use(Vue3Toastify, {
   autoClose: 3000,

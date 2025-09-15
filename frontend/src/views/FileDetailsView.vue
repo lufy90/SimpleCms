@@ -5,7 +5,7 @@
       <el-icon class="is-loading" size="48">
         <Loading />
       </el-icon>
-      <p>Loading file...</p>
+      <p>{{ $t('fileDetails.loadingFile') }}</p>
     </div>
 
     <!-- Error State -->
@@ -13,10 +13,10 @@
       <el-icon size="48" color="#f56c6c">
         <Warning />
       </el-icon>
-      <h2>Error Loading File</h2>
+      <h2>{{ $t('fileDetails.errorLoadingFile') }}</h2>
       <p>{{ error }}</p>
-      <el-button @click="retryLoad">Retry</el-button>
-      <el-button @click="goBack">Go Back</el-button>
+      <el-button @click="retryLoad">{{ $t('fileDetails.retry') }}</el-button>
+      <el-button @click="goBack">{{ $t('fileDetails.goBack') }}</el-button>
     </div>
 
     <!-- File Content -->
@@ -41,15 +41,15 @@
           <el-button-group>
             <el-button @click="handleDownload" :disabled="loading">
               <el-icon><Download /></el-icon>
-              Download
+              {{ $t('fileDetails.download') }}
             </el-button>
             <el-button @click="handleOpenInNewTab" :disabled="loading">
               <el-icon><Share /></el-icon>
-              Open in New Tab
+              {{ $t('fileDetails.openInNewTab') }}
             </el-button>
             <el-button @click="goBack">
               <el-icon><ArrowLeft /></el-icon>
-              Back
+              {{ $t('fileDetails.back') }}
             </el-button>
           </el-button-group>
         </div>
@@ -135,10 +135,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Loading, Warning, Download, Share, ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
+
+const { t } = useI18n()
 
 // Import individual viewers
 import ImageViewer from '@/components/readers/ImageViewer.vue'
@@ -360,10 +363,10 @@ const handleDownload = async () => {
     document.body.removeChild(link)
 
     URL.revokeObjectURL(url)
-    ElMessage.success(`Downloaded ${file.value.name}`)
+    ElMessage.success(t('fileDetails.downloadedFile', { fileName: file.value.name }))
   } catch (error: any) {
     console.error('Download error:', error)
-    ElMessage.error('Download failed')
+    ElMessage.error(t('fileDetails.downloadFailed'))
   }
 }
 
@@ -383,19 +386,19 @@ const handleOpenInNewTab = () => {
 const handleContentUpdated = (newContent: string) => {
   // Update the local content when file is edited
   fileContent.value = newContent
-  ElMessage.success('File content updated')
+  ElMessage.success(t('fileDetails.fileContentUpdated'))
 }
 
 const handleDocumentReady = () => {
-  ElMessage.success('Document editor ready')
+  ElMessage.success(t('fileDetails.documentEditorReady'))
 }
 
 const handleDocumentSaved = (document: any) => {
-  ElMessage.success('Document saved successfully')
+  ElMessage.success(t('fileDetails.documentSavedSuccessfully'))
 }
 
 const handleDocumentError = (error: string) => {
-  ElMessage.error(`Document error: ${error}`)
+  ElMessage.error(t('fileDetails.documentError', { error }))
 }
 
 const formatFileSize = (bytes: number) => {

@@ -1,50 +1,50 @@
 <template>
   <div class="search-view">
     <div class="page-header">
-      <h1>Search Files</h1>
+      <h1>{{ $t('search.title') }}</h1>
       <el-button @click="$router.go(-1)">
         <el-icon><ArrowLeft /></el-icon>
-        Back
+        {{ $t('common.back') }}
       </el-button>
     </div>
 
     <el-card class="search-card">
       <template #header>
         <div class="card-header">
-          <span>Search</span>
+          <span>{{ $t('common.search') }}</span>
         </div>
       </template>
 
       <el-form :model="searchForm" label-width="120px">
-        <el-form-item label="Search Query">
+        <el-form-item :label="$t('search.searchQuery')">
           <el-input
             v-model="searchForm.query"
-            placeholder="Enter search terms..."
+            :placeholder="$t('search.searchQueryPlaceholder')"
             clearable
             @keyup.enter="performSearch"
           />
         </el-form-item>
 
-        <el-form-item label="File Type">
-          <el-select v-model="searchForm.type" placeholder="All types" clearable>
-            <el-option label="All" value="" />
-            <el-option label="Files" value="file" />
-            <el-option label="Directories" value="directory" />
+        <el-form-item :label="$t('search.fileType')">
+          <el-select v-model="searchForm.type" :placeholder="$t('search.allTypes')" clearable>
+            <el-option :label="$t('search.all')" value="" />
+            <el-option :label="$t('search.files')" value="file" />
+            <el-option :label="$t('search.directories')" value="directory" />
           </el-select>
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" @click="performSearch" :loading="isLoading"> Search </el-button>
+          <el-button type="primary" @click="performSearch" :loading="isLoading"> {{ $t('search.search') }} </el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <!-- Search Results -->
     <div v-if="searchResults.length > 0" class="search-results">
-      <h2>Search Results ({{ searchResults.length }})</h2>
+      <h2>{{ $t('search.searchResults', { count: searchResults.length }) }}</h2>
 
       <el-table :data="searchResults" @row-click="handleFileClick">
-        <el-table-column prop="name" label="Name" min-width="200">
+        <el-table-column prop="name" :label="$t('files.columns.name')" min-width="200">
           <template #default="{ row }">
             <div class="file-name-cell">
               <el-icon :color="getFileIconColor(row)">
@@ -55,20 +55,20 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="path" label="Path" min-width="300" />
-        <el-table-column prop="size" label="Size" width="120">
+        <el-table-column prop="path" :label="$t('search.path')" min-width="300" />
+        <el-table-column prop="size" :label="$t('files.columns.size')" width="120">
           <template #default="{ row }">
             <span v-if="row.size">{{ formatFileSize(row.size) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="item_type" label="Type" width="100" />
+        <el-table-column prop="item_type" :label="$t('files.columns.type')" width="100" />
       </el-table>
     </div>
 
     <el-empty
       v-else-if="hasSearched && !isLoading"
-      description="No files found matching your search"
+      :description="$t('search.noFilesFound')"
     />
   </div>
 </template>
@@ -76,6 +76,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '@/stores/files'
 import { ArrowLeft, Document, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -83,6 +84,7 @@ import { ElMessage } from 'element-plus'
 const router = useRouter()
 const route = useRoute()
 const filesStore = useFilesStore()
+const { t } = useI18n()
 
 // State
 const isLoading = ref(false)
@@ -98,7 +100,7 @@ const searchForm = reactive({
 // Methods
 const performSearch = async () => {
   if (!searchForm.query.trim()) {
-    ElMessage.warning('Please enter a search query')
+    ElMessage.warning(t('search.messages.pleaseEnterQuery'))
     return
   }
 
@@ -115,7 +117,7 @@ const performSearch = async () => {
       searchResults.value = filesStore.files
     }
   } catch (error) {
-    ElMessage.error('Search failed')
+    ElMessage.error(t('search.messages.searchFailed'))
   } finally {
     isLoading.value = false
   }

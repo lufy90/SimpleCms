@@ -1,8 +1,8 @@
 <template>
   <div class="deleted-files-view">
     <div class="view-header">
-      <h1>Dustbin</h1>
-      <p class="subtitle">Manage deleted files and directories</p>
+      <h1>{{ $t('deletedFiles.title') }}</h1>
+      <p class="subtitle">{{ $t('deletedFiles.subtitle') }}</p>
     </div>
 
     <div class="view-content">
@@ -16,7 +16,7 @@
             :loading="deletedFilesStore.isLoading"
           >
             <el-icon><RefreshLeft /></el-icon>
-            Restore Selected ({{ selectedFiles.length }})
+            {{ $t('deletedFiles.restoreSelected', { count: selectedFiles.length }) }}
           </el-button>
 
           <el-button
@@ -26,14 +26,14 @@
             :loading="deletedFilesStore.isLoading"
           >
             <el-icon><Delete /></el-icon>
-            Permanently Delete ({{ selectedFiles.length }})
+            {{ $t('deletedFiles.permanentlyDelete', { count: selectedFiles.length }) }}
           </el-button>
         </div>
 
         <div class="right-actions">
           <el-button @click="refreshDeletedFiles" :loading="deletedFilesStore.isLoading">
             <el-icon><Refresh /></el-icon>
-            Refresh
+            {{ $t('deletedFiles.refresh') }}
           </el-button>
         </div>
       </div>
@@ -50,7 +50,7 @@
         >
           <el-table-column type="selection" width="55" />
 
-          <el-table-column label="Name" min-width="200" sortable :sort-method="sortByName">
+          <el-table-column :label="$t('deletedFiles.name')" min-width="200" sortable :sort-method="sortByName">
             <template #default="{ row }">
               <div class="file-info">
                 <el-icon class="file-icon">
@@ -62,16 +62,16 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="Type" width="100" sortable>
+          <el-table-column :label="$t('deletedFiles.type')" width="100" sortable>
             <template #default="{ row }">
               <el-tag :type="row.item_type === 'directory' ? 'warning' : 'info'">
-                {{ row.item_type === 'directory' ? 'Directory' : 'File' }}
+                {{ row.item_type === 'directory' ? $t('deletedFiles.directory') : $t('deletedFiles.file') }}
               </el-tag>
             </template>
           </el-table-column>
 
           <el-table-column
-            label="Size"
+            :label="$t('deletedFiles.size')"
             width="120"
             v-if="hasFiles"
             sortable
@@ -86,7 +86,7 @@
           </el-table-column>
 
           <el-table-column
-            label="Original Location"
+            :label="$t('deletedFiles.originalLocation')"
             min-width="200"
             sortable
             :sort-method="sortByLocation"
@@ -95,23 +95,23 @@
               <span v-if="row.original_parent">
                 {{ row.original_parent.name }}
               </span>
-              <span v-else>Root</span>
+              <span v-else>{{ $t('deletedFiles.root') }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column label="Deleted By" width="150" sortable :sort-method="sortByDeletedBy">
+          <el-table-column :label="$t('deletedFiles.deletedBy')" width="150" sortable :sort-method="sortByDeletedBy">
             <template #default="{ row }">
               <span>{{ getUserDisplayName(row.deleted_by) }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column label="Deleted At" width="180" sortable :sort-method="sortByDeletedAt">
+          <el-table-column :label="$t('deletedFiles.deletedAt')" width="180" sortable :sort-method="sortByDeletedAt">
             <template #default="{ row }">
               <span>{{ formatDate(row.deleted_at) }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column label="Actions" width="200" fixed="right">
+          <el-table-column :label="$t('deletedFiles.actions')" width="200" fixed="right">
             <template #default="{ row }">
               <div class="action-buttons">
                 <el-button
@@ -121,7 +121,7 @@
                   :loading="deletedFilesStore.isLoading"
                 >
                   <el-icon><RefreshLeft /></el-icon>
-                  Restore
+                  {{ $t('deletedFiles.restore') }}
                 </el-button>
                 <el-button
                   type="danger"
@@ -130,7 +130,7 @@
                   :loading="deletedFilesStore.isLoading"
                 >
                   <el-icon><Delete /></el-icon>
-                  Delete
+                  {{ $t('deletedFiles.delete') }}
                 </el-button>
               </div>
             </template>
@@ -138,39 +138,35 @@
         </el-table>
         <!-- Stats Summary -->
         <p class="summary-text">
-          Total: <strong>{{ deletedFilesStore.deletedFilesCount }}</strong> items ({{
-            deletedFilesStore.deletedFilesByType.files.length
-          }}
-          files,
-          {{
-            deletedFilesStore.deletedFilesCount - deletedFilesStore.deletedFilesByType.files.length
-          }}
-          directories)
+          {{ $t('deletedFiles.totalItems', {
+            total: deletedFilesStore.deletedFilesCount,
+            files: deletedFilesStore.deletedFilesByType.files.length,
+            directories: deletedFilesStore.deletedFilesCount - deletedFilesStore.deletedFilesByType.files.length
+          }) }}
         </p>
       </el-card>
     </div>
 
     <!-- Confirmation Dialogs -->
-    <el-dialog v-model="restoreDialogVisible" title="Confirm Restore" width="400px">
-      <p>Are you sure you want to restore the selected {{ selectedFiles.length }} item(s)?</p>
+    <el-dialog v-model="restoreDialogVisible" :title="$t('deletedFiles.confirmRestore')" width="400px">
+      <p>{{ $t('deletedFiles.confirmRestoreMessage', { count: selectedFiles.length }) }}</p>
       <template #footer>
-        <el-button @click="restoreDialogVisible = false">Cancel</el-button>
+        <el-button @click="restoreDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" @click="confirmRestore" :loading="deletedFilesStore.isLoading">
-          Restore
+          {{ $t('deletedFiles.restore') }}
         </el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="hardDeleteDialogVisible" title="Confirm Permanent Deletion" width="400px">
+    <el-dialog v-model="hardDeleteDialogVisible" :title="$t('deletedFiles.confirmPermanentDeletion')" width="400px">
       <p class="warning-text">
         <el-icon><Warning /></el-icon>
-        This action cannot be undone. The selected {{ selectedFiles.length }} item(s) will be
-        permanently deleted.
+        {{ $t('deletedFiles.permanentDeletionWarning', { count: selectedFiles.length }) }}
       </p>
       <template #footer>
-        <el-button @click="hardDeleteDialogVisible = false">Cancel</el-button>
+        <el-button @click="hardDeleteDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="danger" @click="confirmHardDelete" :loading="deletedFilesStore.isLoading">
-          Permanently Delete
+          {{ $t('deletedFiles.permanentlyDeleteButton') }}
         </el-button>
       </template>
     </el-dialog>
@@ -179,10 +175,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useDeletedFilesStore, type DeletedFileItem } from '@/stores/deletedFiles'
 import { Delete, Document, Folder, RefreshLeft, Refresh, Warning } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 
+const { t } = useI18n()
 const deletedFilesStore = useDeletedFilesStore()
 
 // State
@@ -218,11 +216,11 @@ const handleRestoreSingle = async (fileId: number) => {
 const handleHardDeleteSingle = async (fileId: number, fileName: string) => {
   try {
     await ElMessageBox.confirm(
-      `Are you sure you want to permanently delete "${fileName}"? This action cannot be undone.`,
-      'Confirm Permanent Deletion',
+      t('deletedFiles.confirmSingleDelete', { fileName }),
+      t('deletedFiles.confirmPermanentDeletion'),
       {
-        confirmButtonText: 'Delete Permanently',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: t('deletedFiles.deletePermanently'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
         dangerouslyUseHTMLString: false,
       },

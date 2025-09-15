@@ -1,39 +1,39 @@
 <template>
   <div class="upload-view">
     <div class="page-header">
-      <h1>Upload Files</h1>
+      <h1>{{ $t('upload.title') }}</h1>
       <el-button @click="$router.go(-1)">
         <el-icon><ArrowLeft /></el-icon>
-        Back
+        {{ $t('common.back') }}
       </el-button>
     </div>
 
     <el-card class="upload-card">
       <template #header>
         <div class="card-header">
-          <span>File Upload</span>
+          <span>{{ $t('upload.title') }}</span>
         </div>
       </template>
 
       <el-form :model="uploadForm" label-width="120px">
-        <el-form-item label="Directory Path">
+        <el-form-item :label="$t('upload.directoryPath')">
           <el-input
             v-model="uploadForm.path"
-            placeholder="Optional: subdirectory within root (e.g., documents/work)"
+            :placeholder="$t('upload.directoryPathPlaceholder')"
             clearable
           />
         </el-form-item>
 
-        <el-form-item label="Visibility">
-          <el-select v-model="uploadForm.visibility" placeholder="Select visibility">
-            <el-option label="Private" value="private" />
-            <el-option label="User Shared" value="user" />
-            <el-option label="Group Shared" value="group" />
-            <el-option label="Public" value="public" />
+        <el-form-item :label="$t('upload.visibility')">
+          <el-select v-model="uploadForm.visibility" :placeholder="$t('files.placeholders.selectVisibility')">
+            <el-option :label="$t('files.visibility.private')" value="private" />
+            <el-option :label="$t('files.visibility.user')" value="user" />
+            <el-option :label="$t('files.visibility.group')" value="group" />
+            <el-option :label="$t('files.visibility.public')" value="public" />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="Files">
+        <el-form-item :label="$t('upload.files')">
           <el-upload
             ref="uploadRef"
             :auto-upload="false"
@@ -44,7 +44,7 @@
             class="upload-area"
           >
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-            <div class="el-upload__text">Drop file here or <em>click to upload</em></div>
+            <div class="el-upload__text">{{ $t('files.upload.dropFilesHere') }}</div>
           </el-upload>
         </el-form-item>
 
@@ -55,9 +55,9 @@
             :loading="isUploading"
             style="margin-right: 10px"
           >
-            Upload Files
+            {{ $t('upload.uploadFiles') }}
           </el-button>
-          <el-button @click="handleClose" plain> Cancel </el-button>
+          <el-button @click="handleClose" plain> {{ $t('common.cancel') }} </el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -65,31 +65,31 @@
     <!-- Duplicate File Dialog -->
     <el-dialog
       v-model="duplicateDialogVisible"
-      title="Duplicate File Detected"
+      :title="$t('upload.duplicateFileDetected')"
       width="500px"
       :close-on-click-modal="false"
     >
       <div class="duplicate-dialog">
         <p>
-          A file named <strong>{{ duplicateFile?.name }}</strong> already exists in this location.
+          {{ $t('upload.fileAlreadyExists', { name: duplicateFile?.name }) }}
         </p>
-        <p>What would you like to do?</p>
+        <p>{{ $t('upload.whatWouldYouLikeToDo') }}</p>
 
         <div class="file-info" v-if="duplicateFile">
-          <p><strong>Existing file:</strong></p>
+          <p><strong>{{ $t('upload.existingFile') }}</strong></p>
           <ul>
-            <li>Size: {{ formatFileSize(duplicateFile.size || 0) }}</li>
-            <li>Modified: {{ formatDate(duplicateFile.updated_at) }}</li>
-            <li>Owner: {{ duplicateFile.owner.username }}</li>
+            <li>{{ $t('upload.size') }} {{ formatFileSize(duplicateFile.size || 0) }}</li>
+            <li>{{ $t('upload.modified') }} {{ formatDate(duplicateFile.updated_at) }}</li>
+            <li>{{ $t('upload.owner') }} {{ duplicateFile.owner.username }}</li>
           </ul>
         </div>
       </div>
 
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="handleSkipFile">Skip</el-button>
-          <el-button @click="handleRenameFile">Rename</el-button>
-          <el-button type="primary" @click="handleOverwriteFile">Overwrite</el-button>
+          <el-button @click="handleSkipFile">{{ $t('upload.skip') }}</el-button>
+          <el-button @click="handleRenameFile">{{ $t('upload.rename') }}</el-button>
+          <el-button type="primary" @click="handleOverwriteFile">{{ $t('upload.overwrite') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -97,20 +97,20 @@
     <!-- Rename File Dialog -->
     <el-dialog
       v-model="renameDialogVisible"
-      title="Rename File"
+      :title="$t('upload.renameFile')"
       width="400px"
       :close-on-click-modal="false"
     >
       <el-form :model="renameForm" label-width="80px">
-        <el-form-item label="New Name">
-          <el-input v-model="renameForm.name" placeholder="Enter new filename" />
+        <el-form-item :label="$t('upload.newName')">
+          <el-input v-model="renameForm.name" :placeholder="$t('upload.enterNewFilename')" />
         </el-form-item>
       </el-form>
 
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="renameDialogVisible = false">Cancel</el-button>
-          <el-button type="primary" @click="handleConfirmRename">Confirm</el-button>
+          <el-button @click="renameDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+          <el-button type="primary" @click="handleConfirmRename">{{ $t('common.confirm') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -120,6 +120,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useFilesStore } from '@/stores/files'
 import { ArrowLeft, UploadFilled, Close } from '@element-plus/icons-vue'
@@ -129,6 +130,7 @@ import type { FileItem } from '@/stores/files'
 const router = useRouter()
 const authStore = useAuthStore()
 const filesStore = useFilesStore()
+const { t } = useI18n()
 
 // State
 const uploadForm = ref({

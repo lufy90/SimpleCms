@@ -4,9 +4,9 @@
       <div class="register-header">
         <div class="logo">
           <el-icon size="48" color="#409eff"><Folder /></el-icon>
-          <h1>File Manager</h1>
+          <h1>{{ $t('register.title') }}</h1>
         </div>
-        <p class="subtitle">Create your account</p>
+        <p class="subtitle">{{ $t('register.subtitle') }}</p>
       </div>
 
       <el-form
@@ -19,7 +19,7 @@
         <el-form-item prop="username">
           <el-input
             v-model="registerForm.username"
-            placeholder="Username"
+            :placeholder="$t('register.username')"
             prefix-icon="User"
             size="large"
             clearable
@@ -29,7 +29,7 @@
         <el-form-item prop="email">
           <el-input
             v-model="registerForm.email"
-            placeholder="Email"
+            :placeholder="$t('register.email')"
             prefix-icon="Message"
             size="large"
             clearable
@@ -40,7 +40,7 @@
           <el-input
             v-model="registerForm.password"
             type="password"
-            placeholder="Password"
+            :placeholder="$t('register.password')"
             prefix-icon="Lock"
             size="large"
             show-password
@@ -51,7 +51,7 @@
           <el-input
             v-model="registerForm.confirmPassword"
             type="password"
-            placeholder="Confirm Password"
+            :placeholder="$t('register.confirmPassword')"
             prefix-icon="Lock"
             size="large"
             show-password
@@ -61,7 +61,7 @@
         <el-form-item prop="firstName">
           <el-input
             v-model="registerForm.firstName"
-            placeholder="First Name (Optional)"
+            :placeholder="$t('register.firstName')"
             prefix-icon="User"
             size="large"
             clearable
@@ -71,7 +71,7 @@
         <el-form-item prop="lastName">
           <el-input
             v-model="registerForm.lastName"
-            placeholder="Last Name (Optional)"
+            :placeholder="$t('register.lastName')"
             prefix-icon="User"
             size="large"
             clearable
@@ -87,15 +87,15 @@
             class="register-button"
             block
           >
-            Create Account
+            {{ $t('register.createAccount') }}
           </el-button>
         </el-form-item>
       </el-form>
 
       <div class="register-footer">
         <p>
-          Already have an account?
-          <router-link to="/login" class="login-link">Sign in</router-link>
+          {{ $t('register.alreadyHaveAccount') }}
+          <router-link to="/login" class="login-link">{{ $t('register.signIn') }}</router-link>
         </p>
       </div>
     </div>
@@ -105,10 +105,12 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { Folder, User, Message, Lock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
+const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 
@@ -128,28 +130,28 @@ const registerForm = reactive({
 // Form validation rules
 const registerRules: FormRules = {
   username: [
-    { required: true, message: 'Please enter username', trigger: 'blur' },
-    { min: 3, message: 'Username must be at least 3 characters', trigger: 'blur' },
+    { required: true, message: t('register.usernameRequired'), trigger: 'blur' },
+    { min: 3, message: t('register.usernameMinLength'), trigger: 'blur' },
     {
       pattern: /^[a-zA-Z0-9_]+$/,
-      message: 'Username can only contain letters, numbers, and underscores',
+      message: t('register.usernamePattern'),
       trigger: 'blur',
     },
   ],
   email: [
-    { required: true, message: 'Please enter email', trigger: 'blur' },
-    { type: 'email', message: 'Please enter a valid email', trigger: 'blur' },
+    { required: true, message: t('register.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('register.emailInvalid'), trigger: 'blur' },
   ],
   password: [
-    { required: true, message: 'Please enter password', trigger: 'blur' },
-    { min: 6, message: 'Password must be at least 6 characters', trigger: 'blur' },
+    { required: true, message: t('register.passwordRequired'), trigger: 'blur' },
+    { min: 6, message: t('register.passwordMinLength'), trigger: 'blur' },
   ],
   confirmPassword: [
-    { required: true, message: 'Please confirm password', trigger: 'blur' },
+    { required: true, message: t('register.confirmPasswordRequired'), trigger: 'blur' },
     {
       validator: (rule, value, callback) => {
         if (value !== registerForm.password) {
-          callback(new Error('Passwords do not match'))
+          callback(new Error(t('register.passwordsDoNotMatch')))
         } else {
           callback()
         }

@@ -6,7 +6,7 @@
         <div class="header-content">
           <h3 v-if="!sidebarCollapsed" class="logo">
             <el-icon><Folder /></el-icon>
-            File Manager
+            {{ $t('files.fileManager') }}
           </h3>
           <el-button type="text" size="large" @click="toggleSidebar" class="sidebar-toggle">
             <el-icon v-if="sidebarCollapsed"><Expand /></el-icon>
@@ -18,7 +18,7 @@
       <!-- Directory Tree -->
       <div class="sidebar-content">
         <div class="tree-header" v-if="!sidebarCollapsed">
-          <h4>Directory Tree</h4>
+          <h4>{{ $t('files.directoryTree') }}</h4>
           <div class="tree-actions">
             <el-button type="text" size="small" @click="showCreateDirectoryDialog">
               <el-icon><Plus /></el-icon>
@@ -57,7 +57,7 @@
       <div class="dustbin-section">
         <!-- Expanded view -->
         <div v-if="!sidebarCollapsed" class="dustbin-header">
-          <h4>Dustbin</h4>
+          <h4>{{ $t('deletedFiles.title') }}</h4>
           <el-badge
             :value="deletedFilesCount"
             :hidden="deletedFilesCount === 0"
@@ -65,7 +65,7 @@
           >
             <el-button type="text" size="small" @click="navigateToDustbin" class="dustbin-button">
               <el-icon><Delete /></el-icon>
-              <span>Deleted Files</span>
+              <span>{{ $t('navigation.deletedFiles') }}</span>
             </el-button>
           </el-badge>
         </div>
@@ -96,7 +96,7 @@
       <header class="top-nav">
         <div class="nav-left">
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/files' }">Files</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/files' }">{{ $t('navigation.files') }}</el-breadcrumb-item>
             <el-breadcrumb-item v-if="currentPath">{{ currentPath }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -105,12 +105,15 @@
           <!-- Search -->
           <el-input
             v-model="searchQuery"
-            placeholder="Search files..."
+            :placeholder="$t('files.placeholders.searchFiles')"
             prefix-icon="Search"
             clearable
             @input="handleSearch"
             class="search-input"
           />
+
+          <!-- Language Switcher -->
+          <LanguageSwitcher />
 
           <!-- Theme Toggle -->
           <ThemeToggle />
@@ -124,15 +127,15 @@
               <el-dropdown-menu>
                 <el-dropdown-item command="profile">
                   <el-icon><User /></el-icon>
-                  Profile
+                  {{ $t('navigation.profile') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="settings">
                   <el-icon><Setting /></el-icon>
-                  Settings
+                  {{ $t('navigation.settings') }}
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
-                  Logout
+                  {{ $t('navigation.logout') }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -154,6 +157,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useFilesStore } from '@/stores/files'
 import { useDeletedFilesStore } from '@/stores/deletedFiles'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import {
   Folder,
   Document,
