@@ -34,8 +34,7 @@
     ],
     "icon": "public/icon.ico",
     "requestedExecutionLevel": "asInvoker",
-    "artifactName": "${productName}-${version}-${arch}.${ext}",
-    "publisherName": "SimpleCMS Team"
+    "artifactName": "${productName}-${version}-${arch}.${ext}"
   },
   "mac": {
     "target": [
