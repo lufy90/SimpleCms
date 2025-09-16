@@ -19,7 +19,7 @@ function createWindow() {
       webSecurity: true,
       allowRunningInsecureContent: false
     },
-    icon: path.join(__dirname, '../public/icon.png'), // Add your app icon
+    icon: path.join(__dirname, 'public/icon.png'), // Add your app icon
     titleBarStyle: 'default',
     show: false // Don't show until ready
   })
@@ -27,12 +27,12 @@ function createWindow() {
   // Load the app
   if (isDev) {
     // In development, load from Vite dev server
-    mainWindow.loadURL('http://localhost:3001')
+    mainWindow.loadURL('http://localhost:3002')
     // Open DevTools in development
     mainWindow.webContents.openDevTools()
   } else {
     // In production, load the built files
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+    mainWindow.loadFile(path.join(__dirname, 'dist/index.html'))
   }
 
   // Show window when ready to prevent visual flash
@@ -55,7 +55,7 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
     const parsedUrl = new URL(navigationUrl)
     
-    if (parsedUrl.origin !== 'http://localhost:3001' && parsedUrl.origin !== 'file://') {
+    if (parsedUrl.origin !== 'http://localhost:3002' && parsedUrl.origin !== 'file://') {
       event.preventDefault()
       shell.openExternal(navigationUrl)
     }

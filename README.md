@@ -24,7 +24,21 @@ SimpleCms/
 │   │   ├── models.py       # Database models
 │   ├── manage.py           # Django management script
 │   └── requirements.txt    # Python dependencies
-└── README.md               # This file
+├── frontend/               # Vue.js web application
+│   ├── src/               # Source code
+│   ├── public/            # Static assets
+│   ├── package.json       # Web app dependencies
+│   └── dist/              # Built web application
+├── electron/              # Electron desktop application
+│   ├── main.cjs           # Electron main process
+│   ├── preload.cjs        # Preload script
+│   ├── public/            # Desktop app assets
+│   ├── package.json       # Electron dependencies
+│   └── release/           # Built desktop application
+├── build-web.sh           # Web build script
+├── build-electron.sh      # Electron build script
+├── run-electron-dev.sh    # Electron development script
+└── README.md              # This file
 ```
 
 ## Backend API Endpoints
@@ -64,8 +78,26 @@ SimpleCms/
 
 ### Prerequisites
 - Python 3.8+
+- Node.js 20.19.0+ (for frontend and electron)
 - Virtual environment
 - Django 5.2+
+
+### Quick Start
+
+1. **Install all dependencies**:
+   ```bash
+   npm run install:all
+   ```
+
+2. **Build web application**:
+   ```bash
+   npm run build:web
+   ```
+
+3. **Build electron application** (optional):
+   ```bash
+   npm run build:electron
+   ```
 
 ### Backend Setup
 
@@ -107,6 +139,62 @@ SimpleCms/
    ```bash
    python manage.py runserver
    ```
+
+### Frontend Setup
+
+1. **Install web dependencies**:
+   ```bash
+   npm run install:web
+   ```
+
+2. **Run web development server**:
+   ```bash
+   npm run dev
+   ```
+
+3. **Build web application**:
+   ```bash
+   npm run build:web
+   ```
+
+### Electron Setup (Optional)
+
+1. **Install electron dependencies**:
+   ```bash
+   npm run install:electron
+   ```
+
+2. **Run electron in development mode**:
+   ```bash
+   npm run electron:dev
+   ```
+
+3. **Build electron application**:
+   ```bash
+   npm run build:electron
+   ```
+
+## Build System
+
+The project now supports separate builds for web and desktop applications:
+
+### Web Application
+- **Location**: `frontend/` directory
+- **Dependencies**: Only web-related packages (Vue.js, Vite, etc.)
+- **Build**: `npm run build:web` or `./build-web.sh`
+- **Output**: `frontend/dist/`
+
+### Desktop Application (Electron)
+- **Location**: `electron/` directory  
+- **Dependencies**: Only Electron-related packages
+- **Build**: `npm run build:electron` or `./build-electron.sh`
+- **Output**: `electron/release/`
+
+### Benefits of Separation
+- **Faster web builds**: No need to install Electron dependencies for web-only development
+- **Smaller web bundle**: Electron packages are not included in web builds
+- **Independent development**: Work on web or desktop features separately
+- **Selective deployment**: Deploy only what you need (web or desktop)
 
 ## Usage Examples
 

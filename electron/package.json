@@ -1,0 +1,33 @@
+{
+  "name": "simplecms-filemanager-electron",
+  "version": "0.0.1",
+  "description": "SimpleCMS File Manager - Desktop Application",
+  "author": {
+    "name": "SimpleCMS Team",
+    "email": "test@lufy.org"
+  },
+  "homepage": "https://github.com/simplecms/filemanager",
+  "private": true,
+  "main": "main.cjs",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "electron": "electron .",
+    "electron:dev": "concurrently \"cd ../frontend && npm run dev\" \"wait-on http://localhost:3002 && electron .\"",
+    "electron:build": "cd ../frontend && npm run build && cd ../electron && electron-builder",
+    "electron:build:win": "cd ../frontend && npm run build && cd ../electron && electron-builder --win",
+    "electron:build:mac": "cd ../frontend && npm run build && cd ../electron && electron-builder --mac",
+    "electron:build:linux": "cd ../frontend && npm run build && cd ../electron && electron-builder --linux",
+    "electron:dist": "cd ../frontend && npm run build && cd ../electron && electron-builder --publish=never",
+    "electron:pack": "cd ../frontend && npm run build && cd ../electron && electron-builder --dir",
+    "setup": "./setup-electron.sh"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^38.1.0",
+    "electron-builder": "^26.0.12",
+    "vite-plugin-electron": "^0.29.0",
+    "wait-on": "^7.2.0"
+  }
+}

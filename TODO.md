@@ -6,4 +6,5 @@ v. Change back button action in fileitem detail page, to back to its parent page
 v. Add file create functionality
 7. Fix video player cannot play issue (400MB MP4)
 8. User tags management
-9. Use different icon to files/directories shared by others
+9. Use different icons/colors to files/directories shared by others
+10. Create video thumbnail while uploading

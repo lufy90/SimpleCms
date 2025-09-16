@@ -14,10 +14,7 @@ This document explains how to build and run the SimpleCMS File Manager as a desk
 npm install
 ```
 
-2. Install additional Electron dependencies:
-```bash
-npm install --save-dev concurrently wait-on
-```
+Note: This will install only Electron-related dependencies. The web application dependencies are managed separately in the `frontend/` directory.
 
 ## Development
 
@@ -192,10 +189,9 @@ The application uses a hybrid storage system that automatically detects the envi
 ## File Structure
 
 ```
-frontend/
-├── electron/
-│   ├── main.js          # Main Electron process
-│   └── preload.js       # Preload script
+electron/
+├── main.cjs             # Main Electron process
+├── preload.cjs          # Preload script
 ├── build/
 │   └── entitlements.mac.plist  # macOS entitlements
 ├── public/
@@ -203,7 +199,8 @@ frontend/
 │   ├── icon.ico         # Windows icon
 │   └── icon.icns        # macOS icon
 ├── electron-builder.json # Build configuration
-└── package.json         # Scripts and dependencies
+├── package.json         # Electron scripts and dependencies
+└── release/             # Built application output
 ```
 
 ## Next Steps
