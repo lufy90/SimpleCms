@@ -12,7 +12,7 @@
 !define MUI_FINISHPAGE_TEXT "SimpleCMS File Manager has been successfully installed on your computer."
 
 ; Add custom installer functions
-Function .onInit
+Function CheckIfRunning
   ; Check if the application is already running
   System::Call 'kernel32::CreateMutex(i 0, i 0, t "SimpleCMSFileManager") i .r1 ?e'
   Pop $R0
@@ -20,6 +20,11 @@ Function .onInit
     MessageBox MB_OK|MB_ICONEXCLAMATION "SimpleCMS File Manager is already running. Please close it before installing."
     Abort
 FunctionEnd
+
+; Hook into the installer initialization
+!macro customInit
+  Call CheckIfRunning
+!macroend
 
 Function .onInstSuccess
   ; Optional: Launch the application after installation

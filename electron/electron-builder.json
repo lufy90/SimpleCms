@@ -85,8 +85,7 @@
     "createStartMenuShortcut": true,
     "shortcutName": "SimpleCMS File Manager",
     "installerLanguages": ["en_US", "zh_CN"],
-    "displayLanguageSelector": true,
-    "include": "build/installer.nsh"
+    "displayLanguageSelector": true
   },
   "dmg": {
     "title": "SimpleCMS File Manager",
