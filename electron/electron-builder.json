@@ -33,7 +33,9 @@
       }
     ],
     "icon": "public/icon.ico",
-    "requestedExecutionLevel": "asInvoker"
+    "requestedExecutionLevel": "asInvoker",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "publisherName": "SimpleCMS Team"
   },
   "mac": {
     "target": [
@@ -85,7 +87,13 @@
     "createStartMenuShortcut": true,
     "shortcutName": "SimpleCMS File Manager",
     "installerLanguages": ["en_US", "zh_CN"],
-    "displayLanguageSelector": true
+    "displayLanguageSelector": true,
+    "warningsAsErrors": false,
+    "runAfterFinish": false,
+    "deleteAppDataOnUninstall": false,
+    "perMachine": false,
+    "allowElevation": true,
+    "menuCategory": false
   },
   "dmg": {
     "title": "SimpleCMS File Manager",
