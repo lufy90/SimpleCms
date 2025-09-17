@@ -6,7 +6,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Q
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse, StreamingHttpResponse
 
 from django.contrib.auth.models import Group, User
 import os
@@ -165,6 +165,132 @@ class FileItemViewSet(viewsets.ModelViewSet):
                 response['Content-Disposition'] = f'attachment; filename="{file_item.name}"'
             
             return response
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['get'])
+    def stream(self, request, pk=None):
+        """
+        Stream a file with HTTP Range support for video/audio playback
+        
+        This endpoint provides efficient streaming of large files with support for:
+        - HTTP Range requests for partial content (seek/scrub in video players)
+        - Chunked transfer encoding for memory-efficient streaming
+        - Proper caching headers for better performance
+        - Media-specific headers for video/audio playback
+        
+        URL: /api/files/{id}/stream/
+        Method: GET
+        Headers: 
+            - Range: bytes=start-end (optional, for partial content)
+        Response: 
+            - 200: Full file stream
+            - 206: Partial content (when Range header provided)
+            - 416: Range Not Satisfiable (invalid range)
+            - 403: Access denied
+            - 404: File not found
+        
+        Example usage:
+        - Full file: GET /api/files/123/stream/
+        - Partial content: GET /api/files/123/stream/ with Range: bytes=0-1023
+        - Video seeking: GET /api/files/123/stream/ with Range: bytes=1048576-2097151
+        """
+        file_item = self.get_object()
+        
+        if file_item.item_type != 'file':
+            return Response({'error': 'Item is not a file'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not file_item.can_access(request.user, 'read'):
+            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        if not file_item.storage:
+            return Response({'error': 'File storage not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        file_path = file_item.storage.get_file_path()
+        if not os.path.exists(file_path):
+            return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Log the stream access
+        FileAccessLog.objects.create(
+            file=file_item,
+            user=request.user if request.user.is_authenticated else None,
+            action='stream',
+            ip_address=self.get_client_ip(request),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
+        )
+        
+        try:
+            file_size = os.path.getsize(file_path)
+            mime_type = file_item.storage.mime_type or 'application/octet-stream'
+            
+            # Parse Range header
+            range_header = request.META.get('HTTP_RANGE')
+            if range_header:
+                # Parse range header (e.g., "bytes=0-1023")
+                range_match = range_header.replace('bytes=', '').split('-')
+                start = int(range_match[0]) if range_match[0] else 0
+                end = int(range_match[1]) if range_match[1] else file_size - 1
+                
+                # Ensure end doesn't exceed file size
+                end = min(end, file_size - 1)
+                
+                # Ensure start is not greater than end
+                if start > end:
+                    return HttpResponse('Requested Range Not Satisfiable', status=416)
+                
+                content_length = end - start + 1
+                
+                def file_generator():
+                    with open(file_path, 'rb') as f:
+                        f.seek(start)
+                        remaining = content_length
+                        while remaining > 0:
+                            chunk_size = min(8192, remaining)  # 8KB chunks
+                            chunk = f.read(chunk_size)
+                            if not chunk:
+                                break
+                            remaining -= len(chunk)
+                            yield chunk
+                
+                response = StreamingHttpResponse(
+                    file_generator(),
+                    status=206,  # Partial Content
+                    content_type=mime_type
+                )
+                
+                response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
+                response['Content-Length'] = str(content_length)
+                response['Accept-Ranges'] = 'bytes'
+                response['Cache-Control'] = 'public, max-age=3600'  # Cache for 1 hour
+                
+            else:
+                # No range header - stream entire file
+                def file_generator():
+                    with open(file_path, 'rb') as f:
+                        while True:
+                            chunk = f.read(8192)  # 8KB chunks
+                            if not chunk:
+                                break
+                            yield chunk
+                
+                response = StreamingHttpResponse(
+                    file_generator(),
+                    content_type=mime_type
+                )
+                response['Content-Length'] = str(file_size)
+                response['Accept-Ranges'] = 'bytes'
+                response['Cache-Control'] = 'public, max-age=3600'  # Cache for 1 hour
+            
+            # Set appropriate headers for media files
+            if mime_type.startswith('video/') or mime_type.startswith('audio/'):
+                response['Content-Disposition'] = f'inline; filename="{file_item.name}"'
+                # Add headers to help with media playback
+                response['X-Content-Type-Options'] = 'nosniff'
+            else:
+                response['Content-Disposition'] = f'inline; filename="{file_item.name}"'
+            
+            return response
+            
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     

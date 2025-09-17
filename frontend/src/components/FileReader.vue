@@ -69,6 +69,7 @@
         v-else-if="fileType === 'video'"
         :src="fileContent"
         :filename="file?.name || 'File'"
+        :file-id="file?.id"
       />
 
       <!-- Audio Viewer -->
@@ -76,6 +77,7 @@
         v-else-if="fileType === 'audio'"
         :src="fileContent"
         :filename="file?.name || 'File'"
+        :file-id="file?.id"
       />
 
       <!-- Office Document Viewer -->

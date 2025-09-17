@@ -1,5 +1,5 @@
 <template>
-  <div class="file-icon" :style="{ width: size + 'px', height: size + 'px' }">
+  <div class="file-icon" :style="{ width: size + 'px', height: size + 'px' }" :class="{ 'not-owned': !isOwnedByCurrentUser }">
     <!-- Thumbnail for image files -->
     <img
       v-if="showThumbnail && thumbnailUrl"
@@ -26,6 +26,13 @@
       <Files v-else-if="fileType === 'archive'" />
       <Document v-else />
     </el-icon>
+
+    <!-- Ownership indicator badge -->
+    <div v-if="!isOwnedByCurrentUser" class="ownership-badge" :title="`Owned by ${file.owner?.username || 'Unknown'}`">
+      <el-icon :size="Math.max(6, size * 0.2)">
+        <User />
+      </el-icon>
+    </div>
 
     <!-- Loading indicator for thumbnail -->
     <div v-if="loadingThumbnail" class="thumbnail-loading">
@@ -54,9 +61,11 @@ import {
   Collection,
   Reading,
   Monitor,
+  User,
 } from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
+import { useAuthStore } from '@/stores/auth'
 
 interface FileItem {
   id: number
@@ -76,6 +85,13 @@ interface FileItem {
   file_info?: {
     mime_type?: string
   }
+  owner?: {
+    id: number
+    username: string
+    email: string
+    first_name: string
+    last_name: string
+  }
 }
 
 interface Props {
@@ -91,6 +107,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 // Services
 const officeConfig = useOfficeConfig()
+const authStore = useAuthStore()
 
 // Reactive state
 const thumbnailUrl = ref<string | null>(null)
@@ -192,6 +209,13 @@ const detectFileType = (file: FileItem) => {
 
 // Computed properties
 const fileType = computed(() => detectFileType(props.file))
+
+const isOwnedByCurrentUser = computed(() => {
+  if (!authStore.user || !props.file.owner) {
+    return true // If no user or no owner info, assume owned
+  }
+  return props.file.owner.id === authStore.user.id
+})
 
 const iconColor = computed(() => {
   const type = fileType.value
@@ -319,5 +343,36 @@ onUnmounted(() => {
 
 .thumbnail-loading .el-icon {
   font-size: 16px;
+}
+
+/* Ownership indicators */
+.file-icon.not-owned {
+  opacity: 0.8;
+  position: relative;
+}
+
+.file-icon.not-owned .fallback-icon {
+  filter: grayscale(0.3);
+}
+
+.ownership-badge {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  background: #67c23a;
+  color: white;
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+.ownership-badge .el-icon {
+  font-size: 8px;
 }
 </style>

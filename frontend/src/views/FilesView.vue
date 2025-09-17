@@ -418,6 +418,16 @@
           </template>
         </el-table-column>
         <el-table-column prop="item_type" :label="$t('files.columns.type')" width="100" sortable />
+        <el-table-column prop="owner" :label="$t('files.columns.owner')" width="120" sortable>
+          <template #default="{ row }">
+            <div class="owner-cell">
+              <el-icon v-if="row.owner" :size="14" class="owner-icon">
+                <User />
+              </el-icon>
+              <span>{{ row.owner?.username || '-' }}</span>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="visibility" :label="$t('files.columns.visibility')" width="120" sortable>
           <template #default="{ row }">
             <el-tag :type="getVisibilityTagType(row.visibility)" size="small">
@@ -943,6 +953,7 @@ import {
   Share,
   Edit,
   Loading,
+  User,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ShareDialog from '@/components/ShareDialog.vue'
@@ -3170,6 +3181,18 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+}
+
+.owner-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #606266;
+}
+
+.owner-icon {
+  color: #67c23a;
 }
 
 /* List view table styling */

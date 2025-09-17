@@ -203,6 +203,15 @@ export const filesAPI = {
   download: (id: number, params?: { download?: string }) =>
     api.get(`/api/files/${id}/download/`, { responseType: 'blob', params }),
 
+  stream: (id: number, range?: string) => {
+    const headers = range ? { Range: range } : {}
+    return api.get(`/api/files/${id}/stream/`, { 
+      responseType: 'blob', 
+      headers,
+      timeout: 0 // No timeout for streaming
+    })
+  },
+
   getThumbnail: (id: number) => api.get(`/api/files/${id}/thumbnail/`, { responseType: 'blob' }),
 
   preview: (id: number) => api.get(`/api/files/${id}/preview/`),

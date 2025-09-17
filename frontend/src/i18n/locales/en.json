@@ -81,6 +81,7 @@
       "name": "Name",
       "size": "Size",
       "type": "Type",
+      "owner": "Owner",
       "visibility": "Visibility",
       "created": "Created",
       "actions": "Actions"

@@ -4,7 +4,9 @@ v. Change back button action in fileitem detail page, to back to its parent page
 4. Add file tags functionality
 5. Add access log view
 v. Add file create functionality
-7. Fix video player cannot play issue (400MB MP4)
+v. Fix video player cannot play issue (400MB MP4)
 8. User tags management
-9. Use different icons/colors to files/directories shared by others
+v. Use different icons/colors to files/directories shared by others
 10. Create video thumbnail while uploading
+12. Make generate thumbnail to videos and images as optional, user could set this in settings OR implement a setting app
+13. Make allow or not allow registry setting
