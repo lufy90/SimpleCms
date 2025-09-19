@@ -108,10 +108,12 @@ The frontend communicates with the Django backend through RESTful APIs:
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
+- `npm run build:clean` - Clean build (removes dist first)
 - `npm run preview` - Preview production build
 - `npm run type-check` - TypeScript type checking
 - `npm run lint` - ESLint linting
 - `npm run format` - Prettier code formatting
+- `npm run install:clean` - Clean install (removes node_modules first)
 
 ### Code Style
 

@@ -113,7 +113,7 @@
   },
   "publish": {
     "provider": "github",
-    "owner": "your-username",
+    "owner": "simplecms",
     "repo": "simplecms"
   }
 }

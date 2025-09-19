@@ -10,3 +10,6 @@ v. Use different icons/colors to files/directories shared by others
 10. Create video thumbnail while uploading
 12. Make generate thumbnail to videos and images as optional, user could set this in settings OR implement a setting app
 13. Make allow or not allow registry setting
+14. Make server API configurable from frontend or electron app.
+15. While in electron APP, we need change the "Open in New Tab" action.
+16. More featured video player, support next, etc.

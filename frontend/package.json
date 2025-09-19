@@ -13,12 +13,14 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "run-p type-check \"build-only {@}\" --",
-    "preview": "vite preview",
-    "build-only": "vite build",
+    "build": "VITE_TARGET=web run-p type-check \"build-only {@}\" --",
+    "preview": "VITE_TARGET=web vite preview",
+    "build-only": "VITE_TARGET=web vite build",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "install:clean": "rm -rf node_modules package-lock.json && npm install",
+    "build:clean": "rm -rf dist && npm run build"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

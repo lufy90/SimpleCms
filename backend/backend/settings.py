@@ -214,4 +214,4 @@ MAX_UPLOAD_SIZE = 104857600
 ONLYOFFICE_DOCUMENT_SERVER_URL = 'http://10.0.1.6'
 ONLYOFFICE_SECRET_KEY = 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd'
 API_BASE_URL = 'http://10.0.1.2:8002'
-FRONTEND_URL = 'http://10.0.1.2:3001' # frontend url, for customize ONLYOFFICE documenment goback url
+FRONTEND_URL = 'http://10.0.1.2:10000' # frontend url, for customize ONLYOFFICE documenment goback url

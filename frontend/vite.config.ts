@@ -17,7 +17,8 @@ export default defineConfig({
     port: 3001, // Changed to 3001 to match Electron main.js
     host: "0.0.0.0"
   },
-  base: './', // Important for Electron file:// protocol
+  // Important for Electron file:// protocol
+  base: process.env.VITE_TARGET === 'web' ? '/' : './',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
