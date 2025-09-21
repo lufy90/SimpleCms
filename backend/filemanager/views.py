@@ -41,6 +41,27 @@ class FileItemViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = FileItemPagination
     
+    def get_permissions(self):
+        """
+        Override permissions for specific actions
+        """
+        if self.action == 'stream':
+            # For streaming, we handle authentication manually in the method
+            return []
+        return super().get_permissions()
+    
+    def get_object(self):
+        """
+        Override get_object for stream action to bypass permission filtering
+        """
+        if self.action == 'stream':
+            # For streaming, get the object directly without permission filtering
+            # Authentication will be handled in the stream method
+            lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+            lookup_value = self.kwargs[lookup_url_kwarg]
+            return FileItem.objects.get(**{self.lookup_field: lookup_value})
+        return super().get_object()
+    
     def get_serializer_class(self):
         if self.action == 'create':
             return FileItemCreateSerializer
@@ -200,7 +221,30 @@ class FileItemViewSet(viewsets.ModelViewSet):
         if file_item.item_type != 'file':
             return Response({'error': 'Item is not a file'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if not file_item.can_access(request.user, 'read'):
+        # Check authentication - either via user session or token query parameter
+        user = request.user
+        token = request.GET.get('token')
+        
+        print(f"Stream authentication - User: {user}, Token: {token[:10] if token else 'None'}...")
+        
+        if token:
+            # Authenticate using JWT token from query parameter
+            try:
+                from rest_framework_simplejwt.tokens import AccessToken
+                from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+                
+                # Validate and decode the JWT token
+                access_token = AccessToken(token)
+                user_id = access_token['user_id']
+                user = User.objects.get(id=user_id)
+                print(f"JWT token authentication successful for user: {user}")
+            except (InvalidToken, TokenError, User.DoesNotExist) as e:
+                print(f"JWT token authentication failed: {e}")
+                return Response({'error': 'Invalid token'}, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            print("No token provided, using session authentication")
+        
+        if not file_item.can_access(user, 'read'):
             return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
         
         if not file_item.storage:
@@ -213,7 +257,7 @@ class FileItemViewSet(viewsets.ModelViewSet):
         # Log the stream access
         FileAccessLog.objects.create(
             file=file_item,
-            user=request.user if request.user.is_authenticated else None,
+            user=user if user.is_authenticated else None,
             action='stream',
             ip_address=self.get_client_ip(request),
             user_agent=request.META.get('HTTP_USER_AGENT', '')

@@ -4,7 +4,7 @@
       <div class="audio-player-container">
         <audio
           ref="audioRef"
-          :src="audioSrc"
+          :src="audioSrc || undefined"
           controls
           class="audio-player"
           @loadedmetadata="onAudioLoad"
@@ -53,18 +53,20 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { Microphone, Loading } from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
+import { tokenStorage } from '@/utils/storage'
 
 interface Props {
-  src: string
+  src: string | null
   filename: string
   fileId?: number
+  streamingEnabled?: boolean
 }
 
 const props = defineProps<Props>()
 
 // State
 const audioRef = ref<HTMLAudioElement>()
-const useStreaming = ref(true)
+const useStreaming = ref(props.streamingEnabled ?? true)
 const isLoading = ref(false)
 const streamUrl = ref<string | null>(null)
 
@@ -89,13 +91,26 @@ const loadStreamUrl = async () => {
   
   try {
     isLoading.value = true
-    const response = await filesAPI.stream(props.fileId)
     
-    // Create blob URL for streaming
-    const blob = new Blob([response.data], { type: 'audio/mpeg' })
-    streamUrl.value = URL.createObjectURL(blob)
+    // Create a custom streaming solution that handles authentication
+    // We'll create a blob URL that can make authenticated requests
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
+    const streamEndpoint = `${baseUrl}/api/files/${props.fileId}/stream/`
     
-    console.log('Stream URL created for audio streaming')
+    // Create a custom URL that includes authentication
+    // This is a workaround since audio elements can't use custom headers
+    const token = tokenStorage.getAccessToken()
+    if (token) {
+      // For now, we'll use a query parameter approach
+      // This requires backend modification to accept token as query param
+      streamUrl.value = `${streamEndpoint}?token=${token}`
+    } else {
+      // Fallback to regular download if no token
+      useStreaming.value = false
+      return
+    }
+    
+    console.log('Stream URL created for audio streaming (with auth)')
   } catch (error) {
     console.error('Failed to load stream URL:', error)
     // Fallback to regular download
@@ -144,10 +159,18 @@ watch(() => props.fileId, (newFileId) => {
   }
 })
 
+// Watch for streamingEnabled prop changes
+watch(() => props.streamingEnabled, (newValue) => {
+  useStreaming.value = newValue ?? true
+  if (newValue && props.fileId) {
+    loadStreamUrl()
+  }
+})
+
 // Cleanup blob URL on unmount
 import { onUnmounted } from 'vue'
 onUnmounted(() => {
-  if (streamUrl.value) {
+  if (streamUrl.value && streamUrl.value.startsWith('blob:')) {
     URL.revokeObjectURL(streamUrl.value)
   }
 })

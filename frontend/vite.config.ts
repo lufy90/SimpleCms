@@ -18,7 +18,8 @@ export default defineConfig({
     host: "0.0.0.0"
   },
   // Important for Electron file:// protocol
-  base: process.env.VITE_TARGET === 'web' ? '/' : './',
+  //base: process.env.VITE_TARGET === 'web' ? '/' : './',
+  base: "/",
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

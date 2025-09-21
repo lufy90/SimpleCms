@@ -102,16 +102,20 @@
 
         <!-- Video Viewer -->
         <VideoViewer
-          v-else-if="fileType === 'video' && fileContent"
+          v-else-if="fileType === 'video'"
           :src="fileContent"
           :filename="file.name"
+          :file-id="file.id"
+          :streaming-enabled="true"
         />
 
         <!-- Audio Viewer -->
         <AudioViewer
-          v-else-if="fileType === 'audio' && fileContent"
+          v-else-if="fileType === 'audio'"
           :src="fileContent"
           :filename="file.name"
+          :file-id="file.id"
+          :streaming-enabled="true"
         />
 
         <!-- Office Document Viewer -->
@@ -304,12 +308,11 @@ const loadFile = async () => {
     if (fileType.value === 'office') {
       // For office documents, we don't need to load content as the OfficeDocumentViewer handles it
       fileContent.value = null
-    } else if (
-      fileType.value === 'image' ||
-      fileType.value === 'video' ||
-      fileType.value === 'audio'
-    ) {
-      // For media files, create object URL from blob
+    } else if (fileType.value === 'video' || fileType.value === 'audio') {
+      // For video and audio files with streaming enabled, skip downloading
+      fileContent.value = null // Let the viewer handle streaming directly
+    } else if (fileType.value === 'image') {
+      // For image files, create object URL from blob
       const response = await filesAPI.download(file.value!.id)
       const blob = new Blob([response.data])
       fileContent.value = URL.createObjectURL(blob)

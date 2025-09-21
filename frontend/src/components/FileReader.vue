@@ -70,6 +70,7 @@
         :src="fileContent"
         :filename="file?.name || 'File'"
         :file-id="file?.id"
+        :streaming-enabled="true"
       />
 
       <!-- Audio Viewer -->
@@ -78,6 +79,7 @@
         :src="fileContent"
         :filename="file?.name || 'File'"
         :file-id="file?.id"
+        :streaming-enabled="true"
       />
 
       <!-- Office Document Viewer -->
@@ -270,11 +272,19 @@ const detectedLanguage = computed(() => {
 
 // Methods
 const loadFileContent = async () => {
+  console.log('loadFileContent')
   if (!props.file) return
 
   // For office documents, we don't need to load content as the OfficeDocumentViewer handles it
   if (fileType.value === 'office') {
     loading.value = false
+    return
+  }
+
+  // For video and audio files with streaming enabled, skip downloading
+  if (fileType.value === 'video' || fileType.value === 'audio') {
+    loading.value = false
+    fileContent.value = null // Let the viewer handle streaming directly
     return
   }
 
@@ -287,15 +297,12 @@ const loadFileContent = async () => {
   try {
     if (
       fileType.value === 'image' ||
-      fileType.value === 'video' ||
-      fileType.value === 'audio' ||
       fileType.value == 'pdf'
     ) {
-      // For media files, create object URL from blob
+      // For image and PDF files, create object URL from blob
       const response = await filesAPI.download(props.file.id)
       const blob = new Blob([response.data])
       fileContent.value = URL.createObjectURL(blob)
-      console.log('xxxxxxxxxxxxxxxxxxxxxxxxxurl:', fileContent.value)
     } else {
       // For text-based files, get as text
       const response = await filesAPI.download(props.file.id)

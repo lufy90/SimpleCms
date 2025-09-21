@@ -81,16 +81,20 @@
 
         <!-- Video Viewer -->
         <VideoViewer
-          v-else-if="fileType === 'video' && fileContent"
+          v-else-if="fileType === 'video'"
           :src="fileContent"
           :filename="file?.name || ''"
+          :file-id="file?.id"
+          :streaming-enabled="true"
         />
 
         <!-- Audio Viewer -->
         <AudioViewer
-          v-else-if="fileType === 'audio' && fileContent"
+          v-else-if="fileType === 'audio'"
           :src="fileContent"
           :filename="file?.name || ''"
+          :file-id="file?.id"
+          :streaming-enabled="true"
         />
 
         <!-- Office Document Viewer -->
@@ -292,9 +296,9 @@ const loadFile = async () => {
     const fileResponse = await filesAPI.getFile(parseInt(fileId))
     file.value = fileResponse.data
 
-    // Download file content (skip for office documents)
+    // Download file content (skip for office documents, video, and audio)
     const currentFileType = fileType.value
-    if (currentFileType !== 'office') {
+    if (currentFileType !== 'office' && currentFileType !== 'video' && currentFileType !== 'audio') {
       const contentResponse = await filesAPI.download(parseInt(fileId))
       var blob
       if (currentFileType === 'pdf') {
@@ -316,6 +320,9 @@ const loadFile = async () => {
           textContent.value = 'Error reading file content'
         }
       }
+    } else if (currentFileType === 'video' || currentFileType === 'audio') {
+      // For video and audio files, let the viewer handle streaming directly
+      fileContent.value = null
     }
   } catch (err: any) {
     console.error('Error loading file:', err)
