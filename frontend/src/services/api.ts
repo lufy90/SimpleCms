@@ -10,7 +10,7 @@ const api = axios.create({
 // Create separate axios instance for uploads with longer timeout
 const uploadApi = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002',
-  timeout: 300000, // 5 minutes for upload requests
+  timeout: 600000, // 5 minutes for upload requests
 })
 
 // Request interceptor to add auth token

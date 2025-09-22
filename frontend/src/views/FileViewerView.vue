@@ -300,7 +300,7 @@ const loadFile = async () => {
     const currentFileType = fileType.value
     if (currentFileType !== 'office' && currentFileType !== 'video' && currentFileType !== 'audio') {
       const contentResponse = await filesAPI.download(parseInt(fileId))
-      var blob
+      let blob
       if (currentFileType === 'pdf') {
         blob = new Blob([contentResponse.data], { type: 'application/pdf' })
       } else {

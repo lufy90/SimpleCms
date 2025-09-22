@@ -9,7 +9,7 @@ To build the web application:
 ```bash
 cd frontend
 npm install
-npm run build
+VITE_API_BASE_URL=<API_URL> npm run build
 ```
 
 The built files will be in `frontend/dist/`.
@@ -21,7 +21,7 @@ To build the desktop application:
 ```bash
 cd electron
 npm install
-npm run build
+VITE_API_BASE_URL=<API_URL> npm run build
 ```
 
 This will automatically build the frontend first, then build the Electron app.

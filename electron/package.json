@@ -16,14 +16,12 @@
     "electron": "electron .",
     "dev": "concurrently \"cd ../frontend && npm run dev\" \"wait-on http://localhost:3002 && electron .\"",
     "build": "npm run build:frontend && electron-builder",
-    "build:frontend": "cd ../frontend && npm install && npm run build",
+    "build:frontend": "cd ../frontend && npm install && npm run build:electron",
     "build:win": "npm run build:frontend && electron-builder --win",
     "build:mac": "npm run build:frontend && electron-builder --mac", 
     "build:linux": "npm run build:frontend && electron-builder --linux",
     "dist": "npm run build:frontend && electron-builder --publish=never",
     "pack": "npm run build:frontend && electron-builder --dir",
-    "install:frontend": "cd ../frontend && npm install",
-    "install:all": "npm install && npm run install:frontend",
     "setup": "./setup-electron.sh"
   },
   "devDependencies": {
