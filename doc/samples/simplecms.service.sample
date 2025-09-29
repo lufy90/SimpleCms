@@ -1,0 +1,17 @@
+[Unit]
+Description=SimpleCms Gunicorn
+After=network.target
+
+[Service]
+User=root
+Group=nginx
+WorkingDirectory=/opt/SimpleCms/backend/
+ExecStart=/opt/venv/bin/gunicorn backend.wsgi:application \
+          --bind unix:/run/simplecms.sock \
+          --workers 2 \
+          --timeout 120
+RuntimeDirectoryMode=775
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

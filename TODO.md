@@ -13,3 +13,5 @@ v. Use different icons/colors to files/directories shared by others
 14. Make server API configurable from frontend or electron app.
 15. While in electron APP, we need change the "Open in New Tab" action.
 16. More featured video player, support next, etc.
+17. [bug] Download file in electron app, need progress.
+18. [bug] Download file in electron app failed, with error: request exceeds 30000ms.
