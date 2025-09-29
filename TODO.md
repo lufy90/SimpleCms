@@ -15,3 +15,4 @@ v. Use different icons/colors to files/directories shared by others
 16. More featured video player, support next and previous, etc.
 17. [bug] Download file in electron app, need progress.
 18. [bug] Download file in electron app failed, with error: request exceeds 30000ms.
+v. Optimize file download logic, currently, it download to browser first by js (because download needs authentication).

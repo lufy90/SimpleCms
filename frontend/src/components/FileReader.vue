@@ -119,6 +119,7 @@ import { Loading, Warning, Download, Share } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
+import { tokenStorage } from '@/utils/storage'
 
 // Import individual viewers
 import ImageViewer from './readers/ImageViewer.vue'
@@ -325,21 +326,19 @@ const handleDownload = async () => {
   if (!props.file) return
 
   try {
-    const response = await filesAPI.download(props.file.id, { download: 'true' })
-    const blob = new Blob([response.data])
-    const url = URL.createObjectURL(blob)
+    // Get the access token for download_with_token API
+    const token = tokenStorage.getAccessToken()
+    if (!token) {
+      ElMessage.error('Authentication required for download')
+      return
+    }
 
-    const link = document.createElement('a')
-    link.href = url
-    link.download = props.file.name
-    link.style.display = 'none'
-
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    URL.revokeObjectURL(url)
-    ElMessage.success(`Downloaded ${props.file.name}`)
+    // Open download URL in new tab
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
+    const downloadUrl = `${baseUrl}/api/files/${props.file.id}/download_with_token/?token=${encodeURIComponent(token)}&download=true`
+    
+    window.open(downloadUrl, '_blank')
+    ElMessage.success(`Download started for ${props.file.name}`)
   } catch (error: any) {
     console.error('Download error:', error)
     ElMessage.error('Download failed')

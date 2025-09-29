@@ -933,6 +933,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore, type FileItem } from '@/stores/files'
 import { uploadAPI, filesAPI } from '@/services/api'
+import { tokenStorage } from '@/utils/storage'
 import {
   List,
   Menu,
@@ -2405,30 +2406,19 @@ const handleConflictSkip = () => {
 
 const downloadFile = async (file: any) => {
   try {
-    ElMessage.info(`Downloading ${file.name}...`)
+    // Get the access token for download_with_token API
+    const token = tokenStorage.getAccessToken()
+    if (!token) {
+      ElMessage.error('Authentication required for download')
+      return
+    }
 
-    // Use the API service to download the file with force download parameter
-    const response = await filesAPI.download(file.id, { download: 'true' })
-
-    // Create a blob URL from the response
-    const blob = new Blob([response.data])
-    const url = window.URL.createObjectURL(blob)
-
-    // Create a temporary link element to trigger the download
-    const link = document.createElement('a')
-    link.href = url
-    link.download = file.name
-    link.style.display = 'none'
-
-    // Append to body, click, and remove
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    // Clean up the blob URL
-    window.URL.revokeObjectURL(url)
-
-    ElMessage.success(`Successfully downloaded ${file.name}`)
+    // Open download URL in new tab
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
+    const downloadUrl = `${baseUrl}/api/files/${file.id}/download_with_token/?token=${encodeURIComponent(token)}&download=true`
+    
+    window.open(downloadUrl, '_blank')
+    ElMessage.success(`Download started for ${file.name}`)
   } catch (error: any) {
     console.error('Download error:', error)
     ElMessage.error(

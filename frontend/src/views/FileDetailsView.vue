@@ -144,6 +144,7 @@ import { Loading, Warning, Download, Share, ArrowLeft } from '@element-plus/icon
 import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
+import { tokenStorage } from '@/utils/storage'
 
 const { t } = useI18n()
 
@@ -304,6 +305,8 @@ const loadFile = async () => {
     const fileResponse = await filesAPI.get(Number(props.fileId))
     file.value = fileResponse.data
 
+    console.log('fileType:', fileType.value)
+
     // Then load file content
     if (fileType.value === 'office') {
       // For office documents, we don't need to load content as the OfficeDocumentViewer handles it
@@ -320,11 +323,13 @@ const loadFile = async () => {
       const response = await filesAPI.download(file.value!.id)
       const blob = new Blob([response.data], { type: 'application/pdf' })
       fileContent.value = URL.createObjectURL(blob)
-    } else {
+    } else if (['text', 'json', 'code'].includes(fileType.value || '')) {
       // For text-based files, get as text
       const response = await filesAPI.download(file.value!.id)
       const text = await response.data.text()
       fileContent.value = text
+    } else {
+      fileContent.value = null
     }
   } catch (err: any) {
     console.error('Error loading file:', err)
@@ -352,21 +357,19 @@ const handleDownload = async () => {
   if (!file.value) return
 
   try {
-    const response = await filesAPI.download(file.value.id, { download: 'true' })
-    const blob = new Blob([response.data])
-    const url = URL.createObjectURL(blob)
+    // Get the access token for download_with_token API
+    const token = tokenStorage.getAccessToken()
+    if (!token) {
+      ElMessage.error('Authentication required for download')
+      return
+    }
 
-    const link = document.createElement('a')
-    link.href = url
-    link.download = file.value.name
-    link.style.display = 'none'
-
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    URL.revokeObjectURL(url)
-    ElMessage.success(t('fileDetails.downloadedFile', { fileName: file.value.name }))
+    // Open download URL in new tab
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
+    const downloadUrl = `${baseUrl}/api/files/${file.value.id}/download_with_token/?token=${encodeURIComponent(token)}&download=true`
+    
+    window.open(downloadUrl, '_blank')
+    ElMessage.success(t('fileDetails.downloadStarted', { fileName: file.value.name }))
   } catch (error: any) {
     console.error('Download error:', error)
     ElMessage.error(t('fileDetails.downloadFailed'))

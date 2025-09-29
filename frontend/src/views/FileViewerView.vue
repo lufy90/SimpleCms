@@ -122,6 +122,7 @@ import { Document, Download, Loading, Warning } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
+import { tokenStorage } from '@/utils/storage'
 import ImageViewer from '@/components/readers/ImageViewer.vue'
 import TextViewer from '@/components/readers/TextViewer.vue'
 import JSONViewer from '@/components/readers/JSONViewer.vue'
@@ -185,13 +186,6 @@ const fileType = computed(() => {
     return 'pdf'
   }
 
-  // Text files
-  if (
-    mimeType.startsWith('text/') ||
-    ['txt', 'md', 'csv', 'log'].some((ext) => extension === ext || fileName.endsWith(`.${ext}`))
-  ) {
-    return 'text'
-  }
 
   // JSON files
   if (mimeType === 'application/json' || extension === 'json' || fileName.endsWith('.json')) {
@@ -217,9 +211,18 @@ const fileType = computed(() => {
       'rb',
       'go',
       'rs',
+      'ini',
     ].some((ext) => extension === ext || fileName.endsWith(`.${ext}`))
   ) {
     return 'code'
+  }
+
+  // Text files
+  if (
+    mimeType.startsWith('text/') ||
+    ['txt', 'md', 'csv', 'log'].some((ext) => extension === ext || fileName.endsWith(`.${ext}`))
+  ) {
+    return 'text'
   }
 
   // Video files
@@ -298,7 +301,10 @@ const loadFile = async () => {
 
     // Download file content (skip for office documents, video, and audio)
     const currentFileType = fileType.value
-    if (currentFileType !== 'office' && currentFileType !== 'video' && currentFileType !== 'audio') {
+    console.log('currentFileType:', currentFileType)
+    if (['unsupported', 'video', 'audio'].includes(currentFileType)) {
+      fileContent.value = null
+    } else if (['office', 'image', 'pdf', 'text', 'json', 'code'].includes(currentFileType)) {
       const contentResponse = await filesAPI.download(parseInt(fileId))
       let blob
       if (currentFileType === 'pdf') {
@@ -320,9 +326,6 @@ const loadFile = async () => {
           textContent.value = 'Error reading file content'
         }
       }
-    } else if (currentFileType === 'video' || currentFileType === 'audio') {
-      // For video and audio files, let the viewer handle streaming directly
-      fileContent.value = null
     }
   } catch (err: any) {
     console.error('Error loading file:', err)
@@ -337,7 +340,20 @@ const downloadFile = async () => {
 
   try {
     downloading.value = true
-    await filesAPI.download(file.value.id, { download: 'true' }) // Force download
+    
+    // Get the access token for download_with_token API
+    const token = tokenStorage.getAccessToken()
+    if (!token) {
+      ElMessage.error('Authentication required for download')
+      return
+    }
+    
+    // Open download URL in new tab
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
+    const downloadUrl = `${baseUrl}/api/files/${file.value.id}/download_with_token/?token=${encodeURIComponent(token)}&download=true`
+    
+    window.open(downloadUrl, '_blank')
+    ElMessage.success('Download started')
   } catch (err: any) {
     console.error('Download error:', err)
     ElMessage.error('Download failed')

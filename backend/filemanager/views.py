@@ -339,6 +339,99 @@ class FileItemViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['get'])
+    def download_with_token(self, request, pk=None):
+        """
+        Download a file using a JWT token for authentication
+        
+        This endpoint allows downloading files using a JWT token passed as a query parameter,
+        similar to the stream endpoint but for direct downloads.
+        
+        URL: /api/files/{id}/download_with_token/
+        Method: GET
+        Parameters:
+            - token: JWT access token (required)
+            - download: 'true' to force download, otherwise inline display
+        Response: 
+            - 200: File download/display
+            - 401: Invalid token
+            - 403: Access denied
+            - 404: File not found
+        
+        Example usage:
+        - GET /api/files/123/download_with_token/?token=your_jwt_token
+        - GET /api/files/123/download_with_token/?token=your_jwt_token&download=true
+        """
+        file_item = self.get_object()
+        
+        if file_item.item_type != 'file':
+            return Response({'error': 'Item is not a file'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get token from query parameter
+        token = request.GET.get('token')
+        if not token:
+            return Response({'error': 'Token parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Authenticate using JWT token from query parameter
+        try:
+            from rest_framework_simplejwt.tokens import AccessToken
+            from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+            
+            # Validate and decode the JWT token
+            access_token = AccessToken(token)
+            user_id = access_token['user_id']
+            user = User.objects.get(id=user_id)
+        except (InvalidToken, TokenError, User.DoesNotExist) as e:
+            return Response({'error': 'Invalid token'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        if not file_item.can_access(user, 'read'):
+            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        if not file_item.storage:
+            return Response({'error': 'File storage not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        file_path = file_item.storage.get_file_path()
+        if not os.path.exists(file_path):
+            return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Log the download
+        FileAccessLog.objects.create(
+            file=file_item,
+            user=user,
+            action='download',
+            ip_address=self.get_client_ip(request),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
+        )
+        
+        try:
+            response = FileResponse(open(file_path, 'rb'))
+            
+            # Set appropriate content type
+            mime_type = file_item.storage.mime_type or 'application/octet-stream'
+            response['Content-Type'] = mime_type
+            
+            # Check if file should be displayed inline (browser preview) or downloaded
+            browser_supported_types = [
+                'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp',
+                'application/pdf', 'text/plain', 'text/html', 'text/css', 'text/javascript', 'application/json',
+                'text/xml', 'application/xml', 'text/csv',
+                'audio/mpeg', 'audio/wav', 'audio/ogg', 'video/mp4', 'video/webm', 'video/ogg'
+            ]
+            
+            # Check if user wants to force download (via query parameter)
+            force_download = request.GET.get('download', '').lower() == 'true'
+            
+            if mime_type in browser_supported_types and not force_download:
+                # Display in browser
+                response['Content-Disposition'] = f'inline; filename="{file_item.name}"'
+            else:
+                # Force download
+                response['Content-Disposition'] = f'attachment; filename="{file_item.name}"'
+            
+            return response
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['get'])
     def preview(self, request, pk=None):
         """Get file preview information"""
         file_item = self.get_object()

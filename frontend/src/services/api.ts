@@ -203,6 +203,12 @@ export const filesAPI = {
   download: (id: number, params?: { download?: string }) =>
     api.get(`/api/files/${id}/download/`, { responseType: 'blob', params }),
 
+  downloadWithToken: (id: number, token: string, params?: { download?: string }) =>
+    api.get(`/api/files/${id}/download_with_token/`, { 
+      responseType: 'blob', 
+      params: { token, ...params }
+    }),
+
   stream: (id: number, range?: string) => {
     const headers = range ? { Range: range } : {}
     return api.get(`/api/files/${id}/stream/`, { 
