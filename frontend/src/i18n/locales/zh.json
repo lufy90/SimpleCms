@@ -120,7 +120,7 @@
     "messages": {
       "uploadSuccess": "上传成功",
       "uploadFailed": "上传失败",
-      "deleteConfirm": "确定要删除 {count} 项吗？此操作无法撤销。",
+      "deleteConfirm": "确定要删除 {count} 项吗？",
       "folderCreated": "文件夹创建成功",
       "fileRenamed": "重命名成功",
       "fileCopied": "文件复制成功",

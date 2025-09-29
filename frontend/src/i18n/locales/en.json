@@ -120,7 +120,7 @@
     "messages": {
       "uploadSuccess": "uploaded successfully",
       "uploadFailed": "upload failed",
-      "deleteConfirm": "Are you sure you want to delete {count} item(s)? This action cannot be undone.",
+      "deleteConfirm": "Are you sure you want to delete {count} item(s)?",
       "folderCreated": "Folder created successfully",
       "fileRenamed": "renamed successfully",
       "fileCopied": "Files copied successfully",

@@ -2151,11 +2151,11 @@ const showMoveDialog = () => {
 const confirmDelete = async () => {
   try {
     await ElMessageBox.confirm(
-      `Are you sure you want to delete ${selectedFileIds.value.size} item(s)? This action cannot be undone.`,
-      'Confirm Delete',
+      t('files.messages.deleteConfirm', { count: selectedFileIds.value.size }),
+      t('common.confirmDelete'),
       {
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       },
     )
