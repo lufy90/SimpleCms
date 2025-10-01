@@ -27,10 +27,7 @@ SECRET_KEY = 'django-insecure-9vprm7up08f+*wss-$^*g@iqgsaltahc%d*03g6syj6^z31#h=
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    "10.7.13.132",
-    "192.168.1.134",
     "localhost",
-    "10.0.1.2",
 ]
 
 
@@ -188,11 +185,6 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Vue.js development server
     "http://127.0.0.1:3000",
-    "http://localhost:8080",  # Alternative Vue.js port
-    "http://127.0.0.1:8080",
-    "http://192.168.1.134:3000",
-    "http://10.0.1.6",  # OnlyOffice Document Server
-    "http://10.0.1.2:3000",  # Frontend on network IP
 ]
 
 # Allow all origins for OnlyOffice callbacks (more permissive)
