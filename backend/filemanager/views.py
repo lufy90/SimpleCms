@@ -45,7 +45,7 @@ class FileItemViewSet(viewsets.ModelViewSet):
         """
         Override permissions for specific actions
         """
-        if self.action == 'stream':
+        if self.action == 'stream' or self.action == 'download_with_token':
             # For streaming, we handle authentication manually in the method
             return []
         return super().get_permissions()
@@ -54,7 +54,7 @@ class FileItemViewSet(viewsets.ModelViewSet):
         """
         Override get_object for stream action to bypass permission filtering
         """
-        if self.action == 'stream':
+        if self.action == 'stream' or self.action == 'download_with_token':
             # For streaming, get the object directly without permission filtering
             # Authentication will be handled in the stream method
             lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
