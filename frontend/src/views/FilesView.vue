@@ -934,6 +934,7 @@ import { useI18n } from 'vue-i18n'
 import { useFilesStore, type FileItem } from '@/stores/files'
 import { uploadAPI, filesAPI } from '@/services/api'
 import { tokenStorage } from '@/utils/storage'
+import { electronUtils } from '@/utils/electron'
 import {
   List,
   Menu,
@@ -2406,18 +2407,8 @@ const handleConflictSkip = () => {
 
 const downloadFile = async (file: any) => {
   try {
-    // Get the access token for download_with_token API
-    const token = tokenStorage.getAccessToken()
-    if (!token) {
-      ElMessage.error('Authentication required for download')
-      return
-    }
-
-    // Open download URL in new tab
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
-    const downloadUrl = `${baseUrl}/api/files/${file.id}/download_with_token/?token=${encodeURIComponent(token)}&download=true`
-    
-    window.open(downloadUrl, '_blank')
+    // Use Electron utility for download
+    await electronUtils.downloadFile(file.id, file.name, true)
     ElMessage.success(`Download started for ${file.name}`)
   } catch (error: any) {
     console.error('Download error:', error)

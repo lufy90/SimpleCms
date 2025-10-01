@@ -145,6 +145,7 @@ import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
 import { tokenStorage } from '@/utils/storage'
+import { electronUtils } from '@/utils/electron'
 
 const { t } = useI18n()
 
@@ -357,18 +358,8 @@ const handleDownload = async () => {
   if (!file.value) return
 
   try {
-    // Get the access token for download_with_token API
-    const token = tokenStorage.getAccessToken()
-    if (!token) {
-      ElMessage.error('Authentication required for download')
-      return
-    }
-
-    // Open download URL in new tab
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
-    const downloadUrl = `${baseUrl}/api/files/${file.value.id}/download_with_token/?token=${encodeURIComponent(token)}&download=true`
-    
-    window.open(downloadUrl, '_blank')
+    // Use Electron utility for download
+    await electronUtils.downloadFile(file.value.id, file.value.name, true)
     ElMessage.success(t('fileDetails.downloadStarted', { fileName: file.value.name }))
   } catch (error: any) {
     console.error('Download error:', error)

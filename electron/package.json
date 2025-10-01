@@ -14,7 +14,7 @@
   },
   "scripts": {
     "electron": "electron .",
-    "dev": "concurrently \"cd ../frontend && npm run dev\" \"wait-on http://localhost:3002 && electron .\"",
+    "dev": "concurrently \"cd ../frontend && npm run dev:electron\" \"wait-on http://localhost:3002 && electron .\"",
     "build": "npm run build:frontend && electron-builder",
     "build:frontend": "cd ../frontend && npm install && npm run build:electron",
     "build:win": "npm run build:frontend && electron-builder --win",

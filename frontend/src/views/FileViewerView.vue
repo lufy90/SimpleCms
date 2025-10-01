@@ -27,6 +27,10 @@
           </el-tag>
         </div>
         <div class="file-actions">
+          <el-button @click="openInNewTab" :loading="downloading">
+            <el-icon><View /></el-icon>
+            Open in New Tab
+          </el-button>
           <el-button @click="downloadFile" :loading="downloading">
             <el-icon><Download /></el-icon>
             Download
@@ -118,11 +122,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { Document, Download, Loading, Warning } from '@element-plus/icons-vue'
+import { Document, Download, Loading, Warning, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
 import { tokenStorage } from '@/utils/storage'
+import { electronUtils } from '@/utils/electron'
 import ImageViewer from '@/components/readers/ImageViewer.vue'
 import TextViewer from '@/components/readers/TextViewer.vue'
 import JSONViewer from '@/components/readers/JSONViewer.vue'
@@ -341,22 +346,29 @@ const downloadFile = async () => {
   try {
     downloading.value = true
     
-    // Get the access token for download_with_token API
-    const token = tokenStorage.getAccessToken()
-    if (!token) {
-      ElMessage.error('Authentication required for download')
-      return
-    }
-    
-    // Open download URL in new tab
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
-    const downloadUrl = `${baseUrl}/api/files/${file.value.id}/download_with_token/?token=${encodeURIComponent(token)}&download=true`
-    
-    window.open(downloadUrl, '_blank')
+    // Use Electron utility for download
+    await electronUtils.downloadFile(file.value.id, file.value.name, true)
     ElMessage.success('Download started')
   } catch (err: any) {
     console.error('Download error:', err)
     ElMessage.error('Download failed')
+  } finally {
+    downloading.value = false
+  }
+}
+
+const openInNewTab = async () => {
+  if (!file.value) return
+
+  try {
+    downloading.value = true
+    
+    // Use Electron utility for opening in new tab
+    await electronUtils.openInNewTab(file.value.id, false)
+    ElMessage.success('Opened in new tab')
+  } catch (err: any) {
+    console.error('Open in new tab error:', err)
+    ElMessage.error('Failed to open in new tab')
   } finally {
     downloading.value = false
   }

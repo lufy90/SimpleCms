@@ -15,6 +15,7 @@
     "dev": "vite",
     "build": "cross-env VITE_TARGET=web run-p type-check \"build-only {@}\" --",
     "build:electron": "cross-env VITE_TARGET=electron run-p type-check \"build-only {@}\" --",
+    "dev:electron": "cross-env VITE_TARGET=electron vite",
     "preview": "cross-env VITE_TARGET=web vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",

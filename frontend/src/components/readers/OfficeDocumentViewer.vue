@@ -49,6 +49,7 @@ import { filesAPI } from '@/services/api'
 import api from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
 import { tokenStorage } from '@/utils/storage'
+import { electronUtils } from '@/utils/electron'
 
 interface Props {
   file: any
@@ -186,18 +187,8 @@ const initializeDocumentEditor = async () => {
 
 const downloadDocument = async () => {
   try {
-    // Get the access token for download_with_token API
-    const token = tokenStorage.getAccessToken()
-    if (!token) {
-      ElMessage.error('Authentication required for download')
-      return
-    }
-
-    // Open download URL in new tab
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
-    const downloadUrl = `${baseUrl}/api/files/${props.file.id}/download_with_token/?token=${encodeURIComponent(token)}&download=true`
-    
-    window.open(downloadUrl, '_blank')
+    // Use Electron utility for download
+    await electronUtils.downloadFile(props.file.id, props.file.name, true)
     ElMessage.success('Document download started')
   } catch (err: any) {
     ElMessage.error('Failed to download document')
