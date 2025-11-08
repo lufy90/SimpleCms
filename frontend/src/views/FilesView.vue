@@ -935,6 +935,7 @@ import { useFilesStore, type FileItem } from '@/stores/files'
 import { uploadAPI, filesAPI } from '@/services/api'
 import { tokenStorage } from '@/utils/storage'
 import { electronUtils } from '@/utils/electron'
+import { config } from '@/config'
 import {
   List,
   Menu,
@@ -1118,7 +1119,7 @@ const listTableRef = ref()
 const renameInputRef = ref()
 
 // Upload configuration
-const uploadAction = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/upload/`
+const uploadAction = `${config.API_BASE_URL}/api/upload/`
 const uploadHeaders = computed(() => {
   const token = document.cookie
     .split('; ')

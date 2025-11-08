@@ -54,6 +54,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Microphone, Loading } from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
 import { tokenStorage } from '@/utils/storage'
+import { config } from '@/config'
 
 interface Props {
   src: string | null
@@ -94,8 +95,7 @@ const loadStreamUrl = async () => {
     
     // Create a custom streaming solution that handles authentication
     // We'll create a blob URL that can make authenticated requests
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
-    const streamEndpoint = `${baseUrl}/api/files/${props.fileId}/stream/`
+    const streamEndpoint = `${config.API_BASE_URL}/api/files/${props.fileId}/stream/`
     
     // Create a custom URL that includes authentication
     // This is a workaround since audio elements can't use custom headers

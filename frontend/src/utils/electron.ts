@@ -1,5 +1,6 @@
 // Electron utilities for download and new tab functionality
 import { tokenStorage } from './storage'
+import { config } from '@/config'
 
 // Check if we're running in Electron
 const isElectron = () => {
@@ -103,8 +104,7 @@ export const electronUtils = {
       throw new Error('Authentication required for download')
     }
 
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
-    const downloadUrl = `${baseUrl}/api/files/${fileId}/download_with_token/?token=${encodeURIComponent(token)}&download=${forceDownload}`
+    const downloadUrl = `${config.API_BASE_URL}/api/files/${fileId}/download_with_token/?token=${encodeURIComponent(token)}&download=${forceDownload}`
 
     if (isElectron()) {
       return electronDownloadFile(downloadUrl, filename)
@@ -124,8 +124,7 @@ export const electronUtils = {
       throw new Error('Authentication required')
     }
 
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
-    const url = `${baseUrl}/api/files/${fileId}/download_with_token/?token=${encodeURIComponent(token)}&download=${forceDownload}`
+    const url = `${config.API_BASE_URL}/api/files/${fileId}/download_with_token/?token=${encodeURIComponent(token)}&download=${forceDownload}`
 
     if (isElectron()) {
       return electronOpenInNewTab(url)
@@ -150,8 +149,7 @@ export const electronUtils = {
       throw new Error('Authentication required for download')
     }
 
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'
-    const downloadUrl = `${baseUrl}/api/files/${fileId}/download_with_token/?token=${encodeURIComponent(token)}&download=true`
+    const downloadUrl = `${config.API_BASE_URL}/api/files/${fileId}/download_with_token/?token=${encodeURIComponent(token)}&download=true`
 
     const savePath = await electronShowSaveDialog(filename)
     if (savePath) {

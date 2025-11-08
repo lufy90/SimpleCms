@@ -1,15 +1,16 @@
 import axios from 'axios'
 import { tokenStorage } from '@/utils/storage'
+import { config } from '@/config'
 
 // Create axios instance
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002',
+  baseURL: config.API_BASE_URL,
   timeout: 30000, // 30 seconds for regular requests
 })
 
 // Create separate axios instance for uploads with longer timeout
 const uploadApi = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002',
+  baseURL: config.API_BASE_URL,
   timeout: 600000, // 5 minutes for upload requests
 })
 
@@ -66,7 +67,7 @@ const addResponseInterceptor = (axiosInstance: typeof api) => {
                 refresh_token: refreshToken,
               },
               {
-                baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002',
+                baseURL: config.API_BASE_URL,
                 timeout: 10000,
               },
             )
