@@ -162,7 +162,7 @@ def get_document_config(request, file_id):
     """
     try:
         # Check if OnlyOffice is configured first
-        config_error = validate_onlyoffice_config()
+        config_error = validate_onlyoffice_config(request)
         if config_error:
             return Response({
                 'error': f'OnlyOffice is not available: {config_error}'
@@ -355,7 +355,7 @@ def office_upload(request, file_id):
     """
     try:
         # Check if OnlyOffice is configured first
-        config_error = validate_onlyoffice_config()
+        config_error = validate_onlyoffice_config(request)
         if config_error:
             return Response({
                 'error': f'OnlyOffice is not available: {config_error}'
@@ -428,7 +428,7 @@ def document_callback(request):
     """
     try:
         # Check if OnlyOffice is configured first
-        config_error = validate_onlyoffice_config()
+        config_error = validate_onlyoffice_config(request)
         if config_error:
             return JsonResponse({
                 'error': f'OnlyOffice is not available: {config_error}'
@@ -621,7 +621,7 @@ def convert_document(request, file_id):
     """
     try:
         # Check if OnlyOffice is configured first
-        config_error = validate_onlyoffice_config()
+        config_error = validate_onlyoffice_config(request)
         if config_error:
             return Response({
                 'error': f'OnlyOffice is not available: {config_error}'
