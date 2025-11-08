@@ -50,7 +50,12 @@
         >
           <el-table-column type="selection" width="55" />
 
-          <el-table-column :label="$t('deletedFiles.name')" min-width="200" sortable :sort-method="sortByName">
+          <el-table-column
+            :label="$t('deletedFiles.name')"
+            min-width="200"
+            sortable
+            :sort-method="sortByName"
+          >
             <template #default="{ row }">
               <div class="file-info">
                 <el-icon class="file-icon">
@@ -65,7 +70,11 @@
           <el-table-column :label="$t('deletedFiles.type')" width="100" sortable>
             <template #default="{ row }">
               <el-tag :type="row.item_type === 'directory' ? 'warning' : 'info'">
-                {{ row.item_type === 'directory' ? $t('deletedFiles.directory') : $t('deletedFiles.file') }}
+                {{
+                  row.item_type === 'directory'
+                    ? $t('deletedFiles.directory')
+                    : $t('deletedFiles.file')
+                }}
               </el-tag>
             </template>
           </el-table-column>
@@ -99,13 +108,23 @@
             </template>
           </el-table-column>
 
-          <el-table-column :label="$t('deletedFiles.deletedBy')" width="150" sortable :sort-method="sortByDeletedBy">
+          <el-table-column
+            :label="$t('deletedFiles.deletedBy')"
+            width="150"
+            sortable
+            :sort-method="sortByDeletedBy"
+          >
             <template #default="{ row }">
               <span>{{ getUserDisplayName(row.deleted_by) }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column :label="$t('deletedFiles.deletedAt')" width="180" sortable :sort-method="sortByDeletedAt">
+          <el-table-column
+            :label="$t('deletedFiles.deletedAt')"
+            width="180"
+            sortable
+            :sort-method="sortByDeletedAt"
+          >
             <template #default="{ row }">
               <span>{{ formatDate(row.deleted_at) }}</span>
             </template>
@@ -138,17 +157,25 @@
         </el-table>
         <!-- Stats Summary -->
         <p class="summary-text">
-          {{ $t('deletedFiles.totalItems', {
-            total: deletedFilesStore.deletedFilesCount,
-            files: deletedFilesStore.deletedFilesByType.files.length,
-            directories: deletedFilesStore.deletedFilesCount - deletedFilesStore.deletedFilesByType.files.length
-          }) }}
+          {{
+            $t('deletedFiles.totalItems', {
+              total: deletedFilesStore.deletedFilesCount,
+              files: deletedFilesStore.deletedFilesByType.files.length,
+              directories:
+                deletedFilesStore.deletedFilesCount -
+                deletedFilesStore.deletedFilesByType.files.length,
+            })
+          }}
         </p>
       </el-card>
     </div>
 
     <!-- Confirmation Dialogs -->
-    <el-dialog v-model="restoreDialogVisible" :title="$t('deletedFiles.confirmRestore')" width="400px">
+    <el-dialog
+      v-model="restoreDialogVisible"
+      :title="$t('deletedFiles.confirmRestore')"
+      width="400px"
+    >
       <p>{{ $t('deletedFiles.confirmRestoreMessage', { count: selectedFiles.length }) }}</p>
       <template #footer>
         <el-button @click="restoreDialogVisible = false">{{ $t('common.cancel') }}</el-button>
@@ -158,7 +185,11 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="hardDeleteDialogVisible" :title="$t('deletedFiles.confirmPermanentDeletion')" width="400px">
+    <el-dialog
+      v-model="hardDeleteDialogVisible"
+      :title="$t('deletedFiles.confirmPermanentDeletion')"
+      width="400px"
+    >
       <p class="warning-text">
         <el-icon><Warning /></el-icon>
         {{ $t('deletedFiles.permanentDeletionWarning', { count: selectedFiles.length }) }}

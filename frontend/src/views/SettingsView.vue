@@ -49,7 +49,9 @@
                   </div>
                 </div>
                 <div class="preview-main">
-                  <div class="preview-nav">{{ $t('navigation.files') }} / {{ $t('settings.theme.documents') }}</div>
+                  <div class="preview-nav">
+                    {{ $t('navigation.files') }} / {{ $t('settings.theme.documents') }}
+                  </div>
                   <div class="preview-content">
                     <div class="preview-card">{{ $t('settings.theme.sampleFile') }} 1</div>
                     <div class="preview-card">{{ $t('settings.theme.sampleFile') }} 2</div>
@@ -91,7 +93,11 @@
           <el-table :data="filteredUsers" v-loading="usersLoading" class="users-table" stripe>
             <el-table-column prop="username" :label="$t('settings.users.username')" width="150" />
             <el-table-column prop="email" :label="$t('settings.users.email')" width="200" />
-            <el-table-column prop="first_name" :label="$t('settings.users.firstName')" width="120" />
+            <el-table-column
+              prop="first_name"
+              :label="$t('settings.users.firstName')"
+              width="120"
+            />
             <el-table-column prop="last_name" :label="$t('settings.users.lastName')" width="120" />
             <el-table-column :label="$t('settings.users.groups')" width="200">
               <template #default="{ row }">
@@ -185,12 +191,21 @@
         <el-form-item :label="$t('settings.users.lastName')" prop="last_name">
           <el-input v-model="userForm.last_name" />
         </el-form-item>
-        <el-form-item :label="editingUser ? $t('settings.users.newPasswordOptional') : $t('settings.users.password')" prop="password">
+        <el-form-item
+          :label="
+            editingUser ? $t('settings.users.newPasswordOptional') : $t('settings.users.password')
+          "
+          prop="password"
+        >
           <el-input
             v-model="userForm.password"
             type="password"
             show-password
-            :placeholder="editingUser ? $t('settings.users.leaveBlankToKeep') : $t('settings.users.enterPassword')"
+            :placeholder="
+              editingUser
+                ? $t('settings.users.leaveBlankToKeep')
+                : $t('settings.users.enterPassword')
+            "
           />
         </el-form-item>
         <el-form-item :label="$t('settings.users.groups')" prop="groups">
@@ -210,7 +225,9 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showCreateUserDialog = false">{{ $t('settings.users.cancel') }}</el-button>
+        <el-button @click="showCreateUserDialog = false">{{
+          $t('settings.users.cancel')
+        }}</el-button>
         <el-button type="primary" @click="saveUser">{{ $t('settings.users.save') }}</el-button>
       </template>
     </el-dialog>
@@ -245,7 +262,9 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showCreateGroupDialog = false">{{ $t('settings.groups.cancel') }}</el-button>
+        <el-button @click="showCreateGroupDialog = false">{{
+          $t('settings.groups.cancel')
+        }}</el-button>
         <el-button type="primary" @click="saveGroup">{{ $t('settings.groups.save') }}</el-button>
       </template>
     </el-dialog>
@@ -493,7 +512,11 @@ const saveUser = async () => {
       await usersAPI.create(userData)
     }
 
-    ElMessage.success(editingUser.value ? t('settings.users.userUpdatedSuccessfully') : t('settings.users.userCreatedSuccessfully'))
+    ElMessage.success(
+      editingUser.value
+        ? t('settings.users.userUpdatedSuccessfully')
+        : t('settings.users.userCreatedSuccessfully'),
+    )
     showCreateUserDialog.value = false
     resetUserForm()
     loadUsers()
@@ -555,7 +578,9 @@ const saveGroup = async () => {
     }
 
     ElMessage.success(
-      editingGroup.value ? t('settings.groups.groupUpdatedSuccessfully') : t('settings.groups.groupCreatedSuccessfully'),
+      editingGroup.value
+        ? t('settings.groups.groupUpdatedSuccessfully')
+        : t('settings.groups.groupCreatedSuccessfully'),
     )
     showCreateGroupDialog.value = false
     resetGroupForm()

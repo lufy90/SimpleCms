@@ -25,7 +25,10 @@
         </el-form-item>
 
         <el-form-item :label="$t('upload.visibility')">
-          <el-select v-model="uploadForm.visibility" :placeholder="$t('files.placeholders.selectVisibility')">
+          <el-select
+            v-model="uploadForm.visibility"
+            :placeholder="$t('files.placeholders.selectVisibility')"
+          >
             <el-option :label="$t('files.visibility.private')" value="private" />
             <el-option :label="$t('files.visibility.user')" value="user" />
             <el-option :label="$t('files.visibility.group')" value="group" />
@@ -76,7 +79,9 @@
         <p>{{ $t('upload.whatWouldYouLikeToDo') }}</p>
 
         <div class="file-info" v-if="duplicateFile">
-          <p><strong>{{ $t('upload.existingFile') }}</strong></p>
+          <p>
+            <strong>{{ $t('upload.existingFile') }}</strong>
+          </p>
           <ul>
             <li>{{ $t('upload.size') }} {{ formatFileSize(duplicateFile.size || 0) }}</li>
             <li>{{ $t('upload.modified') }} {{ formatDate(duplicateFile.updated_at) }}</li>
@@ -89,7 +94,9 @@
         <div class="dialog-footer">
           <el-button @click="handleSkipFile">{{ $t('upload.skip') }}</el-button>
           <el-button @click="handleRenameFile">{{ $t('upload.rename') }}</el-button>
-          <el-button type="primary" @click="handleOverwriteFile">{{ $t('upload.overwrite') }}</el-button>
+          <el-button type="primary" @click="handleOverwriteFile">{{
+            $t('upload.overwrite')
+          }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -110,7 +117,9 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="renameDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-          <el-button type="primary" @click="handleConfirmRename">{{ $t('common.confirm') }}</el-button>
+          <el-button type="primary" @click="handleConfirmRename">{{
+            $t('common.confirm')
+          }}</el-button>
         </div>
       </template>
     </el-dialog>

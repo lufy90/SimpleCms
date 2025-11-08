@@ -63,8 +63,12 @@
       <!-- Demo Credentials -->
       <div class="demo-credentials" v-if="showDemoCredentials">
         <el-divider>{{ $t('auth.demoCredentials') }}</el-divider>
-        <div class="demo-item"><strong>{{ $t('auth.admin') }}:</strong> admin / admin123</div>
-        <div class="demo-item"><strong>{{ $t('auth.user') }}:</strong> alice / password123</div>
+        <div class="demo-item">
+          <strong>{{ $t('auth.admin') }}:</strong> admin / admin123
+        </div>
+        <div class="demo-item">
+          <strong>{{ $t('auth.user') }}:</strong> alice / password123
+        </div>
       </div>
     </div>
   </div>

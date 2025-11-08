@@ -205,17 +205,17 @@ export const filesAPI = {
     api.get(`/api/files/${id}/download/`, { responseType: 'blob', params }),
 
   downloadWithToken: (id: number, token: string, params?: { download?: string }) =>
-    api.get(`/api/files/${id}/download_with_token/`, { 
-      responseType: 'blob', 
-      params: { token, ...params }
+    api.get(`/api/files/${id}/download_with_token/`, {
+      responseType: 'blob',
+      params: { token, ...params },
     }),
 
   stream: (id: number, range?: string) => {
     const headers = range ? { Range: range } : {}
-    return api.get(`/api/files/${id}/stream/`, { 
-      responseType: 'blob', 
+    return api.get(`/api/files/${id}/stream/`, {
+      responseType: 'blob',
       headers,
-      timeout: 0 // No timeout for streaming
+      timeout: 0, // No timeout for streaming
     })
   },
 

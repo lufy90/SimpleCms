@@ -19,13 +19,17 @@
       <div class="audio-info">
         <div class="audio-controls">
           <el-button-group>
-            <el-button @click="toggleStreaming" size="small" :type="useStreaming ? 'primary' : 'default'">
+            <el-button
+              @click="toggleStreaming"
+              size="small"
+              :type="useStreaming ? 'primary' : 'default'"
+            >
               <el-icon><Microphone /></el-icon>
               {{ useStreaming ? 'Streaming' : 'Download' }}
             </el-button>
           </el-button-group>
         </div>
-        
+
         <div class="audio-visualizer">
           <div class="waveform">
             <div
@@ -37,7 +41,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- Loading indicator -->
       <div v-if="isLoading" class="loading-overlay">
         <el-icon class="is-loading">
@@ -89,14 +93,14 @@ const toggleStreaming = () => {
 
 const loadStreamUrl = async () => {
   if (!props.fileId) return
-  
+
   try {
     isLoading.value = true
-    
+
     // Create a custom streaming solution that handles authentication
     // We'll create a blob URL that can make authenticated requests
     const streamEndpoint = `${config.API_BASE_URL}/api/files/${props.fileId}/stream/`
-    
+
     // Create a custom URL that includes authentication
     // This is a workaround since audio elements can't use custom headers
     const token = tokenStorage.getAccessToken()
@@ -109,7 +113,7 @@ const loadStreamUrl = async () => {
       useStreaming.value = false
       return
     }
-    
+
     console.log('Stream URL created for audio streaming (with auth)')
   } catch (error) {
     console.error('Failed to load stream URL:', error)
@@ -128,7 +132,7 @@ const onAudioLoad = () => {
 const onAudioError = (error: Event) => {
   console.error('Failed to load audio:', error)
   isLoading.value = false
-  
+
   // If streaming fails, try fallback to download
   if (useStreaming.value) {
     console.log('Streaming failed, falling back to download')
@@ -153,19 +157,25 @@ onMounted(() => {
 })
 
 // Watch for fileId changes
-watch(() => props.fileId, (newFileId) => {
-  if (newFileId && useStreaming.value) {
-    loadStreamUrl()
-  }
-})
+watch(
+  () => props.fileId,
+  (newFileId) => {
+    if (newFileId && useStreaming.value) {
+      loadStreamUrl()
+    }
+  },
+)
 
 // Watch for streamingEnabled prop changes
-watch(() => props.streamingEnabled, (newValue) => {
-  useStreaming.value = newValue ?? true
-  if (newValue && props.fileId) {
-    loadStreamUrl()
-  }
-})
+watch(
+  () => props.streamingEnabled,
+  (newValue) => {
+    useStreaming.value = newValue ?? true
+    if (newValue && props.fileId) {
+      loadStreamUrl()
+    }
+  },
+)
 
 // Cleanup blob URL on unmount
 import { onUnmounted } from 'vue'

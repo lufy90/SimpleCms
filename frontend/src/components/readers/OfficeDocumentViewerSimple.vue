@@ -146,6 +146,12 @@ const initializeDocumentEditor = async () => {
     const config = officeResponse.config
     const token = officeResponse.token
 
+    // Set frontend URL for goback button
+    if (config.editorConfig?.customization?.goback) {
+      const frontendUrl = officeConfig.frontendUrl.value
+      config.editorConfig.customization.goback.url = `${frontendUrl}/view/${props.file.id}`
+    }
+
     // Initialize OnlyOffice Document Editor
     if ((window as any).DocsAPI) {
       // Double-check that the ref is still available

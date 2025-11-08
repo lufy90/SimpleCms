@@ -23,25 +23,70 @@ from .models import FileItem
 
 
 # OnlyOffice Document Server Configuration
-DOCUMENT_SERVER_URL = getattr(settings, 'ONLYOFFICE_DOCUMENT_SERVER_URL', None)
 SECRET_KEY = getattr(settings, 'ONLYOFFICE_SECRET_KEY', None)
-API_BASE_URL = getattr(settings, 'API_BASE_URL', 'http://10.0.1.2:8002')
-FRONTEND_URL = getattr(settings, 'FRONTEND_URL', 'http://10.0.1.2:3000')
+ONLYOFFICE_HOST_TYPE = getattr(settings, 'ONLYOFFICE_HOST_TYPE', 'dynamic')
+ONLYOFFICE_HOST = getattr(settings, 'ONLYOFFICE_HOST', None)
+ONLYOFFICE_PORT = getattr(settings, 'ONLYOFFICE_PORT', 80)
+ONLYOFFICE_PROTOCOL = getattr(settings, 'ONLYOFFICE_PROTOCOL', 'http')
 
 
-def is_onlyoffice_configured():
+def get_api_base_url(request):
+    """
+    Get the API base URL from the request
+    """
+    return request.build_absolute_uri('/').rstrip('/')
+
+
+def get_document_server_url(request=None):
+    """
+    Get the OnlyOffice Document Server URL
+    If ONLYOFFICE_HOST_TYPE is 'static', uses configured host/port/protocol
+    If ONLYOFFICE_HOST_TYPE is 'dynamic', uses the same host as the request
+    """
+    if ONLYOFFICE_HOST_TYPE == 'static':
+        if not ONLYOFFICE_HOST:
+            return None
+        # Construct URL from individual components
+        port_part = f":{ONLYOFFICE_PORT}" if ONLYOFFICE_PORT and ONLYOFFICE_PORT not in [80, 443] else ""
+        return f"{ONLYOFFICE_PROTOCOL}://{ONLYOFFICE_HOST}{port_part}"
+    else:
+        # Dynamic mode: use the same host as the API request
+        if request:
+            api_base_url = get_api_base_url(request)
+            # Extract hostname and protocol from API base URL
+            from urllib.parse import urlparse
+            parsed = urlparse(api_base_url)
+            # Use the same hostname and protocol, but with OnlyOffice port
+            port_part = f":{ONLYOFFICE_PORT}" if ONLYOFFICE_PORT and ONLYOFFICE_PORT not in [80, 443] else ""
+            return f"{parsed.scheme}://{parsed.hostname}{port_part}"
+        else:
+            # Fallback if no request available
+            if ONLYOFFICE_HOST:
+                port_part = f":{ONLYOFFICE_PORT}" if ONLYOFFICE_PORT and ONLYOFFICE_PORT not in [80, 443] else ""
+                return f"{ONLYOFFICE_PROTOCOL}://{ONLYOFFICE_HOST}{port_part}"
+            return None
+
+
+def is_onlyoffice_configured(request=None):
     """
     Check if OnlyOffice is properly configured
     """
-    return DOCUMENT_SERVER_URL is not None and SECRET_KEY is not None
+    doc_server_url = get_document_server_url(request)
+    return doc_server_url is not None and SECRET_KEY is not None
 
 
-def validate_onlyoffice_config():
+def validate_onlyoffice_config(request=None):
     """
     Validate OnlyOffice configuration and return error message if invalid
     """
-    if not DOCUMENT_SERVER_URL:
-        return "ONLYOFFICE_DOCUMENT_SERVER_URL is not configured"
+    doc_server_url = get_document_server_url(request)
+    if not doc_server_url:
+        if ONLYOFFICE_HOST_TYPE == 'static':
+            if not ONLYOFFICE_HOST:
+                return "ONLYOFFICE_HOST is not configured"
+            return "OnlyOffice Document Server URL could not be constructed"
+        else:
+            return "OnlyOffice Document Server URL could not be determined from request"
     if not SECRET_KEY:
         return "ONLYOFFICE_SECRET_KEY is not configured"
     return None
@@ -80,18 +125,23 @@ def get_onlyoffice_settings(request):
     """
     try:
         # Check if OnlyOffice is properly configured
-        config_error = validate_onlyoffice_config()
+        config_error = validate_onlyoffice_config(request)
         if config_error:
             return Response({
                 'error': config_error,
                 'available': False
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         
+        # Get API base URL from request
+        api_base_url = get_api_base_url(request)
+        
+        # Get document server URL
+        document_server_url = get_document_server_url(request)
+        
         # Only return non-sensitive configuration
         settings_data = {
-            'documentServerUrl': DOCUMENT_SERVER_URL,
-            'apiBaseUrl': API_BASE_URL,
-            'frontendUrl': FRONTEND_URL,
+            'documentServerUrl': document_server_url,
+            'apiBaseUrl': api_base_url,
             'available': True
         }
         
@@ -129,8 +179,11 @@ def get_document_config(request, file_id):
         # Generate document key
         doc_key = generate_document_key(file_id, request.user.id)
         
+        # Get API base URL from request
+        api_base_url = get_api_base_url(request)
+        
         # Get file URL - use a special endpoint that doesn't require authentication for OnlyOffice
-        file_url = f"{API_BASE_URL}/api/office/download/{file_id}/"
+        file_url = f"{api_base_url}/api/office/download/{file_id}/"
         
         # Get file extension
         file_extension = file_item.storage.extension if file_item.storage else 'docx'
@@ -192,11 +245,11 @@ def get_document_config(request, file_id):
                     'about': True,
                     'feedback': False,
                     'goback': {
-                        'url': f"{FRONTEND_URL}/view/{file_item.id}",
+                        'url': '',  # Will be set by frontend
                         'text': 'Open in New Tab'
                     }
                 },
-                'callbackUrl': f"{API_BASE_URL}/api/office/callback/",
+                'callbackUrl': f"{api_base_url}/api/office/callback/",
                 'user': {
                     'id': str(request.user.id),
                     'name': request.user.username
@@ -501,15 +554,18 @@ def get_document_server_info(request):
     """
     try:
         # Check if OnlyOffice is configured first
-        config_error = validate_onlyoffice_config()
+        config_error = validate_onlyoffice_config(request)
         if config_error:
             return Response({
                 'error': f'OnlyOffice is not available: {config_error}',
                 'available': False
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         
+        # Get document server URL
+        document_server_url = get_document_server_url(request)
+        
         # Test connection to document server
-        response = requests.get(f"{DOCUMENT_SERVER_URL}/healthcheck", timeout=5)
+        response = requests.get(f"{document_server_url}/healthcheck", timeout=5)
         
         if response.status_code == 200:
             try:
@@ -519,7 +575,7 @@ def get_document_server_info(request):
                     # Health check returned just 'true'
                     return Response({
                         'status': 'connected',
-                        'server_url': DOCUMENT_SERVER_URL,
+                        'server_url': document_server_url,
                         'version': 'unknown',
                         'health_check': True
                     })
@@ -527,7 +583,7 @@ def get_document_server_info(request):
                     # Health check returned JSON object
                     return Response({
                         'status': 'connected',
-                        'server_url': DOCUMENT_SERVER_URL,
+                        'server_url': document_server_url,
                         'version': json_data.get('version', 'unknown'),
                         'health_check': json_data
                     })
@@ -535,7 +591,7 @@ def get_document_server_info(request):
                 # Response is not JSON, treat as plain text
                 return Response({
                     'status': 'connected',
-                    'server_url': DOCUMENT_SERVER_URL,
+                    'server_url': document_server_url,
                     'version': 'unknown',
                     'health_check': response.text
                 })
@@ -582,8 +638,11 @@ def convert_document(request, file_id):
         
         target_format = request.data.get('format', 'pdf')
         
+        # Get API base URL from request
+        api_base_url = get_api_base_url(request)
+        
         # Get file URL
-        file_url = f"{API_BASE_URL}/api/files/{file_id}/download/"
+        file_url = f"{api_base_url}/api/files/{file_id}/download/"
         
         # Get file extension
         file_extension = file_item.storage.extension if file_item.storage else 'docx'
@@ -598,8 +657,11 @@ def convert_document(request, file_id):
             'url': file_url
         }
         
+        # Get document server URL
+        document_server_url = get_document_server_url(request)
+        
         # Send conversion request to OnlyOffice
-        conversion_url = f"{DOCUMENT_SERVER_URL}/ConvertService.ashx"
+        conversion_url = f"{document_server_url}/ConvertService.ashx"
         response = requests.post(conversion_url, json=conversion_data)
         
         if response.status_code == 200:

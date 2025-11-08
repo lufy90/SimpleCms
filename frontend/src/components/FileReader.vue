@@ -297,10 +297,7 @@ const loadFileContent = async () => {
   console.log('fileType:', fileType.value)
 
   try {
-    if (
-      fileType.value === 'image' ||
-      fileType.value == 'pdf'
-    ) {
+    if (fileType.value === 'image' || fileType.value == 'pdf') {
       // For image and PDF files, create object URL from blob
       const response = await filesAPI.download(props.file.id)
       const blob = new Blob([response.data])

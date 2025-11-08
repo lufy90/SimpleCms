@@ -34,7 +34,9 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" @click="performSearch" :loading="isLoading"> {{ $t('search.search') }} </el-button>
+          <el-button type="primary" @click="performSearch" :loading="isLoading">
+            {{ $t('search.search') }}
+          </el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -66,10 +68,7 @@
       </el-table>
     </div>
 
-    <el-empty
-      v-else-if="hasSearched && !isLoading"
-      :description="$t('search.noFilesFound')"
-    />
+    <el-empty v-else-if="hasSearched && !isLoading" :description="$t('search.noFilesFound')" />
   </div>
 </template>
 

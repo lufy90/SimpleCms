@@ -96,7 +96,9 @@
       <header class="top-nav">
         <div class="nav-left">
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/files' }">{{ $t('navigation.files') }}</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/files' }">{{
+              $t('navigation.files')
+            }}</el-breadcrumb-item>
             <el-breadcrumb-item v-if="currentPath">{{ currentPath }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -205,7 +207,7 @@ const currentDirectoryId = computed(() => {
     console.log('Files route - Parent ID from query:', parentId)
     return parentId ? Number(parentId) : null
   }
-  
+
   // For other routes, check params
   const paramsId = currentRoute.value.params.id
   console.log('Other route - ID from params:', paramsId)

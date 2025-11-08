@@ -4,14 +4,14 @@ import zh from './locales/zh.json'
 
 const messages = {
   en,
-  zh
+  zh,
 }
 
 const i18n = createI18n({
   legacy: false,
   locale: 'en', // default locale
   fallbackLocale: 'en',
-  messages
+  messages,
 })
 
 export default i18n

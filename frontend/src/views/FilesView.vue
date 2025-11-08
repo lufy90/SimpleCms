@@ -180,8 +180,13 @@
 
     <!-- File List -->
     <div class="file-list-container">
-      <el-empty v-if="filteredFiles.length === 0 && !isLoading" :description="$t('files.noFilesFound')">
-        <el-button type="primary" @click="triggerFileSelection"> {{ $t('files.uploadFiles') }} </el-button>
+      <el-empty
+        v-if="filteredFiles.length === 0 && !isLoading"
+        :description="$t('files.noFilesFound')"
+      >
+        <el-button type="primary" @click="triggerFileSelection">
+          {{ $t('files.uploadFiles') }}
+        </el-button>
       </el-empty>
 
       <!-- Large View (Picture Wall) -->
@@ -411,7 +416,13 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="size" :label="$t('files.columns.size')" width="120" sortable :sort-method="sortBySize">
+        <el-table-column
+          prop="size"
+          :label="$t('files.columns.size')"
+          width="120"
+          sortable
+          :sort-method="sortBySize"
+        >
           <template #default="{ row }">
             <span v-if="row.file_info?.size">{{ formatFileSize(row.file_info.size) }}</span>
             <span v-else>-</span>
@@ -428,7 +439,12 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="visibility" :label="$t('files.columns.visibility')" width="120" sortable>
+        <el-table-column
+          prop="visibility"
+          :label="$t('files.columns.visibility')"
+          width="120"
+          sortable
+        >
           <template #default="{ row }">
             <el-tag :type="getVisibilityTagType(row.visibility)" size="small">
               {{ $t(`files.visibility.${row.visibility}`) }}
@@ -523,11 +539,13 @@
       <!-- List View Summary -->
       <div class="list-view-summary">
         <p class="summary-text">
-          {{ $t('files.messages.totalItems', { 
-            total: filteredFiles.length,
-            files: filteredFiles.filter((f) => f.item_type === 'file').length,
-            directories: filteredFiles.filter((f) => f.item_type === 'directory').length
-          }) }}
+          {{
+            $t('files.messages.totalItems', {
+              total: filteredFiles.length,
+              files: filteredFiles.filter((f) => f.item_type === 'file').length,
+              directories: filteredFiles.filter((f) => f.item_type === 'directory').length,
+            })
+          }}
         </p>
       </div>
     </div>

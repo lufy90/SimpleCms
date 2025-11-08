@@ -203,7 +203,8 @@ FILE_MANAGER_ROOT = BASE_DIR / 'media/upload/'  # Root directory for all file op
 MAX_UPLOAD_SIZE = 104857600
 
 # OnlyOffice Document Server Configuration
-ONLYOFFICE_DOCUMENT_SERVER_URL = 'http://192.168.1.101'
+ONLYOFFICE_HOST_TYPE = 'dynamic' # 'static' or 'dynamic'
+#ONLYOFFICE_HOST = '192.168.1.101' # Only used if ONLYOFFICE_HOST_TYPE is 'static'
+ONLYOFFICE_PORT = 8003
+ONLYOFFICE_PROTOCOL = 'http'
 ONLYOFFICE_SECRET_KEY = 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd'
-API_BASE_URL = 'http://192.168.1.134:20085'
-FRONTEND_URL = 'http://192.168.1.134:20086' # frontend url, for customize ONLYOFFICE documenment goback url

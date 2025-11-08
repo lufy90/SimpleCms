@@ -4,20 +4,21 @@ import Cookies from 'js-cookie'
 // Check if we're running in Electron
 const isElectron = () => {
   // Multiple ways to detect Electron
-  const hasElectronProcess = typeof window !== 'undefined' && 
-         (window as any).process && 
-         (window as any).process.type === 'renderer'
-  
-  const hasElectronAPI = typeof window !== 'undefined' && 
-         (window as any).electronAPI
-  
-  const hasElectronEnv = typeof window !== 'undefined' && 
-         (window as any).navigator && 
-         (window as any).navigator.userAgent && 
-         (window as any).navigator.userAgent.includes('Electron')
-  
+  const hasElectronProcess =
+    typeof window !== 'undefined' &&
+    (window as any).process &&
+    (window as any).process.type === 'renderer'
+
+  const hasElectronAPI = typeof window !== 'undefined' && (window as any).electronAPI
+
+  const hasElectronEnv =
+    typeof window !== 'undefined' &&
+    (window as any).navigator &&
+    (window as any).navigator.userAgent &&
+    (window as any).navigator.userAgent.includes('Electron')
+
   const isElectronEnv = hasElectronProcess || hasElectronAPI || hasElectronEnv
-  
+
   // Debug logging
   if (typeof window !== 'undefined') {
     console.log('Environment detection:', {
@@ -27,10 +28,10 @@ const isElectron = () => {
       hasElectronAPI: !!hasElectronAPI,
       hasElectronEnv: hasElectronEnv,
       userAgent: (window as any).navigator?.userAgent,
-      isElectron: isElectronEnv
+      isElectron: isElectronEnv,
     })
   }
-  
+
   return isElectronEnv
 }
 
@@ -55,7 +56,7 @@ const webStorage: StorageInterface = {
   remove: (key: string) => {
     Cookies.remove(key)
     console.log(`[Web Storage] REMOVE ${key}`)
-  }
+  },
 }
 
 // Electron storage implementation (using localStorage)
@@ -85,19 +86,22 @@ const electronStorage: StorageInterface = {
     } catch (error) {
       console.error('Failed to remove item from localStorage:', error)
     }
-  }
+  },
 }
 
 // Choose the appropriate storage implementation
 const storage: StorageInterface = (() => {
   const isElectronEnv = isElectron()
-  console.log('[Storage] Using storage type:', isElectronEnv ? 'localStorage (Electron)' : 'cookies (Web)')
-  
+  console.log(
+    '[Storage] Using storage type:',
+    isElectronEnv ? 'localStorage (Electron)' : 'cookies (Web)',
+  )
+
   // If we're in Electron, use localStorage
   if (isElectronEnv) {
     return electronStorage
   }
-  
+
   // For web, try cookies first, but fallback to localStorage if cookies fail
   try {
     // Test if cookies work
@@ -105,7 +109,7 @@ const storage: StorageInterface = (() => {
     webStorage.set(testKey, 'test')
     const testValue = webStorage.get(testKey)
     webStorage.remove(testKey)
-    
+
     if (testValue === 'test') {
       console.log('[Storage] Cookies working, using web storage')
       return webStorage
@@ -130,7 +134,7 @@ export const tokenStorage = {
   removeAllTokens: () => {
     storage.remove('access_token')
     storage.remove('refresh_token')
-  }
+  },
 }
 
 // Export the storage instance for other uses

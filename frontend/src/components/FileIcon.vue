@@ -1,5 +1,9 @@
 <template>
-  <div class="file-icon" :style="{ width: size + 'px', height: size + 'px' }" :class="{ 'not-owned': !isOwnedByCurrentUser }">
+  <div
+    class="file-icon"
+    :style="{ width: size + 'px', height: size + 'px' }"
+    :class="{ 'not-owned': !isOwnedByCurrentUser }"
+  >
     <!-- Thumbnail for image files -->
     <img
       v-if="showThumbnail && thumbnailUrl"
@@ -28,7 +32,11 @@
     </el-icon>
 
     <!-- Ownership indicator badge -->
-    <div v-if="!isOwnedByCurrentUser" class="ownership-badge" :title="`Owned by ${file.owner?.username || 'Unknown'}`">
+    <div
+      v-if="!isOwnedByCurrentUser"
+      class="ownership-badge"
+      :title="`Owned by ${file.owner?.username || 'Unknown'}`"
+    >
       <el-icon :size="Math.max(6, size * 0.2)">
         <User />
       </el-icon>

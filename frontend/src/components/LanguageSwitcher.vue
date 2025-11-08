@@ -7,8 +7,8 @@
     </el-button>
     <template #dropdown>
       <el-dropdown-menu>
-        <el-dropdown-item 
-          v-for="lang in languages" 
+        <el-dropdown-item
+          v-for="lang in languages"
           :key="lang.code"
           :command="lang.code"
           :class="{ 'is-active': currentLocale === lang.code }"
@@ -34,13 +34,13 @@ const { locale } = useI18n()
 
 const languages = [
   { code: 'en', name: 'English', flag: FlagUS },
-  { code: 'zh', name: '中文', flag: FlagChina }
+  { code: 'zh', name: '中文', flag: FlagChina },
 ]
 
 const currentLocale = computed(() => locale.value)
 
 const currentLanguageName = computed(() => {
-  const lang = languages.find(l => l.code === currentLocale.value)
+  const lang = languages.find((l) => l.code === currentLocale.value)
   return lang ? lang.name : 'English'
 })
 
@@ -52,7 +52,7 @@ const handleLanguageChange = (langCode: string) => {
 
 // Initialize language from localStorage on component mount
 const savedLanguage = localStorage.getItem('preferred-language')
-if (savedLanguage && languages.some(l => l.code === savedLanguage)) {
+if (savedLanguage && languages.some((l) => l.code === savedLanguage)) {
   locale.value = savedLanguage
 }
 </script>

@@ -4,10 +4,24 @@ import api from './api'
 // Office document server configuration - now fetched from backend API
 const documentServerUrl = ref('')
 const apiBaseUrl = ref('')
-const frontendUrl = ref('')
 const settingsLoaded = ref(false)
 const settingsError = ref('')
 const onlyOfficeAvailable = ref(false)
+
+// Calculate frontend URL from current window location
+const getFrontendUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol
+    const hostname = window.location.hostname
+    const port = window.location.port
+    // Only include port if it's not a standard port
+    const portPart = port && port !== '80' && port !== '443' ? `:${port}` : ''
+    return `${protocol}//${hostname}${portPart}`
+  }
+  return 'http://localhost:3000' // Fallback
+}
+
+const frontendUrl = computed(() => getFrontendUrl())
 
 // Load OnlyOffice settings from backend API
 const loadOnlyOfficeSettings = async () => {
@@ -21,7 +35,6 @@ const loadOnlyOfficeSettings = async () => {
 
     documentServerUrl.value = settings.documentServerUrl
     apiBaseUrl.value = settings.apiBaseUrl
-    frontendUrl.value = settings.frontendUrl
     onlyOfficeAvailable.value = settings.available || false
     settingsLoaded.value = true
     settingsError.value = ''
@@ -34,7 +47,6 @@ const loadOnlyOfficeSettings = async () => {
     // Clear all settings on API failure - OnlyOffice will not be available
     documentServerUrl.value = ''
     apiBaseUrl.value = ''
-    frontendUrl.value = ''
   }
 }
 
@@ -152,7 +164,7 @@ const getSupportedExtensions = (): string[] => {
   for (const type of Object.values(officeDocumentTypes)) {
     extensions.push(...type.extensions)
   }
-  return [...new Set(extensions)]
+  return Array.from(new Set(extensions))
 }
 
 // Get supported MIME types
@@ -161,7 +173,7 @@ const getSupportedMimeTypes = (): string[] => {
   for (const type of Object.values(officeDocumentTypes)) {
     mimeTypes.push(...type.mimeTypes)
   }
-  return [...new Set(mimeTypes)]
+  return Array.from(new Set(mimeTypes))
 }
 
 // Configuration validation
@@ -203,7 +215,7 @@ const validateConfig = (): { valid: boolean; errors: string[] } => {
 const config = computed(() => ({
   documentServerUrl: documentServerUrl.value,
   apiBaseUrl: apiBaseUrl.value,
-  frontendUrl: frontendUrl.value,
+  frontendUrl: frontendUrl.value, // frontendUrl is already a computed, so .value is correct
   available: onlyOfficeAvailable.value,
 }))
 

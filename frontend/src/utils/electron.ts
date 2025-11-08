@@ -4,18 +4,19 @@ import { config } from '@/config'
 
 // Check if we're running in Electron
 const isElectron = () => {
-  const hasElectronProcess = typeof window !== 'undefined' && 
-         (window as any).process && 
-         (window as any).process.type === 'renderer'
-  
-  const hasElectronAPI = typeof window !== 'undefined' && 
-         (window as any).electronAPI
-  
-  const hasElectronEnv = typeof window !== 'undefined' && 
-         (window as any).navigator && 
-         (window as any).navigator.userAgent && 
-         (window as any).navigator.userAgent.includes('Electron')
-  
+  const hasElectronProcess =
+    typeof window !== 'undefined' &&
+    (window as any).process &&
+    (window as any).process.type === 'renderer'
+
+  const hasElectronAPI = typeof window !== 'undefined' && (window as any).electronAPI
+
+  const hasElectronEnv =
+    typeof window !== 'undefined' &&
+    (window as any).navigator &&
+    (window as any).navigator.userAgent &&
+    (window as any).navigator.userAgent.includes('Electron')
+
   return hasElectronProcess || hasElectronAPI || hasElectronEnv
 }
 
@@ -33,19 +34,19 @@ const webDownloadFile = async (url: string, filename: string) => {
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
-    
+
     const blob = await response.blob()
     const downloadUrl = window.URL.createObjectURL(blob)
-    
+
     const link = document.createElement('a')
     link.href = downloadUrl
     link.download = filename
     link.style.display = 'none'
-    
+
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    
+
     window.URL.revokeObjectURL(downloadUrl)
   } catch (error) {
     console.error('Web download failed:', error)
@@ -162,7 +163,7 @@ export const electronUtils = {
   /**
    * Check if we're running in Electron
    */
-  isElectron: () => isElectron()
+  isElectron: () => isElectron(),
 }
 
 // Type definitions for the Electron API that should be exposed from the main process

@@ -191,7 +191,6 @@ const fileType = computed(() => {
     return 'pdf'
   }
 
-
   // JSON files
   if (mimeType === 'application/json' || extension === 'json' || fileName.endsWith('.json')) {
     return 'json'
@@ -345,7 +344,7 @@ const downloadFile = async () => {
 
   try {
     downloading.value = true
-    
+
     // Use Electron utility for download
     await electronUtils.downloadFile(file.value.id, file.value.name, true)
     ElMessage.success('Download started')
@@ -362,7 +361,7 @@ const openInNewTab = async () => {
 
   try {
     downloading.value = true
-    
+
     // Use Electron utility for opening in new tab
     await electronUtils.openInNewTab(file.value.id, false)
     ElMessage.success('Opened in new tab')

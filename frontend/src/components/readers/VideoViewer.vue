@@ -8,7 +8,11 @@
             <el-icon><FullScreen /></el-icon>
             Fullscreen
           </el-button>
-          <el-button @click="toggleStreaming" size="small" :type="useStreaming ? 'primary' : 'default'">
+          <el-button
+            @click="toggleStreaming"
+            size="small"
+            :type="useStreaming ? 'primary' : 'default'"
+          >
             <el-icon><VideoPlay /></el-icon>
             {{ useStreaming ? 'Streaming' : 'Download' }}
           </el-button>
@@ -26,7 +30,7 @@
       >
         Your browser does not support the video tag.
       </video>
-      
+
       <!-- Loading indicator -->
       <div v-if="isLoading" class="loading-overlay">
         <el-icon class="is-loading">
@@ -66,7 +70,7 @@ const videoSrc = computed(() => {
     useStreaming: useStreaming.value,
     fileId: props.fileId,
     streamUrl: streamUrl.value,
-    src: props.src
+    src: props.src,
   })
   if (useStreaming.value && props.fileId && streamUrl.value) {
     console.log('videoSrc computed:', streamUrl.value)
@@ -97,21 +101,21 @@ const loadStreamUrl = async () => {
     console.log('loadStreamUrl: No fileId provided')
     return
   }
-  
+
   console.log('loadStreamUrl: Starting for fileId:', props.fileId)
-  
+
   try {
     isLoading.value = true
-    
+
     // Create a custom streaming solution that handles authentication
     // We'll create a blob URL that can make authenticated requests
     const streamEndpoint = `${config.API_BASE_URL}/api/files/${props.fileId}/stream/`
-    
+
     // Create a custom URL that includes authentication
     // This is a workaround since video elements can't use custom headers
     const token = tokenStorage.getAccessToken()
     console.log('Token from storage:', token ? `${token.substring(0, 10)}...` : 'None')
-    
+
     if (token) {
       // For now, we'll use a query parameter approach
       // This requires backend modification to accept token as query param
@@ -140,7 +144,7 @@ const onVideoLoad = () => {
 const onVideoError = (error: Event) => {
   console.error('Failed to load video:', error)
   isLoading.value = false
-  
+
   // If streaming fails, try fallback to download
   if (useStreaming.value) {
     console.log('Streaming failed, falling back to download')
@@ -162,7 +166,7 @@ onMounted(() => {
   console.log('VideoViewer mounted:', {
     fileId: props.fileId,
     useStreaming: useStreaming.value,
-    streamingEnabled: props.streamingEnabled
+    streamingEnabled: props.streamingEnabled,
   })
   if (props.fileId && useStreaming.value) {
     loadStreamUrl()
@@ -170,19 +174,25 @@ onMounted(() => {
 })
 
 // Watch for fileId changes
-watch(() => props.fileId, (newFileId) => {
-  if (newFileId && useStreaming.value) {
-    loadStreamUrl()
-  }
-})
+watch(
+  () => props.fileId,
+  (newFileId) => {
+    if (newFileId && useStreaming.value) {
+      loadStreamUrl()
+    }
+  },
+)
 
 // Watch for streamingEnabled prop changes
-watch(() => props.streamingEnabled, (newValue) => {
-  useStreaming.value = newValue ?? true
-  if (newValue && props.fileId) {
-    loadStreamUrl()
-  }
-})
+watch(
+  () => props.streamingEnabled,
+  (newValue) => {
+    useStreaming.value = newValue ?? true
+    if (newValue && props.fileId) {
+      loadStreamUrl()
+    }
+  },
+)
 
 // Watch for streamUrl changes to update video element
 watch(streamUrl, (newUrl) => {
