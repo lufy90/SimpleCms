@@ -29,10 +29,10 @@ urlpatterns = [
     
     # OnlyOffice Document Server integration
     path('api/office/settings/', office_views.get_onlyoffice_settings, name='office-settings'),
-    path('api/office/config/<int:file_id>/', office_views.get_document_config, name='office-document-config'),
-    path('api/office/upload/<int:file_id>/', office_views.office_upload, name='office-upload'),
+    path('api/office/config/<uuid:file_id>/', office_views.get_document_config, name='office-document-config'),
+    path('api/office/upload/<uuid:file_id>/', office_views.office_upload, name='office-upload'),
     path('api/office/callback/', office_views.document_callback, name='office-document-callback'),
     path('api/office/info/', office_views.get_document_server_info, name='office-server-info'),
-    path('api/office/convert/<int:file_id>/', office_views.convert_document, name='office-convert-document'),
-    path('api/office/download/<int:file_id>/', office_views.office_download, name='office-download'),
+    path('api/office/convert/<uuid:file_id>/', office_views.convert_document, name='office-convert-document'),
+    path('api/office/download/<uuid:file_id>/', office_views.office_download, name='office-download'),
 ]

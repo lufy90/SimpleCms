@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Q
 from django.core.exceptions import ValidationError
+from django.http import Http404
 from django.db import IntegrityError, transaction
 from django.http import FileResponse, HttpResponse, StreamingHttpResponse
 
@@ -59,7 +60,10 @@ class FileItemViewSet(viewsets.ModelViewSet):
             # Authentication will be handled in the stream method
             lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
             lookup_value = self.kwargs[lookup_url_kwarg]
-            return FileItem.objects.get(**{self.lookup_field: lookup_value})
+            try:
+                return FileItem.objects.get(**{self.lookup_field: lookup_value})
+            except (FileItem.DoesNotExist, ValidationError):
+                raise Http404
         return super().get_object()
     
     def get_serializer_class(self):
@@ -225,8 +229,6 @@ class FileItemViewSet(viewsets.ModelViewSet):
         user = request.user
         token = request.GET.get('token')
         
-        print(f"Stream authentication - User: {user}, Token: {token[:10] if token else 'None'}...")
-        
         if token:
             # Authenticate using JWT token from query parameter
             try:
@@ -237,12 +239,10 @@ class FileItemViewSet(viewsets.ModelViewSet):
                 access_token = AccessToken(token)
                 user_id = access_token['user_id']
                 user = User.objects.get(id=user_id)
-                print(f"JWT token authentication successful for user: {user}")
             except (InvalidToken, TokenError, User.DoesNotExist) as e:
-                print(f"JWT token authentication failed: {e}")
                 return Response({'error': 'Invalid token'}, status=status.HTTP_401_UNAUTHORIZED)
-        else:
-            print("No token provided, using session authentication")
+        elif not user.is_authenticated:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
         
         if not file_item.can_access(user, 'read'):
             return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
@@ -609,7 +609,7 @@ class FileItemViewSet(viewsets.ModelViewSet):
         # Add node-specific information if searching within a node
         if target_node:
             response_data.update({
-                'node_id': int(node_id),
+                'node_id': str(node_id),
                 'node_name': target_node.name,
                 'recursive': recursive
             })
