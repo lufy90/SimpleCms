@@ -478,7 +478,7 @@ class FileAccessLogSerializer(serializers.ModelSerializer):
 class FileUploadSerializer(serializers.Serializer):
     """Serializer for file uploads"""
     file = serializers.FileField()
-    parent_id = serializers.IntegerField(required=False, help_text="ID of parent directory (optional, uploads to root if not specified)")
+    parent_id = serializers.UUIDField(required=False, help_text="ID of parent directory (optional, uploads to root if not specified)")
     relative_path = serializers.CharField(required=False, help_text="Relative path within the parent directory (e.g., 'images/thumbnails')")
     tags = serializers.ListField(child=serializers.CharField(), required=False)
     visibility = serializers.CharField(required=False)
@@ -496,8 +496,8 @@ class FileUploadSerializer(serializers.Serializer):
 class FileOperationSerializer(serializers.Serializer):
     """Serializer for file operations (copy, move, delete)"""
     operation = serializers.ChoiceField(choices=['copy', 'move', 'delete'])
-    file_ids = serializers.ListField(child=serializers.IntegerField(), help_text="List of file IDs to operate on")
-    destination_id = serializers.IntegerField(required=False, help_text="ID of destination directory for copy/move operations")
+    file_ids = serializers.ListField(child=serializers.UUIDField(), help_text="List of file IDs to operate on")
+    destination_id = serializers.UUIDField(required=False, help_text="ID of destination directory for copy/move operations")
     
     def validate(self, data):
         if data['operation'] in ['copy', 'move'] and 'destination_id' not in data:
@@ -520,12 +520,12 @@ class DeletedFileSerializer(serializers.ModelSerializer):
 
 class FileRestoreSerializer(serializers.Serializer):
     """Serializer for restoring deleted files"""
-    file_ids = serializers.ListField(child=serializers.IntegerField(), help_text="List of deleted file IDs to restore")
+    file_ids = serializers.ListField(child=serializers.UUIDField(), help_text="List of deleted file IDs to restore")
 
 
 class FileHardDeleteSerializer(serializers.Serializer):
     """Serializer for permanently deleting files"""
-    file_ids = serializers.ListField(child=serializers.IntegerField(), help_text="List of deleted file IDs to permanently delete")
+    file_ids = serializers.ListField(child=serializers.UUIDField(), help_text="List of deleted file IDs to permanently delete")
 
 
 class FilePermissionRequestSerializer(serializers.ModelSerializer):

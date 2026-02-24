@@ -100,6 +100,7 @@ class FileThumbnail(models.Model):
 
 class FileItem(models.Model):
     """Logical file system structure (separated from physical storage)"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ITEM_TYPES = [
         ('file', 'File'),
         ('directory', 'Directory'),
