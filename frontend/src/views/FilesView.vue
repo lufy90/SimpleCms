@@ -1011,7 +1011,7 @@ const fileInputRef = ref<HTMLInputElement>()
 const dirInputRef = ref<HTMLInputElement>()
 const uploadRef = ref()
 const selectedFiles = ref<Array<File>>([])
-const selectedFileIds = ref<Set<number>>(new Set())
+const selectedFileIds = ref<Set<string>>(new Set())
 const uploadProgress = ref<
   Array<{
     filename: string
@@ -1026,7 +1026,7 @@ const isNavigating = ref(false)
 // Operation dialogs
 const copyDialogVisible = ref(false)
 const moveDialogVisible = ref(false)
-const operationDestination = ref<number | undefined>(undefined)
+const operationDestination = ref<string | undefined>(undefined)
 const operationType = ref<'copy' | 'move'>('copy')
 
 // Share dialog
@@ -1073,7 +1073,7 @@ const treeSelectProps = {
 // Directory tree data for tree-select (non-lazy)
 const directoryTreeData = ref<any[]>([
   {
-    id: 0,
+    id: '',
     name: 'Root Directory (/)',
     children: [],
   },
@@ -1089,7 +1089,7 @@ const loadDirectoryTreeData = async () => {
     // Build the tree structure
     const treeData = [
       {
-        id: 0,
+        id: '',
         name: 'Root Directory (/)',
         children: await buildDirectoryTree(directories),
       },
@@ -1172,7 +1172,7 @@ const hasSelectedFiles = computed(() => {
 // Directory upload functionality removed - now handled by file upload with relative paths
 
 // Breadcrumb state - maintains the full navigation path
-const breadcrumbPath = ref<Array<{ id: number | null; name: string; path: string }>>([
+const breadcrumbPath = ref<Array<{ id: string | null; name: string; path: string }>>([
   { id: null, name: 'root', path: '/' },
 ])
 
@@ -1196,7 +1196,7 @@ const getFilePath = (file: FileItem | null): string => {
 }
 
 const getDirectoryPath = (
-  directory: FileItem | { id: number; name: string; relative_path?: string } | null,
+  directory: FileItem | { id: string; name: string; relative_path?: string } | null,
 ): string => {
   if (!directory) return '/'
 
@@ -1292,7 +1292,8 @@ watch(
       if (newParentId) {
         // Navigate to specific directory
         console.log('Loading directory:', newParentId)
-        await filesStore.fetchChildren(Number(newParentId))
+        const parentId = Array.isArray(newParentId) ? newParentId[0] : newParentId
+        await filesStore.fetchChildren(parentId)
       } else {
         // Navigate to root (parent_id is undefined or was removed)
         console.log('Loading root directory')
@@ -1827,7 +1828,7 @@ const handleFileExceed = (files: any, fileList: any) => {
 
 const refreshFiles = async () => {
   // Use current route parent_id to determine which directory to refresh
-  const parentId = props.parentId ? Number(props.parentId) : undefined
+  const parentId = Array.isArray(props.parentId) ? props.parentId[0] : props.parentId
   await filesStore.fetchChildren(parentId)
 }
 
@@ -2101,7 +2102,7 @@ const handleListRowClick = (row: any, column: any, event: Event) => {
   handleFileClick(row)
 }
 
-const navigateToDirectory = async (directoryId: number) => {
+const navigateToDirectory = async (directoryId: string) => {
   console.log('navigateToDirectory called with ID:', directoryId)
   // Use router navigation instead of direct store calls
   await router.push({
@@ -2119,7 +2120,7 @@ const navigateToRoot = async () => {
   })
 }
 
-const handleBreadcrumbClick = async (item: { id: number | null; name: string; path: string }) => {
+const handleBreadcrumbClick = async (item: { id: string | null; name: string; path: string }) => {
   if (item.id === null) {
     // Clicked on root
     await navigateToRoot()
@@ -2133,7 +2134,7 @@ const handleBreadcrumbClick = async (item: { id: number | null; name: string; pa
 }
 
 // File operation methods
-const toggleFileSelection = (fileId: number, checked: boolean) => {
+const toggleFileSelection = (fileId: string, checked: boolean) => {
   if (checked) {
     selectedFileIds.value.add(fileId)
   } else {
@@ -2303,8 +2304,8 @@ const checkForConflict = async (fileName: string, relativePath: string) => {
 
 const findOrCreateDirectory = async (
   relativePath: string,
-  parentId?: number,
-): Promise<number | undefined> => {
+  parentId?: string,
+): Promise<string | undefined> => {
   try {
     const pathParts = relativePath.split('/').filter((part) => part.length > 0)
     let currentParentId = parentId

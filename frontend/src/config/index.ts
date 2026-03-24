@@ -4,7 +4,7 @@ type ApiHostType = 'static' | 'dynamic'
 const API_HOST_TYPE: ApiHostType = 'dynamic' // 'static' or 'dynamic'
 var API_HOST = 'localhost' // Only used if API_HOST_TYPE is 'static' (hostname only, no protocol/port)
 var API_PROTOCOL = 'http' // 'http' or 'https', only used if API_HOST_TYPE is 'static'
-const API_PORT = '8001'
+const API_PORT = '8003'
 
 /**
  * Get the API base URL based on the frontend URL

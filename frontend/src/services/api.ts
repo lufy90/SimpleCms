@@ -173,44 +173,44 @@ export const filesAPI = {
     page?: number
     page_size?: number
     type?: string
-    parent?: number
-    owner?: number
+    parent?: string
+    owner?: string
     visibility?: string
     extension?: string
     shared_to_me?: boolean
     shared_to_my_groups?: boolean
   }) => api.get('/api/files/', { params }),
 
-  get: (id: number) => api.get(`/api/files/${id}/`),
+  get: (id: string) => api.get(`/api/files/${id}/`),
 
   create: (data: {
     name: string
     path: string
     item_type: string
-    parent?: number
+    parent?: string
     visibility?: string
   }) => api.post('/api/files/', data),
 
-  update: (id: number, data: { name?: string; visibility?: string }) =>
+  update: (id: string, data: { name?: string; visibility?: string }) =>
     api.put(`/api/files/${id}/`, data),
 
-  patch: (id: number, data: { name?: string; visibility?: string }) =>
+  patch: (id: string, data: { name?: string; visibility?: string }) =>
     api.patch(`/api/files/${id}/`, data),
 
-  delete: (id: number) => api.delete(`/api/files/${id}/`),
+  delete: (id: string) => api.delete(`/api/files/${id}/`),
 
-  getFile: (id: number) => api.get(`/api/files/${id}/`),
+  getFile: (id: string) => api.get(`/api/files/${id}/`),
 
-  download: (id: number, params?: { download?: string }) =>
+  download: (id: string, params?: { download?: string }) =>
     api.get(`/api/files/${id}/download/`, { responseType: 'blob', params }),
 
-  downloadWithToken: (id: number, token: string, params?: { download?: string }) =>
+  downloadWithToken: (id: string, token: string, params?: { download?: string }) =>
     api.get(`/api/files/${id}/download_with_token/`, {
       responseType: 'blob',
       params: { token, ...params },
     }),
 
-  stream: (id: number, range?: string) => {
+  stream: (id: string, range?: string) => {
     const headers = range ? { Range: range } : {}
     return api.get(`/api/files/${id}/stream/`, {
       responseType: 'blob',
@@ -219,27 +219,27 @@ export const filesAPI = {
     })
   },
 
-  getThumbnail: (id: number) => api.get(`/api/files/${id}/thumbnail/`, { responseType: 'blob' }),
+  getThumbnail: (id: string) => api.get(`/api/files/${id}/thumbnail/`, { responseType: 'blob' }),
 
-  preview: (id: number) => api.get(`/api/files/${id}/preview/`),
+  preview: (id: string) => api.get(`/api/files/${id}/preview/`),
 
-  permissions: (id: number) => api.get(`/api/files/${id}/permissions/`),
+  permissions: (id: string) => api.get(`/api/files/${id}/permissions/`),
 
   updateVisibility: (
-    id: number,
-    data: { visibility: string; shared_users?: number[]; shared_groups?: number[] },
+    id: string,
+    data: { visibility: string; shared_users?: string[]; shared_groups?: string[] },
   ) => api.put(`/api/files/${id}/update_visibility/`, data),
 
-  listChildren: (parentId?: number) =>
+  listChildren: (parentId?: string) =>
     api.get('/api/files/list_children/', { params: { parent_id: parentId } }),
 
-  createDirectory: (data: { name: string; parent_id?: number; visibility?: string }) =>
+  createDirectory: (data: { name: string; parent_id?: string; visibility?: string }) =>
     api.post('/api/files/create_directory/', data),
 
   search: (
     query: string,
     params?: {
-      node_id?: number
+      node_id?: string
       recursive?: boolean
       type?: string
       limit?: number
@@ -259,10 +259,10 @@ export const filesAPI = {
 
   // Recursive directory sharing
   shareRecursively: (
-    fileId: number,
+    fileId: string,
     data: {
       share_type: 'user' | 'group'
-      target_id: number
+      target_id: string
       permission_types: string[]
       expires_at?: string
     },
@@ -270,16 +270,16 @@ export const filesAPI = {
 
   // Recursive directory unsharing
   unshareRecursively: (
-    fileId: number,
+    fileId: string,
     data: {
       share_type: 'user' | 'group'
-      target_id: number
+      target_id: string
       permission_types?: string[]
     },
   ) => api.post(`/api/files/${fileId}/unshare_recursively/`, data),
 
   // Update file content
-  updateContent: (fileId: number, formData: FormData, onProgress?: (progressEvent: any) => void) =>
+  updateContent: (fileId: string, formData: FormData, onProgress?: (progressEvent: any) => void) =>
     uploadApi.patch(`/api/files/${fileId}/update_content/`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -291,14 +291,14 @@ export const filesAPI = {
   createTextFile: (data: {
     name: string
     content?: string
-    parent_id?: number
+    parent_id?: string
     visibility?: string
   }) => api.post('/api/create-file/', { type: 'text', ...data }),
 
   createOfficeDocument: (data: {
     name: string
     document_type: 'docx' | 'xlsx' | 'pptx'
-    parent_id?: number
+    parent_id?: string
     visibility?: string
   }) => api.post('/api/create-file/', { type: 'office', ...data }),
 }
@@ -316,37 +316,37 @@ export const uploadAPI = {
 
 // Operations API
 export const operationsAPI = {
-  execute: (operation: 'copy' | 'move' | 'delete', fileIds: number[], destinationId?: number) =>
+  execute: (operation: 'copy' | 'move' | 'delete', fileIds: string[], destinationId?: string) =>
     api.post('/api/operations/', { operation, file_ids: fileIds, destination_id: destinationId }),
 }
 
 // Deleted Files API
 export const deletedFilesAPI = {
   list: () => api.get('/api/deleted-files/'),
-  restore: (fileIds: number[]) => api.post('/api/deleted-files/restore/', { file_ids: fileIds }),
-  hardDelete: (fileIds: number[]) =>
+  restore: (fileIds: string[]) => api.post('/api/deleted-files/restore/', { file_ids: fileIds }),
+  hardDelete: (fileIds: string[]) =>
     api.post('/api/deleted-files/hard-delete/', { file_ids: fileIds }),
 }
 
 // Permissions API
 export const permissionsAPI = {
-  list: (params?: { file?: number; user?: number; group?: number }) =>
+  list: (params?: { file?: string; user?: string; group?: string }) =>
     api.get('/api/permissions/', { params }),
 
   create: (data: {
-    file: number
-    user: number | null
-    group: number | null
+    file: string
+    user: string | null
+    group: string | null
     permission_type: string
     expires_at?: string
   }) => api.post('/api/permissions/', data),
 
   update: (
-    id: number,
+    id: string,
     data: { permission_type?: string; expires_at?: string; is_active?: boolean },
   ) => api.put(`/api/permissions/${id}/`, data),
 
-  delete: (id: number) => api.delete(`/api/permissions/${id}/`),
+  delete: (id: string) => api.delete(`/api/permissions/${id}/`),
 
   // Search methods for user and group selection
   searchUsers: (params: { query: string }) =>
@@ -361,7 +361,7 @@ export const usersAPI = {
   list: (params?: { search?: string; page?: number; page_size?: number }) =>
     api.get('/api/users/', { params }),
 
-  get: (id: number) => api.get(`/api/users/${id}/`),
+  get: (id: string) => api.get(`/api/users/${id}/`),
 
   create: (data: {
     username: string
@@ -369,22 +369,22 @@ export const usersAPI = {
     first_name?: string
     last_name?: string
     password: string
-    groups?: number[]
+    groups?: string[]
   }) => api.post('/api/users/', data),
 
   update: (
-    id: number,
+    id: string,
     data: {
       username?: string
       email?: string
       first_name?: string
       last_name?: string
       password?: string
-      groups?: number[]
+      groups?: string[]
     },
   ) => api.put(`/api/users/${id}/`, data),
 
-  delete: (id: number) => api.delete(`/api/users/${id}/`),
+  delete: (id: string) => api.delete(`/api/users/${id}/`),
 
   // Search method (existing)
   search: (params: { query: string }) =>
@@ -396,21 +396,21 @@ export const groupsAPI = {
   list: (params?: { search?: string; page?: number; page_size?: number }) =>
     api.get('/api/groups/', { params }),
 
-  get: (id: number) => api.get(`/api/groups/${id}/`),
+  get: (id: string) => api.get(`/api/groups/${id}/`),
 
-  create: (data: { name: string; description?: string; members?: number[] }) =>
+  create: (data: { name: string; description?: string; members?: string[] }) =>
     api.post('/api/groups/', data),
 
   update: (
-    id: number,
+    id: string,
     data: {
       name?: string
       description?: string
-      members?: number[]
+      members?: string[]
     },
   ) => api.put(`/api/groups/${id}/`, data),
 
-  delete: (id: number) => api.delete(`/api/groups/${id}/`),
+  delete: (id: string) => api.delete(`/api/groups/${id}/`),
 
   // Search method (existing)
   search: (params: { query: string }) =>
@@ -419,13 +419,13 @@ export const groupsAPI = {
 
 // Permission Requests API
 export const permissionRequestsAPI = {
-  list: (params?: { file?: number; requester?: number; status?: string }) =>
+  list: (params?: { file?: string; requester?: string; status?: string }) =>
     api.get('/api/permission-requests/', { params }),
 
-  create: (data: { file: number; requested_permissions: string; reason?: string }) =>
+  create: (data: { file: string; requested_permissions: string; reason?: string }) =>
     api.post('/api/permission-requests/', data),
 
-  update: (id: number, data: { status: string; review_notes?: string }) =>
+  update: (id: string, data: { status: string; review_notes?: string }) =>
     api.put(`/api/permission-requests/${id}/`, data),
 }
 
@@ -433,16 +433,16 @@ export const permissionRequestsAPI = {
 export const tagsAPI = {
   list: () => api.get('/api/tags/'),
   create: (data: { name: string; color?: string }) => api.post('/api/tags/', data),
-  update: (id: number, data: { name?: string; color?: string }) =>
+  update: (id: string, data: { name?: string; color?: string }) =>
     api.put(`/api/tags/${id}/`, data),
-  delete: (id: number) => api.delete(`/api/tags/${id}/`),
+  delete: (id: string) => api.delete(`/api/tags/${id}/`),
 }
 
 // Access Logs API
 export const accessLogsAPI = {
   list: (params?: {
-    file?: number
-    user?: number
+    file?: string
+    user?: string
     action?: string
     start_date?: string
     end_date?: string

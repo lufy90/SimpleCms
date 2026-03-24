@@ -4,14 +4,14 @@ import { filesAPI, uploadAPI, operationsAPI } from '@/services/api'
 import { toast } from 'vue3-toastify'
 
 export interface FileItem {
-  id: number
+  id: string
   name: string
   path: string
   relative_path: string
   item_type: 'file' | 'directory'
-  parent?: number
+  parent?: string
   parents?: Array<{
-    id: number
+    id: string
     name: string
     relative_path: string
   }>
@@ -22,7 +22,7 @@ export interface FileItem {
   updated_at: string
   last_modified?: string
   owner: {
-    id: number
+    id: string
     username: string
     email: string
     first_name: string
@@ -30,21 +30,21 @@ export interface FileItem {
   }
   visibility: 'private' | 'user' | 'group' | 'public'
   shared_users: Array<{
-    id: number
+    id: string
     username: string
     email: string
     first_name: string
     last_name: string
   }>
   shared_groups: Array<{
-    id: number
+    id: string
     name: string
   }>
   children_count: number
   tags: Array<{
-    id: number
+    id: string
     tag: {
-      id: number
+      id: string
       name: string
       color: string
       created_at: string
@@ -70,14 +70,14 @@ export interface FileItem {
 }
 
 export interface DirectoryTreeItem {
-  id?: number | string
+  id?: string
   name: string
   path: string
   relative_path: string
   item_type: 'file' | 'directory'
-  parent?: number
+  parent?: string
   parents?: Array<{
-    id: number
+    id: string
     name: string
     relative_path: string
   }>
@@ -106,7 +106,7 @@ export const useFilesStore = defineStore('files', () => {
   const files = ref<FileItem[]>([])
   const currentDirectory = ref<FileItem | null>(null)
   const directoryTree = ref<DirectoryTreeItem[]>([])
-  const selectedFiles = ref<Set<number>>(new Set())
+  const selectedFiles = ref<Set<string>>(new Set())
   const viewType = ref<'list' | 'grid' | 'details'>('grid')
   const sortBy = ref<'name' | 'size' | 'modified' | 'type'>('name')
   const sortOrder = ref<'asc' | 'desc'>('asc')
@@ -204,7 +204,7 @@ export const useFilesStore = defineStore('files', () => {
   const fetchFiles = async (params?: {
     page?: number
     page_size?: number
-    parent?: number
+    parent?: string
     type?: string
     visibility?: string
     extension?: string
@@ -256,7 +256,7 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const fetchTreeChildren = async (parentId: number) => {
+  const fetchTreeChildren = async (parentId: string) => {
     try {
       const response = await filesAPI.listChildren(parentId)
       return response.data.children || []
@@ -266,7 +266,7 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const fetchChildren = async (parentId?: number) => {
+  const fetchChildren = async (parentId?: string) => {
     try {
       isLoading.value = true
       const response = await filesAPI.listChildren(parentId)
@@ -296,7 +296,7 @@ export const useFilesStore = defineStore('files', () => {
   const searchFiles = async (
     query: string,
     params?: {
-      node_id?: number
+      node_id?: string
       recursive?: boolean
       type?: string
       limit?: number
@@ -323,7 +323,7 @@ export const useFilesStore = defineStore('files', () => {
 
   const uploadFile = async (
     file: File,
-    parentId?: number,
+    parentId?: string,
     visibility?: string,
     tags?: string[],
     relativePath?: string,
@@ -361,7 +361,7 @@ export const useFilesStore = defineStore('files', () => {
   }
 
   const updateFileContent = async (
-    fileId: number,
+    fileId: string,
     file: File,
     onProgress?: (progressEvent: any) => void,
   ) => {
@@ -393,7 +393,7 @@ export const useFilesStore = defineStore('files', () => {
 
   const checkForDuplicateFile = async (
     fileName: string,
-    parentId?: number,
+    parentId?: string,
     relativePath?: string,
   ): Promise<FileItem | null> => {
     try {
@@ -417,7 +417,7 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const deleteFiles = async (fileIds: number[]) => {
+  const deleteFiles = async (fileIds: string[]) => {
     try {
       await operationsAPI.execute('delete', fileIds)
       toast.success('Files deleted successfully')
@@ -436,7 +436,7 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const copyFiles = async (fileIds: number[], destinationId: number) => {
+  const copyFiles = async (fileIds: string[], destinationId: string) => {
     try {
       await operationsAPI.execute('copy', fileIds, destinationId)
       toast.success('Files copied successfully')
@@ -455,7 +455,7 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const moveFiles = async (fileIds: number[], destinationId: number) => {
+  const moveFiles = async (fileIds: string[], destinationId: string) => {
     try {
       await operationsAPI.execute('move', fileIds, destinationId)
       toast.success('Files moved successfully')
@@ -494,7 +494,7 @@ export const useFilesStore = defineStore('files', () => {
 
   const createDirectory = async (
     name: string,
-    parentId?: number,
+    parentId?: string,
     visibility: string = 'private',
   ) => {
     try {
@@ -520,7 +520,7 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const toggleFileSelection = (fileId: number) => {
+  const toggleFileSelection = (fileId: string) => {
     if (selectedFiles.value.has(fileId)) {
       selectedFiles.value.delete(fileId)
     } else {

@@ -283,19 +283,19 @@ const { t } = useI18n()
 
 // Types
 interface User {
-  id: number
+  id: string
   username: string
   email: string
   first_name: string
   last_name: string
-  groups: { id: number; name: string }[]
+  groups: { id: string; name: string }[]
 }
 
 interface Group {
-  id: number
+  id: string
   name: string
   description?: string
-  members: number[]
+  members: string[]
 }
 
 // Reactive data
@@ -320,7 +320,7 @@ const userForm = reactive({
   first_name: '',
   last_name: '',
   password: '',
-  groups: [] as number[],
+  groups: [] as string[],
 })
 
 const userFormRules = computed(() => ({
@@ -352,7 +352,7 @@ const groupFormRef = ref()
 const groupForm = reactive({
   name: '',
   description: '',
-  members: [] as number[],
+  members: [] as string[],
 })
 
 const groupFormRules = {
@@ -381,20 +381,20 @@ const loadUsers = async () => {
     // Fallback to mock data for development
     users.value = [
       {
-        id: 1,
+        id: '1',
         username: 'admin',
         email: 'admin@example.com',
         first_name: 'Admin',
         last_name: 'User',
-        groups: [{ id: 1, name: 'Administrators' }],
+        groups: [{ id: '1', name: 'Administrators' }],
       },
       {
-        id: 2,
+        id: '2',
         username: 'user1',
         email: 'user1@example.com',
         first_name: 'John',
         last_name: 'Doe',
-        groups: [{ id: 2, name: 'Users' }],
+        groups: [{ id: '2', name: 'Users' }],
       },
     ]
     filteredUsers.value = users.value
@@ -416,16 +416,16 @@ const loadGroups = async () => {
     // Fallback to mock data for development
     groups.value = [
       {
-        id: 1,
+        id: '1',
         name: 'Administrators',
         description: 'System administrators',
-        members: [1],
+        members: ['1'],
       },
       {
-        id: 2,
+        id: '2',
         name: 'Users',
         description: 'Regular users',
-        members: [2],
+        members: ['2'],
       },
     ]
     filteredGroups.value = groups.value

@@ -5,12 +5,12 @@ import { authAPI, cleanupInvalidTokens } from '@/services/api'
 import { toast } from 'vue3-toastify'
 
 export interface Group {
-  id: number
+  id: string
   name: string
 }
 
 export interface User {
-  id: number
+  id: string
   username: string
   email: string
   first_name: string

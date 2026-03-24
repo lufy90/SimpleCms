@@ -45,7 +45,7 @@ import { filesAPI } from '@/services/api'
 import { ElMessage } from 'element-plus'
 
 interface FileItem {
-  id: number
+  id: string
   name: string
   item_type: 'file' | 'directory'
   mime_type?: string

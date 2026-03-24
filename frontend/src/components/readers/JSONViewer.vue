@@ -79,7 +79,7 @@ import { filesAPI } from '@/services/api'
 interface Props {
   content: string
   filename: string
-  fileId?: number
+  fileId?: string
 }
 
 const props = defineProps<Props>()

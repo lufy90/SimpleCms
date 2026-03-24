@@ -77,7 +77,7 @@ interface Props {
   content: string
   filename: string
   language: string
-  fileId?: number
+  fileId?: string
 }
 
 const props = defineProps<Props>()

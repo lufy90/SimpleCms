@@ -4,20 +4,20 @@ import { deletedFilesAPI } from '@/services/api'
 import { ElMessage } from 'element-plus'
 
 export interface DeletedFileItem {
-  id: number
+  id: string
   name: string
   path: string
   item_type: 'file' | 'directory'
   size?: number
   deleted_at: string
   deleted_by: {
-    id: number
+    id: string
     username: string
     first_name?: string
     last_name?: string
   }
   original_parent?: {
-    id: number
+    id: string
     name: string
   }
 }
@@ -51,7 +51,7 @@ export const useDeletedFilesStore = defineStore('deletedFiles', () => {
     }
   }
 
-  const restoreFiles = async (fileIds: number[]) => {
+  const restoreFiles = async (fileIds: string[]) => {
     try {
       isLoading.value = true
       error.value = null
@@ -72,7 +72,7 @@ export const useDeletedFilesStore = defineStore('deletedFiles', () => {
     }
   }
 
-  const hardDeleteFiles = async (fileIds: number[]) => {
+  const hardDeleteFiles = async (fileIds: string[]) => {
     try {
       isLoading.value = true
       error.value = null

@@ -134,7 +134,7 @@ import OfficeDocumentViewer from './readers/OfficeDocumentViewer.vue'
 import UnsupportedViewer from './readers/UnsupportedViewer.vue'
 
 interface FileItem {
-  id: number
+  id: string
   name: string
   item_type: 'file' | 'directory'
   mime_type?: string

@@ -3,10 +3,25 @@ from django.dispatch import receiver
 from django.utils import timezone
 from datetime import timedelta
 from django.db import transaction
-from .models import FileAccessPermission
+from django.contrib.auth.models import User, Group
+from .models import FileAccessPermission, UserUUIDMap, GroupUUIDMap
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+@receiver(post_save, sender=User)
+def ensure_user_uuid_map(sender, instance, created, **kwargs):
+    """Ensure every auth user has a UUID mapping record."""
+    if created:
+        UserUUIDMap.objects.get_or_create(user=instance)
+
+
+@receiver(post_save, sender=Group)
+def ensure_group_uuid_map(sender, instance, created, **kwargs):
+    """Ensure every auth group has a UUID mapping record."""
+    if created:
+        GroupUUIDMap.objects.get_or_create(group=instance)
 
 
 @receiver(post_save, sender=FileAccessPermission)

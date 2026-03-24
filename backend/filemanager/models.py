@@ -9,6 +9,24 @@ import uuid
 import hashlib
 
 
+class UserUUIDMap(models.Model):
+    """Stable UUID mapping for Django auth users."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='uuid_map')
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+
+    def __str__(self):
+        return f"{self.user.username} ({self.uuid})"
+
+
+class GroupUUIDMap(models.Model):
+    """Stable UUID mapping for Django auth groups."""
+    group = models.OneToOneField(Group, on_delete=models.CASCADE, related_name='uuid_map')
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+
+    def __str__(self):
+        return f"{self.group.name} ({self.uuid})"
+
+
 class FileItemManager(models.Manager):
     """Custom manager to filter out deleted items by default"""
     

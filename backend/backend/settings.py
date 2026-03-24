@@ -28,6 +28,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     "localhost",
+    "10.0.1.134",
 ]
 
 

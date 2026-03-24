@@ -90,7 +90,7 @@ interface Props {
   content: string
   filename: string
   mimeType?: string
-  fileId?: number
+  fileId?: string
 }
 
 const props = defineProps<Props>()

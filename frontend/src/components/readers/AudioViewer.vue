@@ -63,7 +63,7 @@ import { config } from '@/config'
 interface Props {
   src: string | null
   filename: string
-  fileId?: number
+  fileId?: string
   streamingEnabled?: boolean
 }
 

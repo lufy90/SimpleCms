@@ -16,7 +16,8 @@ import time
 
 from .models import (
     FileItem, FileTag, FileTagRelation, FileAccessLog, 
-    FileAccessPermission, FilePermissionRequest, FileStorage, FileThumbnail
+    FileAccessPermission, FilePermissionRequest, FileStorage, FileThumbnail,
+    UserUUIDMap, GroupUUIDMap
 )
 from .utils import FilePathManager
 from .serializers import (
@@ -34,6 +35,24 @@ from .pagination import (
     FileItemPagination, FileAccessLogPagination, FileTagPagination
 )
 from .utils import file_path_manager, determine_file_sharing
+
+
+def resolve_user_identifier(value):
+    """Resolve either integer PK or UUID mapping to a User PK."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        user_map = UserUUIDMap.objects.select_related('user').get(uuid=value)
+        return user_map.user_id
+
+
+def resolve_group_identifier(value):
+    """Resolve either integer PK or UUID mapping to a Group PK."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        group_map = GroupUUIDMap.objects.select_related('group').get(uuid=value)
+        return group_map.group_id
 
 
 class FileItemViewSet(viewsets.ModelViewSet):
@@ -1031,6 +1050,11 @@ class FileItemViewSet(viewsets.ModelViewSet):
         
         if not share_type or not target_id or not permission_types:
             return Response({'error': 'share_type, target_id, and permission_types are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_pk = resolve_user_identifier(target_id) if share_type == 'user' else resolve_group_identifier(target_id)
+        except (UserUUIDMap.DoesNotExist, GroupUUIDMap.DoesNotExist):
+            return Response({'error': 'Invalid target_id'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             # Get all files and subdirectories recursively
@@ -1051,11 +1075,11 @@ class FileItemViewSet(viewsets.ModelViewSet):
                         }
                         
                         if share_type == 'user':
-                            permission_data['user'] = target_id
+                            permission_data['user'] = target_pk
                             permission_data['group'] = None
                         else:
                             permission_data['user'] = None
-                            permission_data['group'] = target_id
+                            permission_data['group'] = target_pk
                         
                         # Check if permission already exists
                         existing_permission = FileAccessPermission.objects.filter(
@@ -1140,6 +1164,11 @@ class FileItemViewSet(viewsets.ModelViewSet):
         
         if not share_type or not target_id:
             return Response({'error': 'share_type and target_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_pk = resolve_user_identifier(target_id) if share_type == 'user' else resolve_group_identifier(target_id)
+        except (UserUUIDMap.DoesNotExist, GroupUUIDMap.DoesNotExist):
+            return Response({'error': 'Invalid target_id'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             # Get all files and subdirectories recursively
@@ -1158,10 +1187,10 @@ class FileItemViewSet(viewsets.ModelViewSet):
                     }
                     
                     if share_type == 'user':
-                        permission_filter['user_id'] = target_id
+                        permission_filter['user_id'] = target_pk
                         permission_filter['group__isnull'] = True
                     else:
-                        permission_filter['group_id'] = target_id
+                        permission_filter['group_id'] = target_pk
                         permission_filter['user__isnull'] = True
                     
                     # Filter by specific permission types if provided
@@ -2091,6 +2120,14 @@ class UserManagementViewSet(viewsets.ModelViewSet):
     """ViewSet for managing users"""
     queryset = User.objects.all()
     permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        lookup_value = self.kwargs.get(self.lookup_field or 'pk')
+        try:
+            user_pk = resolve_user_identifier(lookup_value)
+            return User.objects.get(pk=user_pk)
+        except (User.DoesNotExist, UserUUIDMap.DoesNotExist):
+            raise Http404("User not found")
     
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -2173,6 +2210,14 @@ class GroupManagementViewSet(viewsets.ModelViewSet):
     """ViewSet for managing groups"""
     queryset = Group.objects.all()
     permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        lookup_value = self.kwargs.get(self.lookup_field or 'pk')
+        try:
+            group_pk = resolve_group_identifier(lookup_value)
+            return Group.objects.get(pk=group_pk)
+        except (Group.DoesNotExist, GroupUUIDMap.DoesNotExist):
+            raise Http404("Group not found")
     
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:

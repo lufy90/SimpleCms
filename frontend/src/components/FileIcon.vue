@@ -76,7 +76,7 @@ import { useOfficeConfig } from '@/services/officeConfig'
 import { useAuthStore } from '@/stores/auth'
 
 interface FileItem {
-  id: number
+  id: string
   name: string
   item_type: 'file' | 'directory'
   thumbnail?: {
@@ -94,7 +94,7 @@ interface FileItem {
     mime_type?: string
   }
   owner?: {
-    id: number
+    id: string
     username: string
     email: string
     first_name: string

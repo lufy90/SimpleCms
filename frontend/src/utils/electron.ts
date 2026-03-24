@@ -99,7 +99,7 @@ export const electronUtils = {
    * @param filename - The filename for the download
    * @param forceDownload - Whether to force download (vs inline display)
    */
-  downloadFile: async (fileId: number, filename: string, forceDownload: boolean = true) => {
+  downloadFile: async (fileId: string, filename: string, forceDownload: boolean = true) => {
     const token = tokenStorage.getAccessToken()
     if (!token) {
       throw new Error('Authentication required for download')
@@ -119,7 +119,7 @@ export const electronUtils = {
    * @param fileId - The file ID to open
    * @param forceDownload - Whether to force download (vs inline display)
    */
-  openInNewTab: async (fileId: number, forceDownload: boolean = true) => {
+  openInNewTab: async (fileId: string, forceDownload: boolean = true) => {
     const token = tokenStorage.getAccessToken()
     if (!token) {
       throw new Error('Authentication required')
@@ -139,7 +139,7 @@ export const electronUtils = {
    * @param fileId - The file ID to download
    * @param filename - The suggested filename
    */
-  showSaveDialogAndDownload: async (fileId: number, filename: string) => {
+  showSaveDialogAndDownload: async (fileId: string, filename: string) => {
     if (!isElectron()) {
       // For web, just use regular download
       return electronUtils.downloadFile(fileId, filename, true)

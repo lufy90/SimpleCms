@@ -161,10 +161,10 @@ import OfficeDocumentViewer from '@/components/readers/OfficeDocumentViewer.vue'
 import UnsupportedViewer from '@/components/readers/UnsupportedViewer.vue'
 
 interface FileItem {
-  id: number
+  id: string
   name: string
   item_type: 'file' | 'directory'
-  parent?: number | null
+  parent?: string | null
   created_at: string
   file_info?: {
     size?: number
@@ -303,7 +303,8 @@ const loadFile = async () => {
 
   try {
     // First, get file details
-    const fileResponse = await filesAPI.get(Number(props.fileId))
+    const fileId = Array.isArray(props.fileId) ? props.fileId[0] : props.fileId
+    const fileResponse = await filesAPI.get(fileId)
     file.value = fileResponse.data
 
     console.log('fileType:', fileType.value)

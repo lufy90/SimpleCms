@@ -185,20 +185,20 @@ import { permissionsAPI, filesAPI } from '@/services/api'
 import type { FileItem } from '@/stores/files'
 
 interface Permission {
-  id: number
-  file: number
+  id: string
+  file: string
   user?: {
-    id: number
+    id: string
     username: string
     email: string
   }
   group?: {
-    id: number
+    id: string
     name: string
   }
   permission_type: string
   granted_by: {
-    id: number
+    id: string
     username: string
   }
   granted_at: string
@@ -207,7 +207,7 @@ interface Permission {
 }
 
 interface User {
-  id: number
+  id: string
   username: string
   email: string
   first_name: string
@@ -215,13 +215,13 @@ interface User {
 }
 
 interface Group {
-  id: number
+  id: string
   name: string
 }
 
 interface ShareForm {
   shareType: 'user' | 'group'
-  targetId: number | null
+  targetId: string | null
   permissions: string[]
   expiresAt: string | null
   recursive: boolean
@@ -245,7 +245,7 @@ const availableGroups = ref<Group[]>([])
 const searchingUsers = ref(false)
 const searchingGroups = ref(false)
 const sharing = ref(false)
-const revokingPermission = ref<number | null>(null)
+const revokingPermission = ref<string | null>(null)
 const revokingAll = ref(false)
 
 const shareForm = ref<ShareForm>({
@@ -386,7 +386,7 @@ const shareFile = async () => {
   }
 }
 
-const revokePermission = async (permissionId: number) => {
+const revokePermission = async (permissionId: string) => {
   try {
     await ElMessageBox.confirm(
       'Are you sure you want to revoke this permission?',

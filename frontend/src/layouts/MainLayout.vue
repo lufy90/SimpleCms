@@ -205,13 +205,13 @@ const currentDirectoryId = computed(() => {
   if (currentRoute.value.name === 'Files') {
     const parentId = currentRoute.value.query.parent_id
     console.log('Files route - Parent ID from query:', parentId)
-    return parentId ? Number(parentId) : null
+    return parentId ? String(parentId) : null
   }
 
   // For other routes, check params
   const paramsId = currentRoute.value.params.id
   console.log('Other route - ID from params:', paramsId)
-  return paramsId ? Number(paramsId) : null
+  return paramsId ? String(paramsId) : null
 })
 
 const currentPath = computed(() => {

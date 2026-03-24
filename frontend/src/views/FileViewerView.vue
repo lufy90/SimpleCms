@@ -139,7 +139,7 @@ import UnsupportedViewer from '@/components/readers/UnsupportedViewer.vue'
 
 // Props
 interface FileItem {
-  id: number
+  id: string
   name: string
   item_type: 'file' | 'directory'
   mime_type?: string
@@ -300,7 +300,7 @@ const loadFile = async () => {
     error.value = null
 
     // Get file metadata first
-    const fileResponse = await filesAPI.getFile(parseInt(fileId))
+    const fileResponse = await filesAPI.getFile(fileId)
     file.value = fileResponse.data
 
     // Download file content (skip for office documents, video, and audio)
@@ -309,7 +309,7 @@ const loadFile = async () => {
     if (['unsupported', 'video', 'audio'].includes(currentFileType)) {
       fileContent.value = null
     } else if (['office', 'image', 'pdf', 'text', 'json', 'code'].includes(currentFileType)) {
-      const contentResponse = await filesAPI.download(parseInt(fileId))
+      const contentResponse = await filesAPI.download(fileId)
       let blob
       if (currentFileType === 'pdf') {
         blob = new Blob([contentResponse.data], { type: 'application/pdf' })

@@ -236,7 +236,7 @@ const handleRestore = () => {
   restoreDialogVisible.value = true
 }
 
-const handleRestoreSingle = async (fileId: number) => {
+const handleRestoreSingle = async (fileId: string) => {
   const success = await deletedFilesStore.restoreFiles([fileId])
   if (success) {
     // Refresh the list
@@ -244,7 +244,7 @@ const handleRestoreSingle = async (fileId: number) => {
   }
 }
 
-const handleHardDeleteSingle = async (fileId: number, fileName: string) => {
+const handleHardDeleteSingle = async (fileId: string, fileName: string) => {
   try {
     await ElMessageBox.confirm(
       t('deletedFiles.confirmSingleDelete', { fileName }),

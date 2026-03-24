@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import FileItem, FileStorage, FileThumbnail, FileTag, FileTagRelation, FileAccessLog, FileAccessPermission, FilePermissionRequest
+from .models import (
+    FileItem, FileStorage, FileThumbnail, FileTag, FileTagRelation,
+    FileAccessLog, FileAccessPermission, FilePermissionRequest,
+    UserUUIDMap, GroupUUIDMap
+)
 from django.contrib.auth.models import User, Group
 from django.db import models
 from django.utils import timezone
@@ -19,31 +23,42 @@ class PaginationSerializer(serializers.Serializer):
 
 
 class GroupSerializer(serializers.ModelSerializer):
+    id = serializers.SerializerMethodField()
     members = serializers.SerializerMethodField()
     
     class Meta:
         model = Group
         fields = ['id', 'name', 'members']
+
+    def get_id(self, obj):
+        mapping, _ = GroupUUIDMap.objects.get_or_create(group=obj)
+        return str(mapping.uuid)
     
     def get_members(self, obj):
         try:
-            return list(obj.user_set.values_list('id', flat=True))
+            mappings = UserUUIDMap.objects.filter(user__in=obj.user_set.all()).values_list('uuid', flat=True)
+            return [str(member_uuid) for member_uuid in mappings]
         except Exception as e:
             # Fallback in case of any query issues
             return []
 
 
 class UserSerializer(serializers.ModelSerializer):
+    id = serializers.SerializerMethodField()
     groups = GroupSerializer(many=True, read_only=True)
     
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'groups']
 
+    def get_id(self, obj):
+        mapping, _ = UserUUIDMap.objects.get_or_create(user=obj)
+        return str(mapping.uuid)
+
 
 class UserCreateUpdateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
-    groups = serializers.ListField(child=serializers.IntegerField(), required=False)
+    groups = serializers.ListField(child=serializers.UUIDField(), required=False)
     
     class Meta:
         model = User
@@ -73,9 +88,19 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A user with this email already exists.")
         return value
 
+    def validate_groups(self, value):
+        group_ids = []
+        for group_uuid in value:
+            try:
+                group_map = GroupUUIDMap.objects.select_related('group').get(uuid=group_uuid)
+                group_ids.append(group_map.group.id)
+            except GroupUUIDMap.DoesNotExist:
+                raise serializers.ValidationError(f"Invalid group UUID: {group_uuid}")
+        return group_ids
+
 
 class GroupCreateUpdateSerializer(serializers.ModelSerializer):
-    members = serializers.ListField(child=serializers.IntegerField(), required=False)
+    members = serializers.ListField(child=serializers.UUIDField(), required=False)
     
     class Meta:
         model = Group
@@ -87,6 +112,16 @@ class GroupCreateUpdateSerializer(serializers.ModelSerializer):
         if Group.objects.filter(name=value).exists():
             raise serializers.ValidationError("A group with this name already exists.")
         return value
+
+    def validate_members(self, value):
+        user_ids = []
+        for user_uuid in value:
+            try:
+                user_map = UserUUIDMap.objects.select_related('user').get(uuid=user_uuid)
+                user_ids.append(user_map.user.id)
+            except UserUUIDMap.DoesNotExist:
+                raise serializers.ValidationError(f"Invalid user UUID: {user_uuid}")
+        return user_ids
 
 
 class FileStorageSerializer(serializers.ModelSerializer):
@@ -482,14 +517,34 @@ class FileUploadSerializer(serializers.Serializer):
     relative_path = serializers.CharField(required=False, help_text="Relative path within the parent directory (e.g., 'images/thumbnails')")
     tags = serializers.ListField(child=serializers.CharField(), required=False)
     visibility = serializers.CharField(required=False)
-    shared_users = serializers.ListField(child=serializers.IntegerField(), required=False)
-    shared_groups = serializers.ListField(child=serializers.IntegerField(), required=False)
+    shared_users = serializers.ListField(child=serializers.UUIDField(), required=False)
+    shared_groups = serializers.ListField(child=serializers.UUIDField(), required=False)
     
     def validate_visibility(self, value):
         valid_choices = ['private', 'user', 'group', 'public']
         if value and value not in valid_choices:
             raise serializers.ValidationError(f"Visibility must be one of: {valid_choices}")
         return value
+
+    def validate_shared_users(self, value):
+        user_ids = []
+        for user_uuid in value:
+            try:
+                user_map = UserUUIDMap.objects.select_related('user').get(uuid=user_uuid)
+                user_ids.append(user_map.user.id)
+            except UserUUIDMap.DoesNotExist:
+                raise serializers.ValidationError(f"Invalid user UUID: {user_uuid}")
+        return user_ids
+
+    def validate_shared_groups(self, value):
+        group_ids = []
+        for group_uuid in value:
+            try:
+                group_map = GroupUUIDMap.objects.select_related('group').get(uuid=group_uuid)
+                group_ids.append(group_map.group.id)
+            except GroupUUIDMap.DoesNotExist:
+                raise serializers.ValidationError(f"Invalid group UUID: {group_uuid}")
+        return group_ids
 
 
 
