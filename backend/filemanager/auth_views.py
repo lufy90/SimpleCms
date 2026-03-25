@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.conf import settings
 from django.db import transaction
 from .serializers import UserSerializer
 
@@ -36,6 +37,17 @@ class UserRegistrationView(generics.CreateAPIView):
     serializer_class = UserSerializer
     
     def create(self, request, *args, **kwargs):
+        allow_user_registry = getattr(
+            settings,
+            'allow_user_registry',
+            getattr(settings, 'ALLOW_USER_REGISTRY', True),
+        )
+        if not allow_user_registry:
+            return Response(
+                {'error': 'User registration is disabled'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             try:

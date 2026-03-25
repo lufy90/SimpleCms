@@ -209,3 +209,6 @@ ONLYOFFICE_HOST_TYPE = 'dynamic' # 'static' or 'dynamic'
 ONLYOFFICE_PORT = 8003
 ONLYOFFICE_PROTOCOL = 'http'
 ONLYOFFICE_SECRET_KEY = 'oyLbTv339qrQgW8uRUJ2N0lXuRtFh7qd'
+
+# allow user registry
+ALLOW_USER_REGISTRY = True

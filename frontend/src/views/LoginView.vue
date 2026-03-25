@@ -60,7 +60,7 @@
         </p>
       </div>
 
-      <!-- Demo Credentials -->
+      <!-- Demo Credentials
       <div class="demo-credentials" v-if="showDemoCredentials">
         <el-divider>{{ $t('auth.demoCredentials') }}</el-divider>
         <div class="demo-item">
@@ -69,7 +69,7 @@
         <div class="demo-item">
           <strong>{{ $t('auth.user') }}:</strong> alice / password123
         </div>
-      </div>
+      </div> -->
     </div>
   </div>
 </template>
