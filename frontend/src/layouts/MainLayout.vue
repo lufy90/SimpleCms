@@ -303,7 +303,7 @@ const handleSearch = (value: string) => {
   }
 }
 
-const handleUserCommand = (command: string) => {
+const handleUserCommand = async (command: string) => {
   switch (command) {
     case 'profile':
       router.push('/profile')
@@ -312,8 +312,8 @@ const handleUserCommand = (command: string) => {
       router.push('/settings')
       break
     case 'logout':
-      authStore.logout()
-      router.push('/login')
+      await authStore.logout()
+      await router.push('/login')
       break
   }
 }
