@@ -1,10 +1,12 @@
 // Frontend configuration
 
-type ApiHostType = 'static' | 'dynamic'
-const API_HOST_TYPE: ApiHostType = 'dynamic' // 'static' or 'dynamic'
+type ApiHostType = 'static' | 'auto'
+// static for static API_HOST
+// auto for using window.location.hostname, with specific API_PORT
+const API_HOST_TYPE: ApiHostType = 'auto'
 var API_HOST = 'localhost' // Only used if API_HOST_TYPE is 'static' (hostname only, no protocol/port)
 var API_PROTOCOL = 'http' // 'http' or 'https', only used if API_HOST_TYPE is 'static'
-const API_PORT = '8003'
+const API_PORT = '8001'
 
 /**
  * Get the API base URL based on the frontend URL

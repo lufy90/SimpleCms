@@ -68,10 +68,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
 
+const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
 
@@ -117,16 +119,20 @@ const changePassword = async () => {
 
   try {
     isChangingPassword.value = true
-    await authStore.changePassword({
+    const success = await authStore.changePassword({
       old_password: passwordForm.oldPassword,
       new_password: passwordForm.newPassword,
     })
+    if (!success) return
+
     ElMessage.success(t('profile.passwordChangedSuccessfully'))
 
     // Clear form
     passwordForm.oldPassword = ''
     passwordForm.newPassword = ''
     passwordForm.confirmPassword = ''
+
+    await router.push('/login')
   } catch (error) {
     ElMessage.error(t('profile.failedToChangePassword'))
   } finally {
