@@ -34,7 +34,7 @@ from .serializers import (
 from .pagination import (
     FileItemPagination, FileAccessLogPagination, FileTagPagination
 )
-from .utils import file_path_manager, determine_file_sharing
+from .utils import file_path_manager, determine_file_sharing, apply_image_gps_to_storage
 
 
 def resolve_user_identifier(value):
@@ -1381,6 +1381,7 @@ class FileUploadView(generics.CreateAPIView):
             
             # Generate thumbnail if it's an image
             if file_info['mime_type'].startswith('image/'):
+                apply_image_gps_to_storage(file_storage)
                 thumbnail = self._generate_thumbnail(file_storage)
                 if thumbnail:
                     file_item.thumbnail = thumbnail
@@ -1699,19 +1700,25 @@ class FileOperationView(generics.CreateAPIView):
                 # Get file info for new storage
                 file_info = file_path_manager.get_file_info(new_file_path)
                 
-                # Create new FileStorage record
+                # Create new FileStorage record (preserve GPS from source)
                 new_storage = FileStorage.objects.create(
                     original_filename=new_name,
                     file_path=new_relative_path,
                     file_size=file_info['size'],
                     mime_type=file_info['mime_type'],
                     extension=file_info['extension'],
-                    checksum=''  # Will be calculated below
+                    checksum='',  # Will be calculated below
+                    latitude=file_item.storage.latitude,
+                    longitude=file_item.storage.longitude,
                 )
                 
                 # Calculate and update checksum
                 new_storage.checksum = new_storage.calculate_checksum()
-                new_storage.save()
+                new_storage.save(update_fields=['checksum'])
+
+                # Re-extract GPS from copied file when source had none but EXIF may still have it
+                if new_storage.latitude is None and new_storage.longitude is None:
+                    apply_image_gps_to_storage(new_storage)
                 
                 # Create new database record
                 new_file_item = FileItem.objects.create(

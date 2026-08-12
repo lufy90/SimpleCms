@@ -59,6 +59,8 @@ export interface FileItem {
     permissions: string
     mime_type?: string
     extension?: string
+    latitude?: number | null
+    longitude?: number | null
   }
   permissions: string[]
   can_read: boolean

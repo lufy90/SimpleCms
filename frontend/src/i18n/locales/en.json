@@ -190,6 +190,9 @@
       "supportMultipleFiles": "Support for multiple files. Drag and drop or click to select.",
       "filesSelected": "file(s) selected",
       "uploadProgress": "Upload Progress",
+      "progressTitle": "Uploading",
+      "progressCount": "{finished} / {total}",
+      "uploadingFile": "Current file",
       "close": "Close",
       "filename": "Filename",
       "status": "Status",
@@ -226,7 +229,10 @@
       "fileUploadedSuccessfully": "{name} uploaded successfully",
       "failedToUpload": "Failed to upload {name}",
       "fileOverwrittenSuccessfully": "{name} overwritten successfully",
-      "failedToOverwrite": "Failed to overwrite {name}"
+      "failedToOverwrite": "Failed to overwrite {name}",
+      "leaveWhileUploadingTitle": "Upload in progress",
+      "leaveWhileUploading": "Files are still uploading. Leaving now may interrupt the upload. Are you sure you want to leave?",
+      "leaveAnyway": "Leave anyway"
     }
   },
   "search": {
@@ -420,6 +426,7 @@
     "documentSavedSuccessfully": "Document saved successfully",
     "documentError": "Document error: {error}",
     "downloadedFile": "Downloaded {fileName}",
-    "downloadFailed": "Download failed"
+    "downloadFailed": "Download failed",
+    "location": "Location"
   }
 }

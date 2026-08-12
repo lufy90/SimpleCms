@@ -243,10 +243,14 @@ class FileItemSerializer(serializers.ModelSerializer):
     def get_file_info(self, obj):
         """Get file information from storage"""
         if obj.storage:
+            latitude = obj.storage.latitude
+            longitude = obj.storage.longitude
             return {
                 'size': obj.storage.file_size,
                 'mime_type': obj.storage.mime_type,
-                'extension': obj.storage.extension
+                'extension': obj.storage.extension,
+                'latitude': float(latitude) if latitude is not None else None,
+                'longitude': float(longitude) if longitude is not None else None,
             }
         return None
     
@@ -463,8 +467,11 @@ class FileContentUpdateSerializer(serializers.Serializer):
         # Calculate and update checksum
         instance.storage.checksum = instance.storage.calculate_checksum()
         instance.storage.save()
-        
-        # Generate new thumbnail if it's an image
+
+        # Extract GPS and generate thumbnail for images
+        from filemanager.utils import apply_image_gps_to_storage
+        apply_image_gps_to_storage(instance.storage)
+
         if file_info['mime_type'].startswith('image/'):
             from filemanager.views import FileUploadView
             view = FileUploadView()

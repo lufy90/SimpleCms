@@ -1,7 +1,11 @@
 <template>
   <div class="main-layout">
     <!-- Sidebar -->
-    <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+    <aside
+      class="sidebar"
+      :class="{ 'sidebar-collapsed': sidebarCollapsed, 'sidebar-resizing': isResizing }"
+      :style="sidebarStyle"
+    >
       <div class="sidebar-header">
         <div class="header-content">
           <h3 v-if="!sidebarCollapsed" class="logo">
@@ -88,6 +92,12 @@
           </el-badge>
         </div>
       </div>
+
+      <div
+        v-if="!sidebarCollapsed"
+        class="sidebar-resizer"
+        @mousedown="startResize"
+      />
     </aside>
 
     <!-- Main Content -->
@@ -154,7 +164,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useFilesStore } from '@/stores/files'
@@ -184,8 +194,37 @@ const authStore = useAuthStore()
 const filesStore = useFilesStore()
 const deletedFilesStore = useDeletedFilesStore()
 
+const SIDEBAR_WIDTH_KEY = 'simplecms.sidebarWidth'
+const SIDEBAR_WIDTH_DEFAULT = 280
+const SIDEBAR_WIDTH_MIN = 180
+const SIDEBAR_WIDTH_MAX = 600
+
+const clampSidebarWidth = (width: number) => {
+  const maxWidth = Math.min(SIDEBAR_WIDTH_MAX, Math.floor(window.innerWidth * 0.45))
+  return Math.min(Math.max(width, SIDEBAR_WIDTH_MIN), Math.max(SIDEBAR_WIDTH_MIN, maxWidth))
+}
+
+const loadSidebarWidth = () => {
+  const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY)
+  if (!stored) return SIDEBAR_WIDTH_DEFAULT
+  const parsed = Number.parseInt(stored, 10)
+  if (Number.isNaN(parsed)) return SIDEBAR_WIDTH_DEFAULT
+  return clampSidebarWidth(parsed)
+}
+
 // Sidebar state
 const sidebarCollapsed = ref(false)
+const sidebarWidth = ref(loadSidebarWidth())
+const isResizing = ref(false)
+let resizeStartX = 0
+let resizeStartWidth = 0
+
+const sidebarStyle = computed(() => {
+  if (sidebarCollapsed.value) return undefined
+  const width = `${sidebarWidth.value}px`
+  return { width, minWidth: width, maxWidth: width }
+})
+
 const searchQuery = ref('')
 const treeRefreshKey = ref(0)
 
@@ -234,6 +273,31 @@ const treeProps = {
 // Methods
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
+const onResizeMove = (event: MouseEvent) => {
+  if (!isResizing.value) return
+  const deltaX = event.clientX - resizeStartX
+  sidebarWidth.value = clampSidebarWidth(resizeStartWidth + deltaX)
+}
+
+const stopResize = () => {
+  if (!isResizing.value) return
+  isResizing.value = false
+  document.body.classList.remove('sidebar-resizing')
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', stopResize)
+  localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth.value))
+}
+
+const startResize = (event: MouseEvent) => {
+  event.preventDefault()
+  isResizing.value = true
+  resizeStartX = event.clientX
+  resizeStartWidth = sidebarWidth.value
+  document.body.classList.add('sidebar-resizing')
+  document.addEventListener('mousemove', onResizeMove)
+  document.addEventListener('mouseup', stopResize)
 }
 
 const refreshTree = async () => {
@@ -328,6 +392,10 @@ onMounted(async () => {
   await deletedFilesStore.fetchDeletedFiles()
 })
 
+onUnmounted(() => {
+  stopResize()
+})
+
 // Watch for route changes to update current path
 watch(
   () => router.currentRoute.value,
@@ -348,7 +416,8 @@ watch(
 }
 
 .sidebar {
-  width: 280px !important;
+  position: relative;
+  width: 280px;
   background: #f5f7fa;
   border-right: 1px solid #e4e7ed;
   display: flex;
@@ -357,14 +426,32 @@ watch(
     width 0.3s ease,
     min-width 0.3s ease,
     max-width 0.3s ease;
-  min-width: 280px;
-  max-width: 280px;
+  flex-shrink: 0;
 }
 
 .sidebar-collapsed {
   width: 60px !important;
   min-width: 60px !important;
   max-width: 60px !important;
+}
+
+.sidebar-resizing {
+  transition: none;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizing .sidebar-resizer {
+  background: rgba(64, 158, 255, 0.35);
 }
 
 .sidebar-header {
@@ -603,9 +690,6 @@ watch(
     top: 0;
     z-index: 1000;
     transform: translateX(-100%);
-    width: 280px !important;
-    min-width: 280px !important;
-    max-width: 280px !important;
   }
 
   .sidebar.open {
@@ -616,6 +700,10 @@ watch(
     width: 60px !important;
     min-width: 60px !important;
     max-width: 60px !important;
+  }
+
+  .sidebar-resizer {
+    display: none;
   }
 
   .search-input {
@@ -686,5 +774,12 @@ watch(
 
 .dark .page-content {
   background: #141414;
+}
+</style>
+
+<style>
+body.sidebar-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 </style>
