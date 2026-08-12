@@ -34,7 +34,7 @@ from .serializers import (
 from .pagination import (
     FileItemPagination, FileAccessLogPagination, FileTagPagination
 )
-from .utils import file_path_manager, determine_file_sharing
+from .utils import file_path_manager, determine_file_sharing, apply_image_gps_to_storage
 
 
 def resolve_user_identifier(value):
@@ -1381,6 +1381,7 @@ class FileUploadView(generics.CreateAPIView):
             
             # Generate thumbnail if it's an image
             if file_info['mime_type'].startswith('image/'):
+                apply_image_gps_to_storage(file_storage)
                 thumbnail = self._generate_thumbnail(file_storage)
                 if thumbnail:
                     file_item.thumbnail = thumbnail

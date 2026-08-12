@@ -32,6 +32,13 @@
             <span v-if="file.file_info?.size" class="file-size">
               {{ formatFileSize(file.file_info.size) }}
             </span>
+            <span
+              v-if="file.file_info?.latitude != null && file.file_info?.longitude != null"
+              class="file-location"
+            >
+              {{ $t('fileDetails.location') }}:
+              {{ file.file_info.latitude }}, {{ file.file_info.longitude }}
+            </span>
             <span class="file-date">
               {{ formatDate(file.created_at) }}
             </span>
@@ -169,6 +176,8 @@ interface FileItem {
   file_info?: {
     size?: number
     mime_type?: string
+    latitude?: number | null
+    longitude?: number | null
   }
   url?: string
 }
@@ -512,6 +521,7 @@ onMounted(() => {
 }
 
 .file-size,
+.file-location,
 .file-date {
   font-size: 13px;
   color: #909399;

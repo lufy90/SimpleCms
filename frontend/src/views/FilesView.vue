@@ -622,33 +622,50 @@
   </div>
 
   <!-- Upload Progress Display -->
-  <div v-if="uploadProgress.length > 0" class="upload-progress-overlay">
-    <div class="upload-progress-panel">
-      <div class="progress-header">
-        <h3>Upload Progress</h3>
-        <el-button v-if="!isUploading" @click="uploadProgress = []" size="small" type="text">
-          Close
+  <Teleport to="body">
+    <div v-if="uploadProgress.length > 0" class="upload-progress-float">
+      <div class="upload-progress-float-header">
+        <span class="upload-progress-float-title">{{ $t('files.upload.progressTitle') }}</span>
+        <span class="upload-progress-float-count">
+          {{
+            $t('files.upload.progressCount', {
+              finished: uploadFinishedCount,
+              total: uploadTotalCount,
+            })
+          }}
+        </span>
+        <el-button
+          v-if="!isUploading"
+          @click="uploadProgress = []"
+          size="small"
+          type="text"
+          class="upload-progress-float-close"
+        >
+          {{ $t('common.close') }}
         </el-button>
       </div>
-      <div class="progress-list">
-        <div v-for="(progress, index) in uploadProgress" :key="index" class="progress-item">
-          <div class="progress-item-header">
-            <span class="filename">{{ progress.filename }}</span>
-            <span class="status" :class="progress.status">{{ progress.status }}</span>
-          </div>
-          <el-progress
-            v-if="progress.status === 'uploading'"
-            :percentage="progress.percentage"
-            :status="progress.error ? 'exception' : undefined"
-            :stroke-width="4"
-          />
-          <div v-if="progress.error" class="error-message">
-            {{ progress.error }}
-          </div>
-        </div>
+      <div v-if="currentUploadDisplayName" class="upload-progress-float-file">
+        <span class="upload-progress-float-label">{{ $t('files.upload.uploadingFile') }}</span>
+        <span class="upload-progress-float-name" :title="currentUploadItem?.filename">
+          {{ currentUploadDisplayName }}
+        </span>
+      </div>
+      <el-progress
+        v-if="isUploading && currentUploadItem"
+        :percentage="currentUploadItem.percentage"
+        :stroke-width="4"
+        :status="currentUploadItem.error ? 'exception' : undefined"
+      />
+      <div v-else-if="!isUploading" class="upload-progress-float-done">
+        {{
+          $t('files.upload.progressCount', {
+            finished: uploadFinishedCount,
+            total: uploadTotalCount,
+          })
+        }}
       </div>
     </div>
-  </div>
+  </Teleport>
 
   <!-- Copy Dialog -->
   <el-dialog
@@ -954,6 +971,7 @@ import { uploadAPI, filesAPI } from '@/services/api'
 import { tokenStorage } from '@/utils/storage'
 import { electronUtils } from '@/utils/electron'
 import { config } from '@/config'
+import { useUploadLeaveGuard } from '@/composables/useUploadLeaveGuard'
 import {
   List,
   Menu,
@@ -1021,6 +1039,8 @@ const uploadProgress = ref<
   }>
 >([])
 const isUploading = ref(false)
+useUploadLeaveGuard(isUploading)
+const uploadTargetParentId = ref<string | undefined>(undefined)
 const isNavigating = ref(false)
 
 // Operation dialogs
@@ -1148,7 +1168,7 @@ const uploadHeaders = computed(() => {
   }
 })
 const uploadData = computed(() => ({
-  parent_id: currentDirectory.value?.id,
+  parent_id: uploadTargetParentId.value,
   visibility: uploadForm.value.visibility,
 }))
 
@@ -1162,6 +1182,27 @@ const currentDirectory = computed(() => filesStore.currentDirectory)
 // Computed for upload functionality
 const hasFilesToUpload = computed(() => {
   return selectedFiles.value.length > 0
+})
+
+const uploadTotalCount = computed(() => uploadProgress.value.length)
+
+const uploadFinishedCount = computed(() =>
+  uploadProgress.value.filter((item) => item.status === 'success' || item.status === 'error')
+    .length,
+)
+
+const currentUploadItem = computed(() => {
+  const uploading = uploadProgress.value.find((item) => item.status === 'uploading')
+  if (uploading) return uploading
+  if (uploadProgress.value.length === 0) return null
+  return uploadProgress.value[uploadProgress.value.length - 1]
+})
+
+const currentUploadDisplayName = computed(() => {
+  const name = currentUploadItem.value?.filename
+  if (!name) return ''
+  const parts = name.split(/[/\\]/).filter(Boolean)
+  return parts.length > 0 ? parts[parts.length - 1] : name
 })
 
 // Computed for bulk operations
@@ -1365,6 +1406,9 @@ const handleFileSelection = async (event: Event) => {
 
   if (files.length === 0) return
 
+  // Lock destination to the directory where upload started
+  uploadTargetParentId.value = currentDirectory.value?.id
+
   // Reset progress
   uploadProgress.value = []
   isUploading.value = true
@@ -1376,6 +1420,7 @@ const handleFileSelection = async (event: Event) => {
     ElMessage.error(`Upload failed: ${error.message || error}`)
   } finally {
     isUploading.value = false
+    uploadTargetParentId.value = undefined
     // Reset file input
     if (target) target.value = ''
   }
@@ -1386,6 +1431,9 @@ const handleDirectorySelection = async (event: Event) => {
   const files = Array.from(target.files || [])
 
   if (files.length === 0) return
+
+  // Lock destination to the directory where upload started
+  uploadTargetParentId.value = currentDirectory.value?.id
 
   // Reset progress
   uploadProgress.value = []
@@ -1398,6 +1446,7 @@ const handleDirectorySelection = async (event: Event) => {
     ElMessage.error(`Upload failed: ${error.message || error}`)
   } finally {
     isUploading.value = false
+    uploadTargetParentId.value = undefined
     // Reset directory input
     if (target) target.value = ''
   }
@@ -1505,8 +1554,8 @@ const uploadAllFiles = async (files: File[]) => {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('visibility', uploadForm.value.visibility)
-      if (currentDirectory.value?.id) {
-        formData.append('parent_id', currentDirectory.value.id.toString())
+      if (uploadTargetParentId.value) {
+        formData.append('parent_id', uploadTargetParentId.value.toString())
       }
       if (relativePath) {
         formData.append('relative_path', relativePath)
@@ -1560,6 +1609,8 @@ const uploadAllFiles = async (files: File[]) => {
 
 const openUpload = () => {
   uploadDialogVisible.value = true
+  // Lock destination to the directory where the dialog was opened
+  uploadTargetParentId.value = currentDirectory.value?.id
   // Reset selected files when opening upload dialog
   selectedFiles.value = []
 }
@@ -1570,6 +1621,9 @@ const closeUploadDialog = () => {
   selectedFiles.value = []
   // Reset upload progress
   uploadProgress.value = []
+  if (!isUploading.value) {
+    uploadTargetParentId.value = undefined
+  }
 }
 
 const showCreateDirectoryDialog = () => {
@@ -1769,6 +1823,11 @@ const handleUpload = () => {
     if (fileList.length === 0) {
       ElMessage.warning('Please select files to upload.')
       return
+    }
+
+    // Keep destination locked to where the dialog was opened
+    if (uploadTargetParentId.value === undefined) {
+      uploadTargetParentId.value = currentDirectory.value?.id
     }
 
     // Submit all files
@@ -2271,12 +2330,12 @@ const handleRename = async () => {
 // Conflict detection and resolution functions
 const checkForConflict = async (fileName: string, relativePath: string) => {
   try {
-    // If there's a relative path, we need to navigate to that subdirectory
-    let targetDirectoryId = currentDirectory.value?.id
+    // Use the locked upload destination, not the live current directory
+    let targetDirectoryId = uploadTargetParentId.value
 
     if (relativePath) {
-      // Find or create the target directory
-      targetDirectoryId = await findOrCreateDirectory(relativePath, currentDirectory.value?.id)
+      // Find or create the target directory under the locked parent
+      targetDirectoryId = await findOrCreateDirectory(relativePath, uploadTargetParentId.value)
     }
 
     // Get directory contents to check for conflicts
@@ -3357,6 +3416,88 @@ onUnmounted(() => {
 .directory-placeholder p {
   margin: 16px 0 0 0;
   font-size: 14px;
+}
+
+.upload-progress-float {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 3000;
+  width: 320px;
+  max-width: calc(100vw - 48px);
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.upload-progress-float-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.upload-progress-float-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.upload-progress-float-count {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: #409eff;
+  white-space: nowrap;
+}
+
+.upload-progress-float-close {
+  margin-left: 0;
+  padding: 0 4px;
+}
+
+.upload-progress-float-file {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+.upload-progress-float-label {
+  font-size: 12px;
+  color: #909399;
+}
+
+.upload-progress-float-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #303133;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-progress-float-done {
+  font-size: 12px;
+  color: #67c23a;
+}
+
+.dark .upload-progress-float {
+  background: #1f1f1f;
+  border-color: #3c3c3c;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.dark .upload-progress-float-title,
+.dark .upload-progress-float-name {
+  color: #e5e5e5;
+}
+
+.dark .upload-progress-float-label {
+  color: #a8a8a8;
 }
 
 .upload-progress-section {

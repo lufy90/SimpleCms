@@ -203,3 +203,90 @@ def determine_file_sharing(parent_directory, requested_visibility, requested_sha
 
 # Global instance
 file_path_manager = FilePathManager()
+
+
+def _gps_coordinate_to_degrees(values):
+    """Convert GPS EXIF DMS tuple to decimal degrees."""
+    if not values or len(values) < 3:
+        return None
+    try:
+        degrees = float(values[0])
+        minutes = float(values[1])
+        seconds = float(values[2])
+        return degrees + (minutes / 60.0) + (seconds / 3600.0)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def extract_image_gps(file_path):
+    """
+    Extract GPS coordinates from an image file's EXIF data.
+
+    Returns (latitude, longitude) as Decimals, or None if unavailable.
+    Never raises — callers can safely ignore a missing location.
+    """
+    try:
+        from decimal import Decimal, ROUND_HALF_UP
+        from PIL import Image
+        from PIL.ExifTags import GPSTAGS, IFD
+
+        with Image.open(file_path) as img:
+            exif = img.getexif()
+            if not exif:
+                return None
+
+            gps_ifd = exif.get_ifd(IFD.GPSInfo)
+            if not gps_ifd:
+                return None
+
+            gps_data = {GPSTAGS.get(tag, tag): value for tag, value in gps_ifd.items()}
+            lat_values = gps_data.get('GPSLatitude')
+            lon_values = gps_data.get('GPSLongitude')
+            lat_ref = gps_data.get('GPSLatitudeRef')
+            lon_ref = gps_data.get('GPSLongitudeRef')
+
+            if not lat_values or not lon_values or not lat_ref or not lon_ref:
+                return None
+
+            latitude = _gps_coordinate_to_degrees(lat_values)
+            longitude = _gps_coordinate_to_degrees(lon_values)
+            if latitude is None or longitude is None:
+                return None
+
+            if str(lat_ref).upper() == 'S':
+                latitude = -latitude
+            if str(lon_ref).upper() == 'W':
+                longitude = -longitude
+
+            if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+                return None
+
+            quantize = Decimal('0.000001')
+            return (
+                Decimal(str(latitude)).quantize(quantize, rounding=ROUND_HALF_UP),
+                Decimal(str(longitude)).quantize(quantize, rounding=ROUND_HALF_UP),
+            )
+    except Exception:
+        return None
+
+
+def apply_image_gps_to_storage(file_storage):
+    """Extract GPS from storage file and persist on FileStorage when present."""
+    try:
+        if not file_storage.mime_type or not file_storage.mime_type.startswith('image/'):
+            if file_storage.latitude is not None or file_storage.longitude is not None:
+                file_storage.latitude = None
+                file_storage.longitude = None
+                file_storage.save(update_fields=['latitude', 'longitude'])
+            return False
+        coords = extract_image_gps(file_storage.get_file_path())
+        if not coords:
+            file_storage.latitude = None
+            file_storage.longitude = None
+            file_storage.save(update_fields=['latitude', 'longitude'])
+            return False
+        file_storage.latitude, file_storage.longitude = coords
+        file_storage.save(update_fields=['latitude', 'longitude'])
+        return True
+    except Exception:
+        return False

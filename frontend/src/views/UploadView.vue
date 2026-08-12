@@ -135,6 +135,7 @@ import { useFilesStore } from '@/stores/files'
 import { ArrowLeft, UploadFilled, Close } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FileItem } from '@/stores/files'
+import { useUploadLeaveGuard } from '@/composables/useUploadLeaveGuard'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -148,6 +149,7 @@ const uploadForm = ref({
 })
 
 const isUploading = ref(false)
+useUploadLeaveGuard(isUploading)
 const uploadRef = ref()
 const selectedFiles = ref<File[]>([])
 const duplicateDialogVisible = ref(false)

@@ -190,6 +190,9 @@
       "supportMultipleFiles": "支持多个文件。拖拽或点击选择。",
       "filesSelected": "个文件已选择",
       "uploadProgress": "上传进度",
+      "progressTitle": "正在上传",
+      "progressCount": "{finished} / {total}",
+      "uploadingFile": "当前文件",
       "close": "关闭",
       "filename": "文件名",
       "status": "状态",
@@ -226,7 +229,10 @@
       "fileUploadedSuccessfully": "{name} 上传成功",
       "failedToUpload": "上传 {name} 失败",
       "fileOverwrittenSuccessfully": "{name} 覆盖成功",
-      "failedToOverwrite": "覆盖 {name} 失败"
+      "failedToOverwrite": "覆盖 {name} 失败",
+      "leaveWhileUploadingTitle": "正在上传",
+      "leaveWhileUploading": "文件仍在上传中。现在离开可能会中断上传，确定要离开吗？",
+      "leaveAnyway": "仍然离开"
     }
   },
   "search": {
@@ -420,6 +426,7 @@
     "documentSavedSuccessfully": "文档保存成功",
     "documentError": "文档错误：{error}",
     "downloadedFile": "已下载 {fileName}",
-    "downloadFailed": "下载失败"
+    "downloadFailed": "下载失败",
+    "location": "位置"
   }
 }
