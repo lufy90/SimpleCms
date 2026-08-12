@@ -273,6 +273,14 @@
               <div class="picture-meta">
                 <span v-if="file.file_info?.size">{{ formatFileSize(file.file_info.size) }}</span>
                 <span>{{ formatDate(file.created_at) }}</span>
+                <span
+                  v-if="hasFileLocation(file)"
+                  class="picture-location"
+                  :title="$t('fileDetails.location')"
+                >
+                  <el-icon><Location /></el-icon>
+                  {{ formatFileLocation(file) }}
+                </span>
               </div>
             </div>
           </div>
@@ -787,6 +795,13 @@
         <el-descriptions-item label="Path" :span="2">
           <code>{{ getFilePath(selectedFileForDetails) }}</code>
         </el-descriptions-item>
+        <el-descriptions-item
+          :label="$t('fileDetails.location')"
+          :span="2"
+          v-if="hasFileLocation(selectedFileForDetails)"
+        >
+          {{ formatFileLocation(selectedFileForDetails) }}
+        </el-descriptions-item>
         <el-descriptions-item label="Permissions" :span="2">
           <div class="permissions-display">
             <el-tag
@@ -993,6 +1008,7 @@ import {
   Edit,
   Loading,
   User,
+  Location,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ShareDialog from '@/components/ShareDialog.vue'
@@ -2564,6 +2580,16 @@ const executeOperation = async () => {
 }
 
 // Utility methods
+const hasFileLocation = (file: FileItem | null | undefined): boolean => {
+  return file?.file_info?.latitude != null && file?.file_info?.longitude != null
+}
+
+const formatFileLocation = (file: FileItem | null | undefined): string => {
+  if (!hasFileLocation(file) || !file?.file_info) return ''
+  const { latitude, longitude } = file.file_info
+  return `${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`
+}
+
 const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -2780,7 +2806,7 @@ onUnmounted(() => {
 }
 
 .file-card {
-  background: #fff;
+  background: var(--el-bg-color-overlay);
   border: 1px solid transparent;
   border-radius: 6px;
   padding: 12px;
@@ -2807,8 +2833,8 @@ onUnmounted(() => {
 }
 
 .file-card:hover {
-  background: #f8f9fa;
-  border-color: #e1e5e9;
+  background: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
 }
 
 .file-card:hover .file-selection,
@@ -2844,7 +2870,7 @@ onUnmounted(() => {
 .file-name {
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--el-text-color-primary);
   word-break: break-word;
   line-height: 1.3;
   max-width: 100%;
@@ -2858,7 +2884,7 @@ onUnmounted(() => {
 
 .file-meta {
   font-size: 11px;
-  color: #666;
+  color: var(--el-text-color-secondary);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2875,7 +2901,7 @@ onUnmounted(() => {
 }
 
 .large-file-card {
-  background: #fff;
+  background: var(--el-bg-color-overlay);
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 16px;
@@ -2888,7 +2914,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--el-box-shadow-light);
 }
 
 .large-file-content {
@@ -2903,9 +2929,9 @@ onUnmounted(() => {
 }
 
 .large-file-card:hover {
-  background: #f8f9fa;
-  border-color: #e1e5e9;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  background: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
+  box-shadow: var(--el-box-shadow);
   transform: translateY(-2px);
 }
 
@@ -2942,7 +2968,7 @@ onUnmounted(() => {
 .large-file-name {
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--el-text-color-primary);
   word-break: break-word;
   line-height: 1.4;
   max-width: 100%;
@@ -2957,7 +2983,7 @@ onUnmounted(() => {
 
 .large-file-meta {
   font-size: 12px;
-  color: #666;
+  color: var(--el-text-color-secondary);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -3022,8 +3048,8 @@ onUnmounted(() => {
   height: 200px;
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--el-bg-color-overlay);
+  box-shadow: var(--el-box-shadow-light);
   transition: all 0.3s ease;
   cursor: pointer;
 }
@@ -3044,7 +3070,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8f9fa;
+  background: var(--el-fill-color-light);
 }
 
 .picture-thumbnail .file-icon {
@@ -3090,7 +3116,7 @@ onUnmounted(() => {
 
 .picture-item:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--el-box-shadow);
 }
 
 .picture-item:hover .picture-overlay {
@@ -3139,6 +3165,19 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.picture-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+.picture-location .el-icon {
+  flex-shrink: 0;
+  font-size: 12px;
 }
 
 /* Responsive design for picture wall */
@@ -3221,18 +3260,18 @@ onUnmounted(() => {
 }
 
 .list-view-summary {
-  background: #f8f9fa;
+  background: var(--el-fill-color-light);
 }
 
 .list-view-summary .summary-text {
   margin: 4px;
   font-size: 14px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   line-height: 1.5;
 }
 
 .list-view-summary .summary-text strong {
-  color: #303133;
+  color: var(--el-text-color-primary);
   font-weight: 600;
 }
 
@@ -3267,7 +3306,7 @@ onUnmounted(() => {
 }
 
 :deep(.el-table .sortable:hover) {
-  background-color: #f0f9ff;
+  background-color: var(--el-color-primary-light-9);
 }
 
 :deep(.el-table .sortable .cell) {
@@ -3297,8 +3336,8 @@ onUnmounted(() => {
 }
 
 :deep(.el-table th) {
-  background-color: #f5f7fa;
-  color: #606266;
+  background-color: var(--el-table-header-bg-color);
+  color: var(--el-table-header-text-color);
   font-weight: 600;
 }
 
@@ -3307,7 +3346,7 @@ onUnmounted(() => {
 }
 
 :deep(.el-table .el-table__row:hover) {
-  background-color: #f5f7fa;
+  background-color: var(--el-table-row-hover-bg-color);
 }
 
 /* List actions styling */
@@ -3753,29 +3792,13 @@ onUnmounted(() => {
   color: #e5e5e5;
 }
 
-.dark .files-grid {
-  background: #1f1f1f;
-}
-
-.dark .file-item {
-  background: #2a2a2a;
-  border-color: #3c3c3c;
-}
-
-.dark .file-item:hover {
-  background: #333;
-  border-color: #409eff;
-}
-
-.dark .file-name {
+.dark .file-name,
+.dark .large-file-name {
   color: #e5e5e5;
 }
 
-.dark .file-size {
-  color: #a8a8a8;
-}
-
-.dark .file-date {
+.dark .file-meta,
+.dark .large-file-meta {
   color: #a8a8a8;
 }
 
