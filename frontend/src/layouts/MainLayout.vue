@@ -545,8 +545,8 @@ watch(
 }
 
 .dustbin-icon-button:hover {
-  color: #409eff;
-  background-color: #f0f9ff;
+  color: var(--el-color-primary);
+  background-color: var(--el-color-primary-light-9);
 }
 
 .dustbin-icon-button .el-icon {
@@ -600,17 +600,17 @@ watch(
 
 /* Highlight current directory */
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: #f0f9ff;
-  color: #409eff;
+  background-color: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
   font-weight: 600;
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content .node-icon) {
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content .node-label) {
-  color: #409eff;
+  color: var(--el-color-primary);
   font-weight: 600;
 }
 
