@@ -618,18 +618,18 @@ onMounted(() => {
 
 .settings-header h1 {
   margin: 0 0 8px 0;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .settings-header p {
   margin: 0;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 
 .settings-tabs {
-  background: white;
+  background: var(--el-bg-color-overlay);
   border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: var(--el-box-shadow-light);
 }
 
 .tab-content {
@@ -645,7 +645,7 @@ onMounted(() => {
 
 .section-header h2 {
   margin: 0;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .search-section {
@@ -667,7 +667,7 @@ onMounted(() => {
 }
 
 .no-members {
-  color: #909399;
+  color: var(--el-text-color-secondary);
   font-style: italic;
 }
 
@@ -681,7 +681,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 24px 0;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--el-border-color-light);
 }
 
 .setting-item:last-child {
@@ -690,13 +690,13 @@ onMounted(() => {
 
 .setting-label h3 {
   margin: 0 0 8px 0;
-  color: #303133;
+  color: var(--el-text-color-primary);
   font-size: 16px;
 }
 
 .setting-label p {
   margin: 0;
-  color: #606266;
+  color: var(--el-text-color-regular);
   font-size: 14px;
 }
 
@@ -710,32 +710,32 @@ onMounted(() => {
 
 .theme-preview h4 {
   margin: 0 0 16px 0;
-  color: #303133;
+  color: var(--el-text-color-primary);
   font-size: 16px;
 }
 
 .preview-container {
   display: flex;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--el-border-color);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
+  background: var(--el-bg-color);
   height: 200px;
 }
 
 .preview-sidebar {
   width: 200px;
-  background: #f5f7fa;
-  border-right: 1px solid #e4e7ed;
+  background: var(--el-fill-color-light);
+  border-right: 1px solid var(--el-border-color);
 }
 
 .preview-header {
   padding: 12px 16px;
-  background: #f0f2f5;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--el-fill-color);
+  border-bottom: 1px solid var(--el-border-color);
   font-weight: 600;
   font-size: 14px;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .preview-tree {
@@ -745,13 +745,13 @@ onMounted(() => {
 .preview-item {
   padding: 6px 16px;
   font-size: 13px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   cursor: pointer;
 }
 
 .preview-item:hover {
-  background: #f0f9ff;
-  color: #409eff;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
 }
 
 .preview-main {
@@ -762,10 +762,10 @@ onMounted(() => {
 
 .preview-nav {
   padding: 12px 16px;
-  background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--el-bg-color-overlay);
+  border-bottom: 1px solid var(--el-border-color);
   font-size: 14px;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .preview-content {
@@ -778,17 +778,17 @@ onMounted(() => {
 .preview-card {
   width: 120px;
   height: 80px;
-  background: #f8f9fa;
-  border: 1px solid #e4e7ed;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 
-/* Dark preview styles */
+/* Dark preview styles (explicit mock when previewing dark theme) */
 .dark-preview {
   background: #1f1f1f;
   border-color: #3c3c3c;
@@ -826,28 +826,7 @@ onMounted(() => {
   color: #a8a8a8;
 }
 
-/* Dark mode styles for settings */
-.dark .settings-header h1 {
-  color: #e5e5e5;
-}
-
-.dark .settings-header p {
-  color: #a8a8a8;
-}
-
-.dark .setting-label h3 {
-  color: #e5e5e5;
-}
-
-.dark .setting-label p {
-  color: #a8a8a8;
-}
-
-.dark .setting-item {
-  border-bottom-color: #3c3c3c;
-}
-
-.dark .theme-preview h4 {
-  color: #e5e5e5;
+.dark-preview .preview-content {
+  background: #141414;
 }
 </style>
