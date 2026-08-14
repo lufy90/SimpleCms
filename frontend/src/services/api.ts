@@ -279,12 +279,18 @@ export const filesAPI = {
   ) => api.post(`/api/files/${fileId}/unshare_recursively/`, data),
 
   // Update file content
-  updateContent: (fileId: string, formData: FormData, onProgress?: (progressEvent: any) => void) =>
+  updateContent: (
+    fileId: string,
+    formData: FormData,
+    onProgress?: (progressEvent: any) => void,
+    signal?: AbortSignal,
+  ) =>
     uploadApi.patch(`/api/files/${fileId}/update_content/`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
       onUploadProgress: onProgress,
+      signal,
     }),
 
   // Create new files
@@ -305,12 +311,17 @@ export const filesAPI = {
 
 // Upload API
 export const uploadAPI = {
-  upload: (formData: FormData, onProgress?: (progressEvent: any) => void) =>
+  upload: (
+    formData: FormData,
+    onProgress?: (progressEvent: any) => void,
+    signal?: AbortSignal,
+  ) =>
     uploadApi.post('/api/upload/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
       onUploadProgress: onProgress,
+      signal,
     }),
 }
 

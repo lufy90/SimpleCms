@@ -290,3 +290,54 @@ def apply_image_gps_to_storage(file_storage):
         return True
     except Exception:
         return False
+
+
+def _run_ffmpeg_extract_frame(video_path, output_jpg_path, seek_seconds):
+    """Run ffmpeg to extract a single frame. Returns True on success."""
+    import subprocess
+
+    cmd = [
+        'ffmpeg',
+        '-y',
+        '-ss', str(seek_seconds),
+        '-i', video_path,
+        '-frames:v', '1',
+        '-q:v', '2',
+        output_jpg_path,
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        return result.returncode == 0 and os.path.exists(output_jpg_path) and os.path.getsize(output_jpg_path) > 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def extract_video_frame(video_path, output_jpg_path):
+    """
+    Extract a single frame from a video into a JPEG file using system ffmpeg.
+
+    Tries seek at 1s first, then 0s. Returns True on success.
+    Never raises — callers can safely ignore failure.
+    """
+    try:
+        if not video_path or not os.path.exists(video_path):
+            return False
+        output_dir = os.path.dirname(output_jpg_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+        if _run_ffmpeg_extract_frame(video_path, output_jpg_path, 1):
+            return True
+        # Short videos may have no frame at 1s
+        if os.path.exists(output_jpg_path):
+            try:
+                os.remove(output_jpg_path)
+            except OSError:
+                pass
+        return _run_ffmpeg_extract_frame(video_path, output_jpg_path, 0)
+    except Exception:
+        return False

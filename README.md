@@ -37,6 +37,7 @@ Here are some screenshots of the SimpleCMS interface:
 - Node.js 20.19.0+ (for frontend and electron)
 - Virtual environment
 - Django 5.2+
+- **ffmpeg** (optional but recommended): required on the server `PATH` to generate video cover thumbnails on upload. Without it, video uploads still work; covers are simply skipped.
 
 ### Backend Setup
 
