@@ -468,7 +468,7 @@ class FileContentUpdateSerializer(serializers.Serializer):
         instance.storage.checksum = instance.storage.calculate_checksum()
         instance.storage.save()
 
-        # Extract GPS and generate thumbnail for images
+        # Extract GPS and generate thumbnail for images / video covers
         from filemanager.utils import apply_image_gps_to_storage
         apply_image_gps_to_storage(instance.storage)
 
@@ -476,6 +476,13 @@ class FileContentUpdateSerializer(serializers.Serializer):
             from filemanager.views import FileUploadView
             view = FileUploadView()
             thumbnail = view._generate_thumbnail(instance.storage)
+            if thumbnail:
+                instance.thumbnail = thumbnail
+                instance.save()
+        elif file_info['mime_type'].startswith('video/'):
+            from filemanager.views import FileUploadView
+            view = FileUploadView()
+            thumbnail = view._generate_video_thumbnail(instance.storage)
             if thumbnail:
                 instance.thumbnail = thumbnail
                 instance.save()

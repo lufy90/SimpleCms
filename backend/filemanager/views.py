@@ -34,7 +34,7 @@ from .serializers import (
 from .pagination import (
     FileItemPagination, FileAccessLogPagination, FileTagPagination
 )
-from .utils import file_path_manager, determine_file_sharing, apply_image_gps_to_storage
+from .utils import file_path_manager, determine_file_sharing, apply_image_gps_to_storage, extract_video_frame
 
 
 def resolve_user_identifier(value):
@@ -1379,10 +1379,15 @@ class FileUploadView(generics.CreateAPIView):
                 visibility=file_visibility
             )
             
-            # Generate thumbnail if it's an image
+            # Generate thumbnail for images or video covers
             if file_info['mime_type'].startswith('image/'):
                 apply_image_gps_to_storage(file_storage)
                 thumbnail = self._generate_thumbnail(file_storage)
+                if thumbnail:
+                    file_item.thumbnail = thumbnail
+                    file_item.save()
+            elif file_info['mime_type'].startswith('video/'):
+                thumbnail = self._generate_video_thumbnail(file_storage)
                 if thumbnail:
                     file_item.thumbnail = thumbnail
                     file_item.save()
@@ -1472,6 +1477,56 @@ class FileUploadView(generics.CreateAPIView):
             # Log error but don't fail the upload
             print(f"Thumbnail generation failed: {e}")
         
+        return None
+
+    def _generate_video_thumbnail(self, file_storage):
+        """Generate a cover thumbnail for video files using ffmpeg + Pillow."""
+        import tempfile
+
+        temp_frame_path = None
+        try:
+            from PIL import Image
+
+            video_path = file_storage.get_file_path()
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
+                temp_frame_path = temp_file.name
+
+            if not extract_video_frame(video_path, temp_frame_path):
+                return None
+
+            with Image.open(temp_frame_path) as img:
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+
+                size_name, width, height = ('150x150', 150, 150)
+                img.thumbnail((width, height), Image.Resampling.LANCZOS)
+
+                thumbnail_path, relative_path_for_db = file_path_manager.get_thumbnail_path(
+                    str(file_storage.uuid), size_name, '.jpg'
+                )
+                img.save(thumbnail_path, 'JPEG', quality=85)
+
+                thumb_info = file_path_manager.get_file_info(thumbnail_path)
+                thumbnail = FileThumbnail.objects.create(
+                    original_file=file_storage,
+                    thumbnail_path=relative_path_for_db,
+                    thumbnail_size=size_name,
+                    width=img.width,
+                    height=img.height,
+                    file_size=thumb_info['size'],
+                )
+                return thumbnail
+        except ImportError:
+            pass
+        except Exception as e:
+            print(f"Video thumbnail generation failed: {e}")
+        finally:
+            if temp_frame_path and os.path.exists(temp_frame_path):
+                try:
+                    os.remove(temp_frame_path)
+                except OSError:
+                    pass
+
         return None
     
     def _get_client_ip(self, request):

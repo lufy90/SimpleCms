@@ -366,17 +366,13 @@ export const useFilesStore = defineStore('files', () => {
     fileId: string,
     file: File,
     onProgress?: (progressEvent: any) => void,
+    signal?: AbortSignal,
   ) => {
     try {
       const formData = new FormData()
       formData.append('file', file)
 
-      // Use the upload API with progress tracking for file content updates
-      if (onProgress) {
-        await filesAPI.updateContent(fileId, formData, onProgress)
-      } else {
-        await filesAPI.updateContent(fileId, formData)
-      }
+      await filesAPI.updateContent(fileId, formData, onProgress, signal)
 
       toast.success('File content updated successfully')
 
@@ -388,6 +384,13 @@ export const useFilesStore = defineStore('files', () => {
       }
       return true
     } catch (error: any) {
+      if (
+        error?.code === 'ERR_CANCELED' ||
+        error?.name === 'CanceledError' ||
+        error?.name === 'AbortError'
+      ) {
+        throw error
+      }
       toast.error('File update failed')
       return false
     }

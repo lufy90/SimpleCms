@@ -633,7 +633,11 @@
   <Teleport to="body">
     <div v-if="uploadProgress.length > 0" class="upload-progress-float">
       <div class="upload-progress-float-header">
-        <span class="upload-progress-float-title">{{ $t('files.upload.progressTitle') }}</span>
+        <span class="upload-progress-float-title">
+          {{
+            isUploading ? $t('files.upload.progressTitle') : $t('files.upload.progressTitleFinished')
+          }}
+        </span>
         <span class="upload-progress-float-count">
           {{
             $t('files.upload.progressCount', {
@@ -643,17 +647,17 @@
           }}
         </span>
         <el-button
-          v-if="!isUploading"
-          @click="uploadProgress = []"
+          @click="handleUploadProgressClose"
           size="small"
           type="text"
           class="upload-progress-float-close"
+          :title="isUploading ? $t('files.upload.cancelUpload') : $t('common.close')"
+          :aria-label="isUploading ? $t('files.upload.cancelUpload') : $t('common.close')"
         >
-          {{ $t('common.close') }}
+          <el-icon><Close /></el-icon>
         </el-button>
       </div>
       <div v-if="currentUploadDisplayName" class="upload-progress-float-file">
-        <span class="upload-progress-float-label">{{ $t('files.upload.uploadingFile') }}</span>
         <span class="upload-progress-float-name" :title="currentUploadItem?.filename">
           {{ currentUploadDisplayName }}
         </span>
@@ -1057,6 +1061,8 @@ const uploadProgress = ref<
 const isUploading = ref(false)
 useUploadLeaveGuard(isUploading)
 const uploadTargetParentId = ref<string | undefined>(undefined)
+const uploadAbortController = ref<AbortController | null>(null)
+const uploadCancelled = ref(false)
 const isNavigating = ref(false)
 
 // Operation dialogs
@@ -1424,6 +1430,8 @@ const handleFileSelection = async (event: Event) => {
 
   // Lock destination to the directory where upload started
   uploadTargetParentId.value = currentDirectory.value?.id
+  uploadAbortController.value = new AbortController()
+  uploadCancelled.value = false
 
   // Reset progress
   uploadProgress.value = []
@@ -1433,9 +1441,12 @@ const handleFileSelection = async (event: Event) => {
     // Process files and create directory structure
     await processAndUploadFiles(files)
   } catch (error: any) {
-    ElMessage.error(`Upload failed: ${error.message || error}`)
+    if (!isUploadAbortError(error) && !uploadCancelled.value) {
+      ElMessage.error(`Upload failed: ${error.message || error}`)
+    }
   } finally {
     isUploading.value = false
+    uploadAbortController.value = null
     uploadTargetParentId.value = undefined
     // Reset file input
     if (target) target.value = ''
@@ -1450,6 +1461,8 @@ const handleDirectorySelection = async (event: Event) => {
 
   // Lock destination to the directory where upload started
   uploadTargetParentId.value = currentDirectory.value?.id
+  uploadAbortController.value = new AbortController()
+  uploadCancelled.value = false
 
   // Reset progress
   uploadProgress.value = []
@@ -1459,20 +1472,54 @@ const handleDirectorySelection = async (event: Event) => {
     // Process directory files with relative paths
     await processAndUploadFiles(files)
   } catch (error: any) {
-    ElMessage.error(`Upload failed: ${error.message || error}`)
+    if (!isUploadAbortError(error) && !uploadCancelled.value) {
+      ElMessage.error(`Upload failed: ${error.message || error}`)
+    }
   } finally {
     isUploading.value = false
+    uploadAbortController.value = null
     uploadTargetParentId.value = undefined
     // Reset directory input
     if (target) target.value = ''
   }
 }
 
+const isUploadAbortError = (error: any) => {
+  return (
+    error?.code === 'ERR_CANCELED' ||
+    error?.name === 'CanceledError' ||
+    error?.name === 'AbortError' ||
+    uploadCancelled.value
+  )
+}
+
+const markRemainingUploadsCancelled = (fromIndex = 0) => {
+  for (let i = fromIndex; i < uploadProgress.value.length; i++) {
+    if (uploadProgress.value[i].status === 'uploading') {
+      uploadProgress.value[i].status = 'error'
+      uploadProgress.value[i].error = t('files.upload.cancelled')
+    }
+  }
+}
+
+const handleUploadProgressClose = () => {
+  if (isUploading.value) {
+    uploadCancelled.value = true
+    uploadAbortController.value?.abort()
+    return
+  }
+  uploadProgress.value = []
+}
+
 const processAndUploadFiles = async (files: File[]) => {
-  // Upload all files with their relative paths
   await uploadAllFiles(files)
 
-  // Refresh file list
+  if (uploadCancelled.value) {
+    ElMessage.warning(t('files.upload.uploadCancelled'))
+    await refreshFiles()
+    return
+  }
+
   await refreshFiles()
   ElMessage.success(`Upload completed: ${files.length} files processed`)
 }
@@ -1480,15 +1527,15 @@ const processAndUploadFiles = async (files: File[]) => {
 // Directory creation now handled by backend during file upload
 
 const uploadAllFiles = async (files: File[]) => {
-  const batchSize = 3
   let uploadedCount = 0
   let failedCount = 0
   let skippedCount = 0
+  const signal = uploadAbortController.value?.signal
 
   // Initialize progress for all files
   files.forEach((file) => {
     uploadProgress.value.push({
-      filename: file.webkitRelativePath,
+      filename: file.webkitRelativePath || file.name,
       status: 'uploading',
       percentage: 0,
     })
@@ -1496,16 +1543,26 @@ const uploadAllFiles = async (files: File[]) => {
 
   // Process files one by one to handle conflicts
   for (let i = 0; i < files.length; i++) {
+    if (uploadCancelled.value || signal?.aborted) {
+      markRemainingUploadsCancelled(i)
+      break
+    }
+
     let file = files[i]
 
     try {
       // Get the relative path for this file
-      const pathParts = file.webkitRelativePath.split('/')
+      const pathParts = (file.webkitRelativePath || file.name).split('/')
       const fileName = pathParts.pop()! // Remove filename
       const relativePath = pathParts.join('/') // Keep directory path
 
       // Check for conflicts before uploading
       const conflictResult = await checkForConflict(fileName, relativePath)
+
+      if (uploadCancelled.value || signal?.aborted) {
+        markRemainingUploadsCancelled(i)
+        break
+      }
 
       if (conflictResult.hasConflict) {
         // Show conflict dialog and wait for user decision
@@ -1516,6 +1573,11 @@ const uploadAllFiles = async (files: File[]) => {
           conflictResult.existingFile,
           conflictResult.existingFiles,
         )
+
+        if (uploadCancelled.value || signal?.aborted) {
+          markRemainingUploadsCancelled(i)
+          break
+        }
 
         if (resolution.action === 'skip') {
           uploadProgress.value[i].status = 'error'
@@ -1545,6 +1607,7 @@ const uploadAllFiles = async (files: File[]) => {
             conflictResult.existingFile.id,
             file,
             overwriteProgressCallback,
+            signal,
           )
 
           if (success) {
@@ -1592,13 +1655,19 @@ const uploadAllFiles = async (files: File[]) => {
         }
       }
 
-      await uploadAPI.upload(formData, progressCallback)
+      await uploadAPI.upload(formData, progressCallback, signal)
 
       // Update progress
       uploadProgress.value[i].status = 'success'
       uploadProgress.value[i].percentage = 100
       uploadedCount++
     } catch (error: any) {
+      if (isUploadAbortError(error)) {
+        uploadProgress.value[i].status = 'error'
+        uploadProgress.value[i].error = t('files.upload.cancelled')
+        markRemainingUploadsCancelled(i + 1)
+        break
+      }
       // Update progress with error
       uploadProgress.value[i].status = 'error'
       uploadProgress.value[i].error =
@@ -1607,13 +1676,16 @@ const uploadAllFiles = async (files: File[]) => {
     }
 
     // Small delay between uploads
-    if (i < files.length - 1) {
+    if (i < files.length - 1 && !uploadCancelled.value && !signal?.aborted) {
       await new Promise((resolve) => setTimeout(resolve, 200))
     }
   }
 
+  if (uploadCancelled.value) {
+    return
+  }
+
   // Show final results
-  const totalProcessed = uploadedCount + failedCount + skippedCount
   if (failedCount === 0 && skippedCount === 0) {
     ElMessage.success(`All ${files.length} files uploaded successfully!`)
   } else {
@@ -3494,7 +3566,13 @@ onUnmounted(() => {
 
 .upload-progress-float-close {
   margin-left: 0;
-  padding: 0 4px;
+  padding: 4px;
+  min-height: auto;
+  color: #909399;
+}
+
+.upload-progress-float-close:hover {
+  color: #303133;
 }
 
 .upload-progress-float-file {
@@ -3503,11 +3581,6 @@ onUnmounted(() => {
   gap: 4px;
   margin-bottom: 10px;
   min-width: 0;
-}
-
-.upload-progress-float-label {
-  font-size: 12px;
-  color: #909399;
 }
 
 .upload-progress-float-name {
@@ -3533,10 +3606,6 @@ onUnmounted(() => {
 .dark .upload-progress-float-title,
 .dark .upload-progress-float-name {
   color: #e5e5e5;
-}
-
-.dark .upload-progress-float-label {
-  color: #a8a8a8;
 }
 
 .upload-progress-section {
