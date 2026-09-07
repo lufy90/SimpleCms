@@ -159,6 +159,19 @@ class FileItem(models.Model):
     # User and group sharing
     shared_users = models.ManyToManyField(User, blank=True, related_name='shared_files')
     shared_groups = models.ManyToManyField(Group, blank=True, related_name='shared_files')
+
+    # Per-user virtual home root (parent is null)
+    is_home = models.BooleanField(default=False, db_index=True)
+
+    # Per-group collaborative space root (parent is null)
+    is_group_space = models.BooleanField(default=False, db_index=True)
+    space_group = models.ForeignKey(
+        Group,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='space_roots',
+    )
     
     # Custom manager
     objects = FileItemManager()
@@ -171,6 +184,9 @@ class FileItem(models.Model):
             models.Index(fields=['visibility']),
             models.Index(fields=['owner']),
             models.Index(fields=['is_deleted']),
+            models.Index(fields=['is_home']),
+            models.Index(fields=['is_group_space']),
+            models.Index(fields=['space_group']),
         ]
         # Note: SQLite doesn't handle NULL values in unique constraints properly
         # We'll handle uniqueness validation for both files and directories in the model's clean() method
@@ -183,19 +199,18 @@ class FileItem(models.Model):
         """Custom validation for file and directory name uniqueness"""
         from django.core.exceptions import ValidationError
         
-        # Check for duplicate names within the same parent and owner
+        # Same-level uniqueness by tree only (parent + name + item_type)
         existing = FileItem.objects.filter(
             name=self.name,
             parent=self.parent,
             item_type=self.item_type,
-            owner=self.owner,
             is_deleted=False
         ).exclude(pk=self.pk)
         
         if existing.exists():
             item_type_name = 'directory' if self.item_type == 'directory' else 'file'
             raise ValidationError({
-                'name': f'A {item_type_name} with this name already exists in this location for this user.'
+                'name': f'A {item_type_name} with this name already exists in this location.'
             })
     
     def save(self, *args, **kwargs):
@@ -587,22 +602,56 @@ class FileAccessPermission(models.Model):
             return ['read']
         return []
     
+    def _sync_sharing_m2m(self):
+        """Keep FileItem.shared_users / shared_groups aligned with active FAPs."""
+        if not self.file_id:
+            return
+        file_item = self.file
+        if self.user_id:
+            if self.is_active:
+                file_item.shared_users.add(self.user)
+            else:
+                still_active = file_item.access_permissions.filter(
+                    user_id=self.user_id, is_active=True
+                ).exclude(pk=self.pk).exists()
+                if not still_active:
+                    file_item.shared_users.remove(self.user)
+        if self.group_id:
+            if self.is_active:
+                file_item.shared_groups.add(self.group)
+            else:
+                still_active = file_item.access_permissions.filter(
+                    group_id=self.group_id, is_active=True
+                ).exclude(pk=self.pk).exists()
+                if not still_active:
+                    file_item.shared_groups.remove(self.group)
+
     def save(self, *args, **kwargs):
         # Set priority based on permission type
         self.priority = self.PERMISSION_PRIORITY.get(self.permission_type, 1)
         super().save(*args, **kwargs)
         
-        # Update file visibility to reflect sharing status
+        # Keep M2M sharing lists and visibility in sync with permissions
         if hasattr(self, 'file') and self.file:
+            self._sync_sharing_m2m()
             self.file.update_visibility_from_sharing()
     
     def delete(self, *args, **kwargs):
-        # Store file reference before deletion
+        # Store references before deletion
         file_item = self.file
+        user_id = self.user_id
+        group_id = self.group_id
         super().delete(*args, **kwargs)
         
-        # Update file visibility after permission deletion
         if file_item:
+            if user_id and not file_item.access_permissions.filter(
+                user_id=user_id, is_active=True
+            ).exists():
+                file_item.shared_users.remove(user_id)
+            if group_id and not file_item.access_permissions.filter(
+                group_id=group_id, is_active=True
+            ).exists():
+                file_item.shared_groups.remove(group_id)
             file_item.update_visibility_from_sharing()
 
 

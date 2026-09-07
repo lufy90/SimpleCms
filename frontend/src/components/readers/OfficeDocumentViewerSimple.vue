@@ -43,7 +43,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { toast } from 'vue3-toastify'
 import { Loading, Download, Refresh } from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
 import api from '@/services/api'
@@ -189,9 +189,9 @@ const downloadDocument = async () => {
   try {
     // Use Electron utility for download
     await electronUtils.downloadFile(props.file.id, props.file.name, true)
-    ElMessage.success('Document download started')
+    toast.success('Document download started')
   } catch (err: any) {
-    ElMessage.error('Failed to download document')
+    toast.error('Failed to download document')
   }
 }
 

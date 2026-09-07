@@ -130,26 +130,26 @@
             </template>
           </el-table-column>
 
-          <el-table-column :label="$t('deletedFiles.actions')" width="200" fixed="right">
+          <el-table-column :label="$t('deletedFiles.actions')" width="140" fixed="right">
             <template #default="{ row }">
-              <div class="action-buttons">
+              <div class="list-actions">
                 <el-button
                   type="primary"
                   size="small"
+                  circle
+                  :title="$t('deletedFiles.restore')"
                   @click="handleRestoreSingle(row.id)"
-                  :loading="deletedFilesStore.isLoading"
                 >
                   <el-icon><RefreshLeft /></el-icon>
-                  {{ $t('deletedFiles.restore') }}
                 </el-button>
                 <el-button
                   type="danger"
                   size="small"
+                  circle
+                  :title="$t('deletedFiles.permanentlyDeleteButton')"
                   @click="handleHardDeleteSingle(row.id, row.name)"
-                  :loading="deletedFilesStore.isLoading"
                 >
                   <el-icon><Delete /></el-icon>
-                  {{ $t('deletedFiles.delete') }}
                 </el-button>
               </div>
             </template>
@@ -491,14 +491,22 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.action-buttons {
+.list-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
-.action-buttons .el-button {
-  flex-shrink: 0;
+.list-actions .el-button {
+  padding: 8px;
+  font-size: 14px;
+  min-width: 32px;
+  height: 32px;
+}
+
+.list-actions .el-button .el-icon {
+  margin: 0;
+  font-size: 16px;
 }
 
 .warning-text {

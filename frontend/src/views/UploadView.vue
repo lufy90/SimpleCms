@@ -31,7 +31,6 @@
           >
             <el-option :label="$t('files.visibility.private')" value="private" />
             <el-option :label="$t('files.visibility.user')" value="user" />
-            <el-option :label="$t('files.visibility.group')" value="group" />
             <el-option :label="$t('files.visibility.public')" value="public" />
           </el-select>
         </el-form-item>
@@ -133,7 +132,8 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useFilesStore } from '@/stores/files'
 import { ArrowLeft, UploadFilled, Close } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
+import { toast } from 'vue3-toastify'
 import type { FileItem } from '@/stores/files'
 import { useUploadLeaveGuard } from '@/composables/useUploadLeaveGuard'
 
@@ -165,7 +165,7 @@ const handleFileChange = (file: any, fileList: any[]) => {
 
 const handleUpload = async () => {
   if (selectedFiles.value.length === 0) {
-    ElMessage.warning('Please select files to upload')
+    toast.warning('Please select files to upload')
     return
   }
 
@@ -176,7 +176,7 @@ const handleUpload = async () => {
       await processFileUpload(file)
     }
 
-    ElMessage.success('All files processed successfully')
+    toast.success('All files processed successfully')
     selectedFiles.value = []
     if (uploadRef.value) {
       uploadRef.value.clearFiles()
@@ -234,7 +234,7 @@ const processFileUpload = async (file: File) => {
 }
 
 const handleSkipFile = () => {
-  ElMessage.info(`Skipped ${currentFile.value?.name}`)
+  toast.info(`Skipped ${currentFile.value?.name}`)
   duplicateDialogVisible.value = false
 }
 
@@ -262,9 +262,9 @@ const handleConfirmRename = async () => {
       uploadForm.value.path,
     )
 
-    ElMessage.success(`${renameForm.value.name} uploaded successfully`)
+    toast.success(`${renameForm.value.name} uploaded successfully`)
   } catch (error) {
-    ElMessage.error(`Failed to upload ${renameForm.value.name}`)
+    toast.error(`Failed to upload ${renameForm.value.name}`)
   }
 
   renameDialogVisible.value = false
@@ -283,10 +283,10 @@ const handleOverwriteFile = async () => {
 
     // Update the existing file's content using PATCH request
     await filesStore.updateFileContent(duplicateFile.value.id, currentFile.value)
-    ElMessage.success(`${currentFile.value.name} overwritten successfully`)
+    toast.success(`${currentFile.value.name} overwritten successfully`)
   } catch (error) {
     console.error('Overwrite error:', error)
-    ElMessage.error(`Failed to overwrite ${currentFile.value.name}`)
+    toast.error(`Failed to overwrite ${currentFile.value.name}`)
   }
 
   duplicateDialogVisible.value = false

@@ -42,7 +42,10 @@ const router = createRouter({
           name: 'Files',
           component: () => import('@/views/FilesView.vue'),
           meta: { title: 'Files' },
-          props: (route) => ({ parentId: route.query.parent_id }),
+          props: (route) => ({
+            parentId: route.query.parent_id,
+            space: route.query.space,
+          }),
         },
         {
           path: 'files/:id',

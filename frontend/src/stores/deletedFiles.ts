@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { deletedFilesAPI } from '@/services/api'
-import { ElMessage } from 'element-plus'
+import { toast } from 'vue3-toastify'
 
 export interface DeletedFileItem {
   id: string
@@ -45,7 +45,7 @@ export const useDeletedFilesStore = defineStore('deletedFiles', () => {
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || 'Failed to fetch deleted files'
       error.value = errorMessage
-      ElMessage.error(errorMessage)
+      toast.error(errorMessage)
     } finally {
       isLoading.value = false
     }
@@ -60,12 +60,12 @@ export const useDeletedFilesStore = defineStore('deletedFiles', () => {
       // Remove restored files from the list
       deletedFiles.value = deletedFiles.value.filter((item) => !fileIds.includes(item.id))
 
-      ElMessage.success(`Successfully restored ${fileIds.length} item(s)`)
+      toast.success(`Successfully restored ${fileIds.length} item(s)`)
       return true
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || 'Failed to restore files'
       error.value = errorMessage
-      ElMessage.error(errorMessage)
+      toast.error(errorMessage)
       return false
     } finally {
       isLoading.value = false
@@ -81,12 +81,12 @@ export const useDeletedFilesStore = defineStore('deletedFiles', () => {
       // Remove permanently deleted files from the list
       deletedFiles.value = deletedFiles.value.filter((item) => !fileIds.includes(item.id))
 
-      ElMessage.success(`Successfully permanently deleted ${fileIds.length} item(s)`)
+      toast.success(`Successfully permanently deleted ${fileIds.length} item(s)`)
       return true
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || 'Failed to permanently delete files'
       error.value = errorMessage
-      ElMessage.error(errorMessage)
+      toast.error(errorMessage)
       return false
     } finally {
       isLoading.value = false

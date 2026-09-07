@@ -42,7 +42,6 @@
 <script setup lang="ts">
 import { Document, Warning, Download, Share } from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
-import { ElMessage } from 'element-plus'
 
 interface FileItem {
   id: string

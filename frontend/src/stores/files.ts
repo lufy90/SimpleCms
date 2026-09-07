@@ -14,6 +14,7 @@ export interface FileItem {
     id: string
     name: string
     relative_path: string
+    is_home?: boolean
   }>
   size?: number
   mime_type?: string
@@ -29,6 +30,10 @@ export interface FileItem {
     last_name: string
   }
   visibility: 'private' | 'user' | 'group' | 'public'
+  is_home?: boolean
+  is_group_space?: boolean
+  space?: string
+  is_virtual?: boolean
   shared_users: Array<{
     id: string
     username: string
@@ -82,6 +87,7 @@ export interface DirectoryTreeItem {
     id: string
     name: string
     relative_path: string
+    is_home?: boolean
   }>
   children?: DirectoryTreeItem[]
   size?: number
@@ -90,6 +96,9 @@ export interface DirectoryTreeItem {
   last_modified?: string
   visibility?: string
   is_virtual?: boolean
+  is_home?: boolean
+  is_group_space?: boolean
+  space?: string
 }
 
 export interface PaginationInfo {
@@ -234,20 +243,59 @@ export const useFilesStore = defineStore('files', () => {
 
   const fetchDirectoryTree = async (root?: string) => {
     try {
-      // For lazy loading, we only fetch root level items
+      const { useAuthStore } = await import('@/stores/auth')
+      const authStore = useAuthStore()
+
       const response = await filesAPI.listChildren()
       const rootItems = response.data.children || []
+      const homeParent = response.data.parent
+      const homeId = homeParent?.id || authStore.user?.home_id || 'root'
 
-      // Add virtual root node at the top
+      const sharedResponse = await filesAPI.listChildren(undefined, 'shared_to_me')
+      const sharedItems = sharedResponse.data.children || []
+
+      const groupNodes = (authStore.user?.groups || [])
+        .filter((g) => g.space_id)
+        .map((g) => ({
+          id: g.space_id as string,
+          name: g.name,
+          path: `/groups/${g.name}`,
+          relative_path: `/groups/${g.name}`,
+          item_type: 'directory' as const,
+          is_group_space: true,
+          children: undefined,
+        }))
+
       directoryTree.value = [
         {
-          id: 'root',
-          name: '/',
+          id: homeId,
+          name: 'My Files',
           path: '/',
           relative_path: '/',
           item_type: 'directory',
           children: rootItems,
           is_virtual: true,
+          is_home: true,
+        },
+        {
+          id: 'shared_to_me',
+          name: 'Shared with me',
+          path: '/shared',
+          relative_path: '/shared',
+          item_type: 'directory',
+          children: sharedItems,
+          is_virtual: true,
+          space: 'shared_to_me',
+        },
+        {
+          id: 'group_spaces',
+          name: 'Group spaces',
+          path: '/groups',
+          relative_path: '/groups',
+          item_type: 'directory',
+          children: groupNodes,
+          is_virtual: true,
+          space: 'group_spaces',
         },
       ]
 
@@ -260,6 +308,10 @@ export const useFilesStore = defineStore('files', () => {
 
   const fetchTreeChildren = async (parentId: string) => {
     try {
+      if (parentId === 'shared_to_me') {
+        const response = await filesAPI.listChildren(undefined, 'shared_to_me')
+        return response.data.children || []
+      }
       const response = await filesAPI.listChildren(parentId)
       return response.data.children || []
     } catch (error: any) {
@@ -268,19 +320,16 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  const fetchChildren = async (parentId?: string) => {
+  const fetchChildren = async (parentId?: string, space?: string) => {
     try {
       isLoading.value = true
-      const response = await filesAPI.listChildren(parentId)
+      const response = await filesAPI.listChildren(parentId, space)
 
       if (response.data.children) {
         files.value = response.data.children
-        // Set current directory to the directory we're entering
-        if (parentId && response.data.parent) {
-          // The parent now includes the complete information with parents field
+        if (response.data.parent) {
           currentDirectory.value = response.data.parent
         } else {
-          // Root level
           currentDirectory.value = null
         }
         pagination.value = null

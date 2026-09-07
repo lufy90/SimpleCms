@@ -3,30 +3,36 @@
     <!-- Sidebar -->
     <aside
       class="sidebar"
-      :class="{ 'sidebar-collapsed': sidebarCollapsed, 'sidebar-resizing': isResizing }"
+      :class="{
+        'sidebar-collapsed': sidebarCollapsed,
+        'sidebar-open': !sidebarCollapsed,
+        'sidebar-resizing': isResizing,
+      }"
       :style="sidebarStyle"
     >
       <div class="sidebar-header">
         <div class="header-content">
-          <h3 v-if="!sidebarCollapsed" class="logo">
+          <h3 class="logo">
             <el-icon><Folder /></el-icon>
             {{ $t('files.fileManager') }}
           </h3>
-          <el-button type="text" size="large" @click="toggleSidebar" class="sidebar-toggle">
-            <el-icon v-if="sidebarCollapsed"><Expand /></el-icon>
-            <el-icon v-else><Fold /></el-icon>
+          <el-button
+            type="text"
+            size="large"
+            @click="toggleSidebar"
+            class="sidebar-toggle"
+            :title="$t('navigation.hideSidebar')"
+          >
+            <el-icon><Fold /></el-icon>
           </el-button>
         </div>
       </div>
 
       <!-- Directory Tree -->
       <div class="sidebar-content">
-        <div class="tree-header" v-if="!sidebarCollapsed">
+        <div class="tree-header">
           <h4>{{ $t('files.directoryTree') }}</h4>
           <div class="tree-actions">
-            <el-button type="text" size="small" @click="showCreateDirectoryDialog">
-              <el-icon><Plus /></el-icon>
-            </el-button>
             <el-button type="text" size="small" @click="refreshTree" :loading="isLoading">
               <el-icon><Refresh /></el-icon>
             </el-button>
@@ -47,10 +53,19 @@
           class="directory-tree"
         >
           <template #default="{ node, data }">
-            <div class="tree-node" :class="{ 'virtual-root': data.is_virtual }">
+            <div
+              class="tree-node"
+              :class="{
+                'virtual-root':
+                  data.is_virtual ||
+                  data.is_home ||
+                  data.space === 'shared_to_me' ||
+                  data.space === 'group_spaces',
+              }"
+            >
               <FileIcon :file="data" :size="16" :show-thumbnail="true" />
-              <span class="node-label" :title="data.name">
-                {{ data.name }}
+              <span class="node-label" :title="treeNodeLabel(data)">
+                {{ treeNodeLabel(data) }}
               </span>
             </div>
           </template>
@@ -59,38 +74,22 @@
 
       <!-- Dustbin Section -->
       <div class="dustbin-section">
-        <!-- Expanded view -->
-        <div v-if="!sidebarCollapsed" class="dustbin-header">
-          <h4>{{ $t('deletedFiles.title') }}</h4>
-          <el-badge
-            :value="deletedFilesCount"
-            :hidden="deletedFilesCount === 0"
-            class="dustbin-badge"
+        <el-badge
+          :value="deletedFilesCount"
+          :hidden="deletedFilesCount === 0"
+          class="dustbin-badge"
+        >
+          <el-button
+            type="text"
+            size="large"
+            @click="navigateToDustbin"
+            class="dustbin-button"
+            :title="$t('navigation.deletedFiles')"
           >
-            <el-button type="text" size="small" @click="navigateToDustbin" class="dustbin-button">
-              <el-icon><Delete /></el-icon>
-              <span>{{ $t('navigation.deletedFiles') }}</span>
-            </el-button>
-          </el-badge>
-        </div>
-
-        <!-- Collapsed view -->
-        <div v-else class="dustbin-collapsed">
-          <el-badge
-            :value="deletedFilesCount"
-            :hidden="deletedFilesCount === 0"
-            class="dustbin-badge-collapsed"
-          >
-            <el-button
-              type="text"
-              size="large"
-              @click="navigateToDustbin"
-              class="dustbin-icon-button"
-            >
-              <el-icon><Delete /></el-icon>
-            </el-button>
-          </el-badge>
-        </div>
+            <el-icon><Delete /></el-icon>
+            <span>{{ $t('navigation.deletedFiles') }}</span>
+          </el-button>
+        </el-badge>
       </div>
 
       <div
@@ -105,6 +104,16 @@
       <!-- Top Navigation -->
       <header class="top-nav">
         <div class="nav-left">
+          <el-button
+            v-if="sidebarCollapsed"
+            type="text"
+            size="large"
+            @click="toggleSidebar"
+            class="sidebar-toggle sidebar-show-toggle"
+            :title="$t('navigation.showSidebar')"
+          >
+            <el-icon><Expand /></el-icon>
+          </el-button>
           <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/files' }">{{
               $t('navigation.files')
@@ -166,6 +175,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useFilesStore } from '@/stores/files'
 import { useDeletedFilesStore } from '@/stores/deletedFiles'
@@ -180,16 +190,15 @@ import {
   User,
   Setting,
   SwitchButton,
-  Plus,
   Delete,
   UserFilled,
 } from '@element-plus/icons-vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
 import { filesAPI } from '@/services/api'
 import FileIcon from '@/components/FileIcon.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const router = useRouter()
+const { t } = useI18n()
 const authStore = useAuthStore()
 const filesStore = useFilesStore()
 const deletedFilesStore = useDeletedFilesStore()
@@ -220,7 +229,9 @@ let resizeStartX = 0
 let resizeStartWidth = 0
 
 const sidebarStyle = computed(() => {
-  if (sidebarCollapsed.value) return undefined
+  if (sidebarCollapsed.value) {
+    return { width: '0px', minWidth: '0px', maxWidth: '0px' }
+  }
   const width = `${sidebarWidth.value}px`
   return { width, minWidth: width, maxWidth: width }
 })
@@ -240,18 +251,31 @@ const userInitials = computed(() => {
 
 const currentRoute = computed(() => router.currentRoute.value)
 const currentDirectoryId = computed(() => {
-  // Check if we're on the Files route and get parent_id from query
   if (currentRoute.value.name === 'Files') {
     const parentId = currentRoute.value.query.parent_id
-    console.log('Files route - Parent ID from query:', parentId)
-    return parentId ? String(parentId) : null
+    if (parentId) {
+      return String(parentId)
+    }
+    const space = currentRoute.value.query.space
+    if (space === 'shared_to_me') {
+      return 'shared_to_me'
+    }
+    if (space === 'group_spaces') {
+      return 'group_spaces'
+    }
+    return authStore.user?.home_id || filesStore.directoryTree[0]?.id || null
   }
 
-  // For other routes, check params
   const paramsId = currentRoute.value.params.id
-  console.log('Other route - ID from params:', paramsId)
   return paramsId ? String(paramsId) : null
 })
+
+const treeNodeLabel = (data: any) => {
+  if (data.is_home) return t('files.myFiles')
+  if (data.space === 'shared_to_me' || data.id === 'shared_to_me') return t('files.sharedWithMe')
+  if (data.space === 'group_spaces' || data.id === 'group_spaces') return t('files.groupSpaces')
+  return data.name
+}
 
 const currentPath = computed(() => {
   // Extract current path from route or files store
@@ -307,49 +331,41 @@ const refreshTree = async () => {
 
 const loadNode = async (node: any, resolve: (data: any[]) => void) => {
   if (node.level === 0) {
-    // Root level - already loaded with virtual root node
     resolve(directoryTree.value)
-  } else if (node.data.is_virtual && node.level === 1) {
-    // Virtual root node - load actual root items (no parent_id)
+  } else if (node.data.space === 'shared_to_me' || node.data.id === 'shared_to_me') {
+    const response = await filesAPI.listChildren(undefined, 'shared_to_me')
+    resolve(response.data.children || [])
+  } else if (node.data.space === 'group_spaces' || node.data.id === 'group_spaces') {
+    const groups = authStore.user?.groups || []
+    resolve(
+      groups
+        .filter((g) => g.space_id)
+        .map((g) => ({
+          id: g.space_id as string,
+          name: g.name,
+          item_type: 'directory',
+          is_group_space: true,
+        })),
+    )
+  } else if (node.data.is_home || (node.data.is_virtual && !node.data.space)) {
     const response = await filesAPI.listChildren()
     resolve(response.data.children || [])
   } else {
-    // Load children for this node
     const children = await filesStore.fetchTreeChildren(node.data.id)
     resolve(children)
   }
 }
 
-const showCreateDirectoryDialog = () => {
-  ElMessageBox.prompt('Enter directory name:', 'Create Directory', {
-    confirmButtonText: 'Create',
-    cancelButtonText: 'Cancel',
-    inputPattern: /^[^\/\\]+$/,
-    inputErrorMessage: 'Directory name cannot contain slashes or backslashes',
-  })
-    .then(async ({ value }) => {
-      if (value) {
-        // Create directory at root level (no parent_id)
-        const newDirectory = await filesStore.createDirectory(value)
-        if (newDirectory) {
-          ElMessage.success('Directory created successfully')
-        }
-      }
-    })
-    .catch(() => {
-      // User cancelled
-    })
-}
-
 const handleNodeClick = (data: any) => {
-  if (data.is_virtual) {
-    // Virtual root node - navigate to root files with explicit query params
+  if (data.space === 'group_spaces' || data.id === 'group_spaces') {
+    router.push({ name: 'Files', query: { space: 'group_spaces' } })
+  } else if (data.space === 'shared_to_me' || data.id === 'shared_to_me') {
+    router.push({ name: 'Files', query: { space: 'shared_to_me' } })
+  } else if (data.is_home || (data.is_virtual && !data.space && !data.is_group_space)) {
     router.push({ name: 'Files', query: {} })
   } else if (data.item_type === 'directory') {
-    // Navigate to directory using parent_id for proper navigation
     router.push({ name: 'Files', query: { parent_id: data.id } })
   } else {
-    // Navigate to file details
     router.push({ name: 'FileDetails', params: { id: data.id } })
   }
 }
@@ -425,14 +441,20 @@ watch(
   transition:
     width 0.3s ease,
     min-width 0.3s ease,
-    max-width 0.3s ease;
+    max-width 0.3s ease,
+    opacity 0.2s ease,
+    border-color 0.2s ease;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .sidebar-collapsed {
-  width: 60px !important;
-  min-width: 60px !important;
-  max-width: 60px !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  opacity: 0;
+  border-right: none;
+  pointer-events: none;
 }
 
 .sidebar-resizing {
@@ -457,6 +479,7 @@ watch(
 .sidebar-header {
   padding: 16px;
   border-bottom: 1px solid #e4e7ed;
+  min-width: 180px;
 }
 
 .header-content {
@@ -473,35 +496,29 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  min-width: 180px;
 }
 
 .dustbin-section {
-  padding: 16px;
+  padding: 12px 16px;
   border-top: 1px solid #e4e7ed;
   background: #fafafa;
-}
-
-.dustbin-header {
   display: flex;
+  justify-content: flex-start;
   align-items: center;
-  justify-content: space-between;
-}
-
-.dustbin-header h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #606266;
+  min-width: 180px;
 }
 
 .dustbin-badge {
-  margin-left: auto;
+  display: flex;
+  align-items: center;
 }
 
 .dustbin-button {
@@ -509,47 +526,16 @@ watch(
   align-items: center;
   gap: 8px;
   color: #909399;
-  font-size: 12px;
-  padding: 4px 8px;
+  font-size: 14px;
+  padding: 8px 12px;
 }
 
 .dustbin-button:hover {
-  color: #409eff;
-}
-
-.dustbin-button .el-icon {
-  font-size: 14px;
-}
-
-.dustbin-collapsed {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 16px 8px;
-}
-
-.dustbin-badge-collapsed {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.dustbin-icon-button {
-  color: #909399;
-  padding: 8px;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.dustbin-icon-button:hover {
   color: var(--el-color-primary);
   background-color: var(--el-color-primary-light-9);
 }
 
-.dustbin-icon-button .el-icon {
+.dustbin-button .el-icon {
   font-size: 18px;
 }
 
@@ -632,8 +618,16 @@ watch(
   transition: color 0.2s;
 }
 
+.sidebar-toggle .el-icon {
+  font-size: 22px;
+}
+
 .sidebar-toggle:hover {
   color: #409eff;
+}
+
+.sidebar-show-toggle {
+  margin-right: 8px;
 }
 
 .main-content {
@@ -656,6 +650,7 @@ watch(
 .nav-left {
   display: flex;
   align-items: center;
+  gap: 4px;
 }
 
 .nav-right {
@@ -688,18 +683,27 @@ watch(
     position: fixed;
     left: 0;
     top: 0;
+    bottom: 0;
     z-index: 1000;
+    height: 100vh;
     transform: translateX(-100%);
+    opacity: 1;
+    pointer-events: auto;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
   }
 
-  .sidebar.open {
+  .sidebar.sidebar-open {
     transform: translateX(0);
   }
 
-  .sidebar-collapsed {
-    width: 60px !important;
-    min-width: 60px !important;
-    max-width: 60px !important;
+  .sidebar.sidebar-collapsed {
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 80vw !important;
+    opacity: 1;
+    border-right: 1px solid #e4e7ed;
+    pointer-events: none;
+    transform: translateX(-100%);
   }
 
   .sidebar-resizer {
@@ -734,23 +738,11 @@ watch(
   border-top-color: #3c3c3c;
 }
 
-.dark .dustbin-header h4 {
-  color: #e5e5e5;
-}
-
 .dark .dustbin-button {
   color: #a8a8a8;
 }
 
 .dark .dustbin-button:hover {
-  color: #409eff;
-}
-
-.dark .dustbin-icon-button {
-  color: #a8a8a8;
-}
-
-.dark .dustbin-icon-button:hover {
   color: #409eff;
   background-color: #2a2a2a;
 }

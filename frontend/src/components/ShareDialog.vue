@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    :title="`Share: ${file?.name}`"
+    :title="$t('shareDialog.title', { name: file?.name || '' })"
     width="700px"
     :close-on-click-modal="false"
     @close="handleClose"
@@ -9,39 +9,40 @@
     <div class="share-dialog-content">
       <!-- Current Sharing Status -->
       <div class="current-sharing-section">
-        <h4>Current Sharing</h4>
+        <h4>{{ $t('shareDialog.currentSharing') }}</h4>
         <div class="current-sharing-list">
-          <div v-if="currentPermissions.length === 0" class="no-sharing">
-            <el-empty description="No users or groups have access to this file" />
+          <div v-if="userPermissions.length === 0" class="no-sharing">
+            <span>{{ $t('shareDialog.noUsersAccess') }}</span>
           </div>
           <div v-else class="permission-list">
             <div
-              v-for="permission in currentPermissions"
+              v-for="permission in userPermissions"
               :key="permission.id"
               class="permission-item"
               :class="{ 'inactive-permission': !permission.is_active }"
             >
               <div class="permission-info">
                 <div class="target-info">
-                  <el-icon v-if="permission.user" color="#409eff">
+                  <el-icon color="#409eff">
                     <User />
                   </el-icon>
-                  <el-icon v-else color="#67c23a">
-                    <UserFilled />
-                  </el-icon>
                   <span class="target-name">
-                    {{ permission.user ? permission.user.username : permission.group?.name }}
+                    {{ permission.user?.username }}
                   </span>
                   <el-tag size="small" :type="getPermissionTagType(permission.permission_type)">
-                    {{ permission.permission_type }}
-                    <span v-if="!permission.is_active" class="inactive-indicator"> (Inactive)</span>
+                    {{ permissionLabel(permission.permission_type) }}
+                    <span v-if="!permission.is_active" class="inactive-indicator">
+                      {{ $t('shareDialog.inactive') }}
+                    </span>
                   </el-tag>
                 </div>
                 <div class="permission-meta">
-                  <span class="granted-by">Granted by {{ permission.granted_by.username }}</span>
+                  <span class="granted-by">
+                    {{ $t('shareDialog.grantedBy', { username: permission.granted_by.username }) }}
+                  </span>
                   <span class="granted-at">{{ formatDate(permission.granted_at) }}</span>
                   <span v-if="permission.expires_at" class="expires-at">
-                    Expires: {{ formatDate(permission.expires_at) }}
+                    {{ $t('shareDialog.expires', { date: formatDate(permission.expires_at) }) }}
                   </span>
                 </div>
               </div>
@@ -53,7 +54,7 @@
                   :loading="revokingPermission === permission.id"
                 >
                   <el-icon><Delete /></el-icon>
-                  Revoke
+                  {{ $t('shareDialog.revoke') }}
                 </el-button>
               </div>
             </div>
@@ -61,12 +62,14 @@
 
           <!-- Bulk actions for directories -->
           <div
-            v-if="file?.item_type === 'directory' && currentPermissions.length > 1"
+            v-if="file?.item_type === 'directory' && userPermissions.length > 1"
             class="bulk-actions"
           >
             <el-divider />
             <div class="bulk-actions-content">
-              <el-text size="small" type="info"> Bulk actions for directory: </el-text>
+              <el-text size="small" type="info">
+                {{ $t('shareDialog.bulkActionsForDirectory') }}
+              </el-text>
               <div class="bulk-buttons">
                 <el-button
                   size="small"
@@ -75,7 +78,7 @@
                   :loading="revokingAll"
                 >
                   <el-icon><Delete /></el-icon>
-                  Revoke All Permissions
+                  {{ $t('shareDialog.revokeAllPermissions') }}
                 </el-button>
               </div>
             </div>
@@ -85,20 +88,12 @@
 
       <!-- Add New Sharing -->
       <div class="add-sharing-section">
-        <h4>Share with New User or Group</h4>
+        <h4>{{ $t('shareDialog.shareWithUser') }}</h4>
         <el-form :model="shareForm" label-width="120px" class="share-form">
-          <el-form-item label="Share Type">
-            <el-radio-group v-model="shareForm.shareType">
-              <el-radio label="user">User</el-radio>
-              <el-radio label="group">Group</el-radio>
-            </el-radio-group>
-          </el-form-item>
-
-          <el-form-item label="Select Target">
+          <el-form-item :label="$t('shareDialog.selectUser')">
             <el-select
-              v-if="shareForm.shareType === 'user'"
               v-model="shareForm.targetId"
-              placeholder="Select user"
+              :placeholder="$t('shareDialog.selectUserPlaceholder')"
               filterable
               remote
               :remote-method="searchUsers"
@@ -112,53 +107,29 @@
                 :value="user.id"
               />
             </el-select>
-            <el-select
-              v-else
-              v-model="shareForm.targetId"
-              placeholder="Select group"
-              filterable
-              remote
-              :remote-method="searchGroups"
-              :loading="searchingGroups"
-              style="width: 100%"
-            >
-              <el-option
-                v-for="group in availableGroups"
-                :key="group.id"
-                :label="group.name"
-                :value="group.id"
-              />
-            </el-select>
           </el-form-item>
 
-          <el-form-item label="Permissions">
+          <el-form-item :label="$t('shareDialog.permissions')">
             <el-checkbox-group v-model="shareForm.permissions">
-              <el-checkbox label="read">Read</el-checkbox>
-              <el-checkbox label="write">Write</el-checkbox>
-              <el-checkbox label="delete">Delete</el-checkbox>
-              <el-checkbox label="share">Share</el-checkbox>
-              <el-checkbox label="admin">Admin</el-checkbox>
+              <el-checkbox label="read">{{ $t('shareDialog.permissionTypes.read') }}</el-checkbox>
+              <el-checkbox label="write">{{ $t('shareDialog.permissionTypes.write') }}</el-checkbox>
+              <el-checkbox label="delete">{{ $t('shareDialog.permissionTypes.delete') }}</el-checkbox>
+              <el-checkbox label="share">{{ $t('shareDialog.permissionTypes.share') }}</el-checkbox>
+              <el-checkbox label="admin">{{ $t('shareDialog.permissionTypes.admin') }}</el-checkbox>
             </el-checkbox-group>
           </el-form-item>
 
-          <!-- Recursive sharing option for directories -->
-          <el-form-item v-if="file?.item_type === 'directory'" label="Recursive Sharing">
-            <el-checkbox v-model="shareForm.recursive">
-              Share this directory and all its contents recursively
-            </el-checkbox>
-            <div class="recursive-help">
-              <el-text size="small" type="info">
-                When enabled, all files and subdirectories within this directory will be shared with
-                the same permissions.
-              </el-text>
-            </div>
+          <el-form-item v-if="file?.item_type === 'directory'" :label="$t('shareDialog.note')">
+            <el-text size="small" type="info" class="recursive-tip">
+              {{ $t('shareDialog.recursiveTip') }}
+            </el-text>
           </el-form-item>
 
-          <el-form-item label="Expires At">
+          <el-form-item :label="$t('shareDialog.expiresAt')">
             <el-date-picker
               v-model="shareForm.expiresAt"
               type="datetime"
-              placeholder="No expiration (optional)"
+              :placeholder="$t('shareDialog.noExpiration')"
               style="width: 100%"
               :disabled-date="disabledDate"
             />
@@ -167,9 +138,9 @@
           <el-form-item>
             <el-button type="primary" @click="shareFile" :loading="sharing" :disabled="!canShare">
               <el-icon><Share /></el-icon>
-              Share File
+              {{ $t('shareDialog.shareFile') }}
             </el-button>
-            <el-button @click="resetForm">Reset</el-button>
+            <el-button @click="resetForm">{{ $t('shareDialog.reset') }}</el-button>
           </el-form-item>
         </el-form>
       </div>
@@ -179,8 +150,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, UserFilled, Share, Delete } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
+import { ElMessageBox } from 'element-plus'
+import { toast } from 'vue3-toastify'
+import { User, Share, Delete } from '@element-plus/icons-vue'
 import { permissionsAPI, filesAPI } from '@/services/api'
 import type { FileItem } from '@/stores/files'
 
@@ -206,7 +179,7 @@ interface Permission {
   is_active: boolean
 }
 
-interface User {
+interface UserOption {
   id: string
   username: string
   email: string
@@ -214,17 +187,10 @@ interface User {
   last_name: string
 }
 
-interface Group {
-  id: string
-  name: string
-}
-
 interface ShareForm {
-  shareType: 'user' | 'group'
   targetId: string | null
   permissions: string[]
   expiresAt: string | null
-  recursive: boolean
 }
 
 const props = defineProps<{
@@ -237,31 +203,35 @@ const emit = defineEmits<{
   'permissions-updated': []
 }>()
 
-// Reactive data
+const { t, te } = useI18n()
+
 const dialogVisible = ref(false)
 const currentPermissions = ref<Permission[]>([])
-const availableUsers = ref<User[]>([])
-const availableGroups = ref<Group[]>([])
+const availableUsers = ref<UserOption[]>([])
 const searchingUsers = ref(false)
-const searchingGroups = ref(false)
 const sharing = ref(false)
 const revokingPermission = ref<string | null>(null)
 const revokingAll = ref(false)
 
 const shareForm = ref<ShareForm>({
-  shareType: 'user',
   targetId: null,
   permissions: ['read'],
   expiresAt: null,
-  recursive: false,
 })
 
-// Computed properties
+const userPermissions = computed(() =>
+  currentPermissions.value.filter((permission) => !!permission.user),
+)
+
 const canShare = computed(() => {
   return shareForm.value.targetId && shareForm.value.permissions.length > 0
 })
 
-// Watch for dialog visibility changes
+const permissionLabel = (permissionType: string) => {
+  const key = `shareDialog.permissionTypes.${permissionType}`
+  return te(key) ? t(key) : permissionType
+}
+
 watch(
   () => props.visible,
   (newVal) => {
@@ -279,7 +249,6 @@ watch(dialogVisible, (newVal) => {
   }
 })
 
-// Methods
 const loadCurrentPermissions = async () => {
   if (!props.file) return
 
@@ -288,7 +257,7 @@ const loadCurrentPermissions = async () => {
     currentPermissions.value = response.data.results || response.data || []
   } catch (error) {
     console.error('Failed to load permissions:', error)
-    ElMessage.error('Failed to load current permissions')
+    toast.error(t('shareDialog.loadPermissionsFailed'))
   }
 }
 
@@ -306,73 +275,40 @@ const searchUsers = async (query: string) => {
   }
 }
 
-const searchGroups = async (query: string) => {
-  if (query.length < 2) return
-
-  searchingGroups.value = true
-  try {
-    const response = await permissionsAPI.searchGroups({ query })
-    availableGroups.value = response.data.results || response.data || []
-  } catch (error) {
-    console.error('Failed to search groups:', error)
-  } finally {
-    searchingGroups.value = false
-  }
-}
-
 const shareFile = async () => {
   if (!props.file || !shareForm.value.targetId) return
 
-  // Validate that we have the correct combination
-  if (shareForm.value.shareType === 'user' && !shareForm.value.targetId) {
-    ElMessage.error('Please select a user to share with')
-    return
-  }
-
-  if (shareForm.value.shareType === 'group' && !shareForm.value.targetId) {
-    ElMessage.error('Please select a group to share with')
-    return
-  }
-
   sharing.value = true
   try {
-    // Check if this is recursive directory sharing
-    if (props.file.item_type === 'directory' && shareForm.value.recursive) {
-      // Use recursive sharing API
+    if (props.file.item_type === 'directory') {
       const response = await filesAPI.shareRecursively(props.file.id, {
-        share_type: shareForm.value.shareType,
+        share_type: 'user',
         target_id: shareForm.value.targetId,
         permission_types: shareForm.value.permissions,
         expires_at: shareForm.value.expiresAt || undefined,
       })
 
-      ElMessage.success(`Directory shared recursively: ${response.data.message}`)
+      toast.success(
+        t('shareDialog.directoryShared', { message: response.data.message }),
+      )
+      const failedItems = response.data.failed_items || []
+      if (failedItems.length > 0) {
+        toast.warning(t('shareDialog.partialShareFailed', { count: failedItems.length }))
+        console.warn('Recursive share failed_items:', failedItems)
+      }
     } else {
-      // Use regular permission creation for single files or non-recursive sharing
-      const permissionPromises = shareForm.value.permissions.map((permissionType) => {
-        const permissionData = {
+      const permissionPromises = shareForm.value.permissions.map((permissionType) =>
+        permissionsAPI.create({
           file: props.file!.id,
           permission_type: permissionType,
           expires_at: shareForm.value.expiresAt || undefined,
-        }
-
-        if (shareForm.value.shareType === 'user') {
-          return permissionsAPI.create({
-            ...permissionData,
-            user: shareForm.value.targetId!,
-            group: null, // Explicitly set group to null when sharing with user
-          })
-        } else {
-          return permissionsAPI.create({
-            ...permissionData,
-            user: null, // Explicitly set user to null when sharing with group
-            group: shareForm.value.targetId!,
-          })
-        }
-      })
+          user: shareForm.value.targetId!,
+          group: null,
+        }),
+      )
 
       await Promise.all(permissionPromises)
-      ElMessage.success('File shared successfully')
+      toast.success(t('shareDialog.fileShared'))
     }
 
     await loadCurrentPermissions()
@@ -380,7 +316,7 @@ const shareFile = async () => {
     resetForm()
   } catch (error) {
     console.error('Failed to share file:', error)
-    ElMessage.error('Failed to share file')
+    toast.error(t('shareDialog.shareFailed'))
   } finally {
     sharing.value = false
   }
@@ -389,31 +325,29 @@ const shareFile = async () => {
 const revokePermission = async (permissionId: string) => {
   try {
     await ElMessageBox.confirm(
-      'Are you sure you want to revoke this permission?',
-      'Confirm Revocation',
+      t('shareDialog.confirmRevokeMessage'),
+      t('shareDialog.confirmRevokeTitle'),
       {
-        confirmButtonText: 'Revoke',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: t('shareDialog.revoke'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       },
     )
 
     revokingPermission.value = permissionId
 
-    // Find the permission to get its details
     const permission = currentPermissions.value.find((p) => p.id === permissionId)
     if (!permission) {
       throw new Error('Permission not found')
     }
 
-    // Check if this is a directory and we should offer recursive unsharing
     if (props.file?.item_type === 'directory') {
       const shouldRecursive = await ElMessageBox.confirm(
-        'This is a directory. Do you want to revoke permissions for all files and subdirectories within it as well?',
-        'Recursive Unsharing',
+        t('shareDialog.recursiveUnshareMessage'),
+        t('shareDialog.recursiveUnshareTitle'),
         {
-          confirmButtonText: 'Yes, revoke recursively',
-          cancelButtonText: 'No, just this directory',
+          confirmButtonText: t('shareDialog.revokeRecursively'),
+          cancelButtonText: t('shareDialog.revokeDirectoryOnly'),
           type: 'warning',
         },
       )
@@ -421,30 +355,25 @@ const revokePermission = async (permissionId: string) => {
         .catch(() => false)
 
       if (shouldRecursive) {
-        // Use recursive unsharing
-        const shareType = permission.user ? 'user' : 'group'
-        const targetId = permission.user?.id || permission.group?.id
-
+        const targetId = permission.user?.id
         if (!targetId) {
           throw new Error('Invalid permission target')
         }
 
         await filesAPI.unshareRecursively(props.file.id, {
-          share_type: shareType,
+          share_type: 'user',
           target_id: targetId,
           permission_types: [permission.permission_type],
         })
 
-        ElMessage.success('Directory permissions revoked recursively')
+        toast.success(t('shareDialog.directoryRevokedRecursively'))
       } else {
-        // Use regular permission deletion
         await permissionsAPI.delete(permissionId)
-        ElMessage.success('Permission revoked successfully')
+        toast.success(t('shareDialog.permissionRevoked'))
       }
     } else {
-      // Regular permission deletion for files
       await permissionsAPI.delete(permissionId)
-      ElMessage.success('Permission revoked successfully')
+      toast.success(t('shareDialog.permissionRevoked'))
     }
 
     await loadCurrentPermissions()
@@ -452,7 +381,7 @@ const revokePermission = async (permissionId: string) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('Failed to revoke permission:', error)
-      ElMessage.error('Failed to revoke permission')
+      toast.error(t('shareDialog.revokeFailed'))
     }
   } finally {
     revokingPermission.value = null
@@ -462,37 +391,34 @@ const revokePermission = async (permissionId: string) => {
 const revokeAllPermissions = async () => {
   try {
     await ElMessageBox.confirm(
-      'Are you sure you want to revoke all permissions for this file?',
-      'Confirm Revocation',
+      t('shareDialog.confirmRevokeAllMessage'),
+      t('shareDialog.confirmRevokeTitle'),
       {
-        confirmButtonText: 'Revoke All',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: t('shareDialog.revokeAll'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       },
     )
 
-    // Revoke all permissions one by one
-    for (const permission of currentPermissions.value) {
+    for (const permission of userPermissions.value) {
       await permissionsAPI.delete(permission.id)
     }
-    ElMessage.success('All permissions revoked successfully')
+    toast.success(t('shareDialog.allPermissionsRevoked'))
     await loadCurrentPermissions()
     emit('permissions-updated')
   } catch (error) {
     if (error !== 'cancel') {
       console.error('Failed to revoke all permissions:', error)
-      ElMessage.error('Failed to revoke all permissions')
+      toast.error(t('shareDialog.revokeAllFailed'))
     }
   }
 }
 
 const resetForm = () => {
   shareForm.value = {
-    shareType: 'user',
     targetId: null,
     permissions: ['read'],
     expiresAt: null,
-    recursive: false,
   }
 }
 
@@ -519,7 +445,6 @@ const disabledDate = (time: Date) => {
   return time.getTime() < Date.now()
 }
 
-// Load initial data when component mounts
 onMounted(() => {
   if (props.visible && props.file) {
     loadCurrentPermissions()
@@ -606,9 +531,15 @@ onMounted(() => {
 }
 
 .no-sharing {
-  padding: 24px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  min-height: 44px;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  background-color: #fafafa;
   color: #909399;
+  font-size: 14px;
 }
 
 .el-checkbox-group {

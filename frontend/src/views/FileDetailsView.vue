@@ -148,7 +148,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Loading, Warning, Download, Share, ArrowLeft } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { toast } from 'vue3-toastify'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
 import { tokenStorage } from '@/utils/storage'
@@ -370,10 +370,10 @@ const handleDownload = async () => {
   try {
     // Use Electron utility for download
     await electronUtils.downloadFile(file.value.id, file.value.name, true)
-    ElMessage.success(t('fileDetails.downloadStarted', { fileName: file.value.name }))
+    toast.success(t('fileDetails.downloadStarted', { fileName: file.value.name }))
   } catch (error: any) {
     console.error('Download error:', error)
-    ElMessage.error(t('fileDetails.downloadFailed'))
+    toast.error(t('fileDetails.downloadFailed'))
   }
 }
 
@@ -393,19 +393,19 @@ const handleOpenInNewTab = () => {
 const handleContentUpdated = (newContent: string) => {
   // Update the local content when file is edited
   fileContent.value = newContent
-  ElMessage.success(t('fileDetails.fileContentUpdated'))
+  toast.success(t('fileDetails.fileContentUpdated'))
 }
 
 const handleDocumentReady = () => {
-  ElMessage.success(t('fileDetails.documentEditorReady'))
+  toast.success(t('fileDetails.documentEditorReady'))
 }
 
 const handleDocumentSaved = (document: any) => {
-  ElMessage.success(t('fileDetails.documentSavedSuccessfully'))
+  toast.success(t('fileDetails.documentSavedSuccessfully'))
 }
 
 const handleDocumentError = (error: string) => {
-  ElMessage.error(t('fileDetails.documentError', { error }))
+  toast.error(t('fileDetails.documentError', { error }))
 }
 
 const formatFileSize = (bytes: number) => {

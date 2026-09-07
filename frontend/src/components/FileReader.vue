@@ -116,7 +116,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { Loading, Warning, Download, Share } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { toast } from 'vue3-toastify'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
 import { tokenStorage } from '@/utils/storage'
@@ -326,10 +326,10 @@ const handleDownload = async () => {
   try {
     // Use Electron utility for download
     await electronUtils.downloadFile(props.file.id, props.file.name, true)
-    ElMessage.success(`Download started for ${props.file.name}`)
+    toast.success(`Download started for ${props.file.name}`)
   } catch (error: any) {
     console.error('Download error:', error)
-    ElMessage.error('Download failed')
+    toast.error('Download failed')
   }
 }
 
@@ -344,19 +344,19 @@ const handleOpenInNewTab = () => {
 const handleContentUpdated = (newContent: string) => {
   // Update the local content when file is edited
   fileContent.value = newContent
-  ElMessage.success('File content updated')
+  toast.success('File content updated')
 }
 
 const handleDocumentReady = () => {
-  ElMessage.success('Document editor ready')
+  toast.success('Document editor ready')
 }
 
 const handleDocumentSaved = (document: any) => {
-  ElMessage.success('Document saved successfully')
+  toast.success('Document saved successfully')
 }
 
 const handleDocumentError = (error: string) => {
-  ElMessage.error(`Document error: ${error}`)
+  toast.error(`Document error: ${error}`)
 }
 
 const handleClose = () => {

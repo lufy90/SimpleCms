@@ -70,8 +70,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { Document, List, CopyDocument, Edit, Check, Close } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
+import { toast } from 'vue3-toastify'
 import { filesAPI } from '@/services/api'
+import { copyTextToClipboard } from '@/utils/clipboard'
 
 interface Props {
   content: string
@@ -143,11 +145,11 @@ const toggleLineNumbers = () => {
 
 const copyToClipboard = async () => {
   try {
-    await navigator.clipboard.writeText(props.content)
-    ElMessage.success('Code copied to clipboard')
+    await copyTextToClipboard(props.content ?? '')
+    toast.success('Code copied to clipboard')
   } catch (err) {
     console.error('Failed to copy to clipboard:', err)
-    ElMessage.error('Failed to copy to clipboard')
+    toast.error('Failed to copy to clipboard')
   }
 }
 
@@ -165,12 +167,12 @@ const handleKeyDown = (event: KeyboardEvent) => {
 
 const saveContent = async () => {
   if (!props.fileId) {
-    ElMessage.error('File ID is required for saving')
+    toast.error('File ID is required for saving')
     return
   }
 
   if (editedContent.value === props.content) {
-    ElMessage.info('No changes to save')
+    toast.info('No changes to save')
     isEditing.value = false
     return
   }
@@ -185,12 +187,12 @@ const saveContent = async () => {
 
     await filesAPI.updateContent(props.fileId, formData)
 
-    ElMessage.success('File saved successfully')
+    toast.success('File saved successfully')
     isEditing.value = false
     emit('contentUpdated', editedContent.value)
   } catch (error: any) {
     console.error('Failed to save file:', error)
-    ElMessage.error('Failed to save file: ' + (error.response?.data?.error || error.message))
+    toast.error('Failed to save file: ' + (error.response?.data?.error || error.message))
   } finally {
     isSaving.value = false
   }
