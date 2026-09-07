@@ -123,7 +123,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { Document, Download, Loading, Warning, View } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { toast } from 'vue3-toastify'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
 import { tokenStorage } from '@/utils/storage'
@@ -347,10 +347,10 @@ const downloadFile = async () => {
 
     // Use Electron utility for download
     await electronUtils.downloadFile(file.value.id, file.value.name, true)
-    ElMessage.success('Download started')
+    toast.success('Download started')
   } catch (err: any) {
     console.error('Download error:', err)
-    ElMessage.error('Download failed')
+    toast.error('Download failed')
   } finally {
     downloading.value = false
   }
@@ -364,10 +364,10 @@ const openInNewTab = async () => {
 
     // Use Electron utility for opening in new tab
     await electronUtils.openInNewTab(file.value.id, false)
-    ElMessage.success('Opened in new tab')
+    toast.success('Opened in new tab')
   } catch (err: any) {
     console.error('Open in new tab error:', err)
-    ElMessage.error('Failed to open in new tab')
+    toast.error('Failed to open in new tab')
   } finally {
     downloading.value = false
   }
@@ -376,7 +376,7 @@ const openInNewTab = async () => {
 const handleContentUpdated = (newContent: string) => {
   // Update the local content when file is edited
   textContent.value = newContent
-  ElMessage.success('File content updated')
+  toast.success('File content updated')
 }
 
 const retry = () => {
@@ -417,15 +417,15 @@ const formatFileSize = (bytes: number) => {
 
 // Event handlers
 const handleDocumentReady = () => {
-  ElMessage.success('Document editor ready')
+  toast.success('Document editor ready')
 }
 
 const handleDocumentSaved = (document: any) => {
-  ElMessage.success('Document saved successfully')
+  toast.success('Document saved successfully')
 }
 
 const handleDocumentError = (error: string) => {
-  ElMessage.error(`Document error: ${error}`)
+  toast.error(`Document error: ${error}`)
 }
 
 // Lifecycle

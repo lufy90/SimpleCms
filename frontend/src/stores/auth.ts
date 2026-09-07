@@ -7,6 +7,8 @@ import { toast } from 'vue3-toastify'
 export interface Group {
   id: string
   name: string
+  space_id?: string | null
+  members?: string[]
 }
 
 export interface User {
@@ -16,6 +18,7 @@ export interface User {
   first_name: string
   last_name: string
   groups: Group[]
+  home_id?: string | null
 }
 
 export interface AuthTokens {

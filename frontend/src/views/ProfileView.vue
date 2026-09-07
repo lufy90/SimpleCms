@@ -71,7 +71,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import { ElMessage } from 'element-plus'
+import { toast } from 'vue3-toastify'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -103,9 +103,9 @@ const updateProfile = async () => {
       first_name: profileForm.firstName,
       last_name: profileForm.lastName,
     })
-    ElMessage.success(t('profile.profileUpdatedSuccessfully'))
+    toast.success(t('profile.profileUpdatedSuccessfully'))
   } catch (error) {
-    ElMessage.error(t('profile.failedToUpdateProfile'))
+    toast.error(t('profile.failedToUpdateProfile'))
   } finally {
     isLoading.value = false
   }
@@ -113,7 +113,7 @@ const updateProfile = async () => {
 
 const changePassword = async () => {
   if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-    ElMessage.error(t('profile.newPasswordsDoNotMatch'))
+    toast.error(t('profile.newPasswordsDoNotMatch'))
     return
   }
 
@@ -125,7 +125,7 @@ const changePassword = async () => {
     })
     if (!success) return
 
-    ElMessage.success(t('profile.passwordChangedSuccessfully'))
+    toast.success(t('profile.passwordChangedSuccessfully'))
 
     // Clear form
     passwordForm.oldPassword = ''
@@ -134,7 +134,7 @@ const changePassword = async () => {
 
     await router.push('/login')
   } catch (error) {
-    ElMessage.error(t('profile.failedToChangePassword'))
+    toast.error(t('profile.failedToChangePassword'))
   } finally {
     isChangingPassword.value = false
   }

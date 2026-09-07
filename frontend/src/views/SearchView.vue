@@ -78,7 +78,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '@/stores/files'
 import { ArrowLeft, Document, Folder } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { toast } from 'vue3-toastify'
 
 const router = useRouter()
 const route = useRoute()
@@ -99,7 +99,7 @@ const searchForm = reactive({
 // Methods
 const performSearch = async () => {
   if (!searchForm.query.trim()) {
-    ElMessage.warning(t('search.messages.pleaseEnterQuery'))
+    toast.warning(t('search.messages.pleaseEnterQuery'))
     return
   }
 
@@ -116,7 +116,7 @@ const performSearch = async () => {
       searchResults.value = filesStore.files
     }
   } catch (error) {
-    ElMessage.error(t('search.messages.searchFailed'))
+    toast.error(t('search.messages.searchFailed'))
   } finally {
     isLoading.value = false
   }

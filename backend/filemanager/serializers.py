@@ -25,10 +25,11 @@ class PaginationSerializer(serializers.Serializer):
 class GroupSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField()
     members = serializers.SerializerMethodField()
+    space_id = serializers.SerializerMethodField()
     
     class Meta:
         model = Group
-        fields = ['id', 'name', 'members']
+        fields = ['id', 'name', 'members', 'space_id']
 
     def get_id(self, obj):
         mapping, _ = GroupUUIDMap.objects.get_or_create(group=obj)
@@ -42,18 +43,35 @@ class GroupSerializer(serializers.ModelSerializer):
             # Fallback in case of any query issues
             return []
 
+    def get_space_id(self, obj):
+        try:
+            from filemanager.utils import get_or_create_group_space
+            space = get_or_create_group_space(obj)
+            return str(space.id)
+        except Exception:
+            return None
+
 
 class UserSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField()
     groups = GroupSerializer(many=True, read_only=True)
+    home_id = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'groups']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'groups', 'home_id']
 
     def get_id(self, obj):
         mapping, _ = UserUUIDMap.objects.get_or_create(user=obj)
         return str(mapping.uuid)
+
+    def get_home_id(self, obj):
+        try:
+            from filemanager.utils import get_or_create_user_home
+            home = get_or_create_user_home(obj)
+            return str(home.id)
+        except Exception:
+            return None
 
 
 class UserCreateUpdateSerializer(serializers.ModelSerializer):
@@ -161,7 +179,48 @@ class FileAccessPermissionSerializer(serializers.ModelSerializer):
         read_only_fields = ['granted_by', 'granted_at', 'priority']
 
 
+class UUIDOrPkUserField(serializers.Field):
+    """Accept User integer PK or UserUUIDMap UUID string; return User or None."""
+
+    def to_internal_value(self, data):
+        if data is None or data == '':
+            return None
+        from .views import resolve_user_identifier
+        try:
+            user_pk = resolve_user_identifier(data)
+            return User.objects.get(pk=user_pk)
+        except (User.DoesNotExist, UserUUIDMap.DoesNotExist, ValueError, TypeError):
+            raise serializers.ValidationError('Invalid user id')
+
+    def to_representation(self, value):
+        if value is None:
+            return None
+        return value.pk
+
+
+class UUIDOrPkGroupField(serializers.Field):
+    """Accept Group integer PK or GroupUUIDMap UUID string; return Group or None."""
+
+    def to_internal_value(self, data):
+        if data is None or data == '':
+            return None
+        from .views import resolve_group_identifier
+        try:
+            group_pk = resolve_group_identifier(data)
+            return Group.objects.get(pk=group_pk)
+        except (Group.DoesNotExist, GroupUUIDMap.DoesNotExist, ValueError, TypeError):
+            raise serializers.ValidationError('Invalid group id')
+
+    def to_representation(self, value):
+        if value is None:
+            return None
+        return value.pk
+
+
 class FileAccessPermissionCreateSerializer(serializers.ModelSerializer):
+    user = UUIDOrPkUserField(required=False, allow_null=True)
+    group = UUIDOrPkGroupField(required=False, allow_null=True)
+
     class Meta:
         model = FileAccessPermission
         fields = ['file', 'user', 'group', 'permission_type', 'expires_at']
@@ -204,32 +263,43 @@ class FileItemSerializer(serializers.ModelSerializer):
             'id', 'name', 'item_type', 'parent', 'parents', 'created_at', 'updated_at',
             'owner', 'visibility', 'shared_users', 'shared_groups', 'children_count', 'tags', 
             'file_info', 'permissions', 'can_read', 'can_write', 'can_delete', 
-            'can_share', 'can_admin', 'effective_permissions', 'thumbnail', 'sharing_status', 'url'
+            'can_share', 'can_admin', 'effective_permissions', 'thumbnail', 'sharing_status',
+            'url', 'is_home', 'is_group_space', 'space_group',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'owner', 'children_count', 
                            'tags', 'file_info', 'permissions', 'can_read', 'can_write', 
-                           'can_delete', 'can_share', 'can_admin', 'effective_permissions', 'url']
+                           'can_delete', 'can_share', 'can_admin', 'effective_permissions',
+                           'url', 'is_home', 'is_group_space', 'space_group']
     
     def get_parents(self, obj):
-        """Build parent hierarchy for breadcrumb navigation - only for user's own files"""
+        """Build parent hierarchy for breadcrumb navigation"""
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return []
-        
-        # Only show breadcrumb for user's own files to avoid exposing others' directory structure
-        if obj.owner != request.user:
+
+        user = request.user
+        from filemanager.utils import is_under_group_space
+
+        # Own files: full chain. Group-space items: accessible ancestors for members.
+        # Other shared trees: empty (UI prefixes with Shared-with-me).
+        if obj.owner != user and not is_under_group_space(obj):
             return []
         
         parents = []
         current_item = obj
         while current_item.parent:
+            parent = current_item.parent
+            if obj.owner != user and not parent.can_access(user, 'read'):
+                break
             parents.append({
-                'id': current_item.parent.id,
-                'name': current_item.parent.name,
-                'item_type': current_item.parent.item_type
+                'id': parent.id,
+                'name': parent.name,
+                'item_type': parent.item_type,
+                'is_home': bool(parent.is_home),
+                'is_group_space': bool(parent.is_group_space),
             })
-            current_item = current_item.parent
-        return parents[::-1] # Reverse to show from root to current
+            current_item = parent
+        return parents[::-1]
     
     def get_children_count(self, obj):
         if obj.item_type == 'directory':
@@ -362,8 +432,18 @@ class FileItemCreateSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         # Set the current user as owner
-        validated_data['owner'] = self.context['request'].user
-        return super().create(validated_data)
+        request = self.context['request']
+        validated_data['owner'] = request.user
+        parent = validated_data.get('parent')
+        if not parent:
+            from filemanager.utils import get_or_create_user_home
+            parent = get_or_create_user_home(request.user)
+            validated_data['parent'] = parent
+        validated_data['visibility'] = validated_data.get('visibility', 'private')
+        instance = super().create(validated_data)
+        from filemanager.utils import inherit_parent_access
+        inherit_parent_access(parent, instance, request.user)
+        return instance
 
 
 class FileItemUpdateSerializer(serializers.ModelSerializer):

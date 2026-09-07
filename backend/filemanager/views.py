@@ -34,7 +34,16 @@ from .serializers import (
 from .pagination import (
     FileItemPagination, FileAccessLogPagination, FileTagPagination
 )
-from .utils import file_path_manager, determine_file_sharing, apply_image_gps_to_storage, extract_video_frame
+from .utils import (
+    file_path_manager,
+    determine_file_sharing,
+    apply_image_gps_to_storage,
+    extract_video_frame,
+    inherit_parent_access,
+    get_or_create_user_home,
+    get_or_create_group_space,
+    is_under_group_space,
+)
 
 
 def resolve_user_identifier(value):
@@ -684,7 +693,7 @@ class FileItemViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Invalid directory name. Cannot contain slashes or backslashes.'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Get parent directory if specified
+            # Get parent directory if specified; default to user's home
             parent_directory = None
             if parent_id:
                 try:
@@ -694,19 +703,14 @@ class FileItemViewSet(viewsets.ModelViewSet):
                         return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
                 except FileItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                parent_directory = get_or_create_user_home(request.user)
             
             # Check if directory already exists in database
-            if parent_directory:
-                if FileItem.objects.filter(parent=parent_directory, name=name, item_type='directory').exists():
-                    return Response({'error': 'Directory already exists'}, status=status.HTTP_409_CONFLICT)
-            else:
-                if FileItem.objects.filter(parent__isnull=True, name=name, item_type='directory').exists():
-                    return Response({'error': 'Directory already exists'}, status=status.HTTP_409_CONFLICT)
-            
-            # Determine directory visibility and sharing based on parent directory
-            dir_visibility, dir_shared_users, dir_shared_groups = determine_file_sharing(
-                parent_directory, visibility, [], [], request.user
-            )
+            if FileItem.objects.filter(
+                parent=parent_directory, name=name, item_type='directory', is_deleted=False
+            ).exists():
+                return Response({'error': 'Directory already exists'}, status=status.HTTP_409_CONFLICT)
             
             # Create database record (directories don't need physical storage)
             directory_item = FileItem.objects.create(
@@ -714,18 +718,11 @@ class FileItemViewSet(viewsets.ModelViewSet):
                 item_type='directory',
                 parent=parent_directory,
                 owner=request.user,
-                visibility=dir_visibility
+                visibility='private',
             )
-            
-            # Add shared users if visibility is 'user'
-            if dir_visibility == 'user' and dir_shared_users:
-                users = User.objects.filter(id__in=dir_shared_users)
-                directory_item.shared_users.set(users)
-            
-            # Add shared groups if visibility is 'group'
-            if dir_visibility == 'group' and dir_shared_groups:
-                groups = Group.objects.filter(id__in=dir_shared_groups)
-                directory_item.shared_groups.set(groups)
+
+            # Inherit parent visibility, sharing, and explicit permissions
+            inherit_parent_access(parent_directory, directory_item, request.user)
             
             # Log the directory creation
             FileAccessLog.objects.create(
@@ -794,124 +791,148 @@ class FileItemViewSet(viewsets.ModelViewSet):
             'total_count': len(serializer.data)
         })
 
-    def _get_orphaned_shared_items(self, user):
-        """Get items that user has access to but whose parents they don't have access to
-        
-        This handles the case where a user is shared with a deep directory
-        but doesn't have access to the parent directories.
+    def _get_shared_to_me_entry_points(self, user):
+        """Entry points shared directly to the user (user FAP / shared_users).
+
+        Excludes the user's own files and anything under a group-space root.
+        Includes orphans (parent not readable) and roots the user can access
+        via user-targeted grants.
         """
-        if user.is_superuser:
+        if not user.is_authenticated:
             return FileItem.objects.none()
-        
-        user_groups = user.groups.all()
-        
-        # Get all items the user has access to
-        accessible_items = FileItem.objects.filter(
-            Q(owner=user) |  # Own files
-            Q(visibility='public') |  # Public files
-            Q(visibility='user', shared_users=user) |  # User shared files
-            Q(visibility='group', shared_groups__in=user_groups) |  # Group shared files
-            Q(access_permissions__user=user, access_permissions__is_active=True) |  # Explicit user permissions
-            Q(access_permissions__group__in=user_groups, access_permissions__is_active=True)  # Explicit group permissions
+
+        user_shared = FileItem.objects.filter(
+            Q(shared_users=user) |
+            Q(access_permissions__user=user, access_permissions__is_active=True)
+        ).exclude(
+            owner=user
+        ).filter(
+            is_deleted=False
         ).distinct()
-        
-        # Filter out items that are already at root level
-        non_root_items = accessible_items.filter(parent__isnull=False)
-        
-        # Find items whose parents the user cannot access
-        orphaned_items = []
-        for item in non_root_items:
-            if item.parent and not item.parent.can_access(user, 'read'):
-                orphaned_items.append(item)
-        
-        return FileItem.objects.filter(id__in=[item.id for item in orphaned_items])
+
+        entry_ids = []
+        for item in user_shared.select_related('parent'):
+            if is_under_group_space(item):
+                continue
+            parent = item.parent
+            if parent is None:
+                # Root-level shared item (not a home/group space we own)
+                if not item.is_home and not item.is_group_space:
+                    entry_ids.append(item.id)
+                continue
+            if not parent.can_access(user, 'read'):
+                entry_ids.append(item.id)
+                continue
+            # Parent readable: only surface if parent itself is not also
+            # user-shared entry (prefer deepest orphan-style entry points).
+            # If parent is accessible because it is owned by someone else but
+            # shared, listing under parent_id is enough — skip non-orphans.
+            pass
+
+        return FileItem.objects.filter(id__in=entry_ids)
+
+    def _get_orphaned_shared_items(self, user):
+        """Deprecated helper kept for compatibility; prefer shared_to_me space."""
+        return self._get_shared_to_me_entry_points(user)
 
     @action(detail=False, methods=['get'])
     def list_children(self, request):
-        """Get children by parent ID from query params, or list top-level files if no parent given"""
+        """Get children by parent ID, home, or virtual shared_to_me space."""
         parent_id = request.query_params.get('parent_id', None)
-        
+        space = request.query_params.get('space', None)
+        user = request.user
+
+        if not user.is_authenticated:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Virtual shared-with-me listing
+        if space == 'shared_to_me' and not parent_id:
+            entry_points = self._get_shared_to_me_entry_points(user).order_by('item_type', 'name')
+            serializer = FileItemSerializer(entry_points, many=True, context={'request': request})
+            return Response({
+                'children': serializer.data,
+                'total_count': len(serializer.data),
+                'parent': {
+                    'id': None,
+                    'name': 'Shared with me',
+                    'space': 'shared_to_me',
+                    'is_virtual': True,
+                    'item_type': 'directory',
+                },
+                'message': 'Listing items shared with you',
+            })
+
+        # Virtual group-spaces listing (membership roots)
+        if space == 'group_spaces' and not parent_id:
+            space_roots = []
+            for group in user.groups.all().order_by('name'):
+                space_roots.append(get_or_create_group_space(group))
+            serializer = FileItemSerializer(space_roots, many=True, context={'request': request})
+            return Response({
+                'children': serializer.data,
+                'total_count': len(serializer.data),
+                'parent': {
+                    'id': None,
+                    'name': 'Group spaces',
+                    'space': 'group_spaces',
+                    'is_virtual': True,
+                    'item_type': 'directory',
+                },
+                'message': 'Listing your group spaces',
+            })
+
+        listing_home_root = False
+
         if parent_id:
-            # Get children of specific parent
             try:
                 parent_item = FileItem.objects.get(id=parent_id)
-                
-                # Check if it's a directory
+
                 if parent_item.item_type != 'directory':
                     return Response({'error': 'Parent item is not a directory'}, status=status.HTTP_400_BAD_REQUEST)
-                
-                # Check if user can access this directory
-                if not parent_item.can_access(request.user, 'read'):
+
+                # Group space root: membership required
+                if parent_item.is_group_space and parent_item.space_group_id:
+                    if not user.is_superuser and not user.groups.filter(id=parent_item.space_group_id).exists():
+                        return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+                elif not parent_item.can_access(user, 'read'):
                     return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
-                
-                # Get direct children (not recursive)
-                children = FileItem.objects.filter(
-                    parent=parent_item
-                )  # Will be ordered later
-                
-                # Use full serializer for parent to include parents field
+
+                children = FileItem.objects.filter(parent=parent_item)
                 parent_serializer = FileItemSerializer(parent_item, context={'request': request})
                 parent_info = parent_serializer.data
             except FileItem.DoesNotExist:
                 return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
         else:
-            # List top-level files (no parent)
-            children = FileItem.objects.filter(
-                parent__isnull=True
-            )  # Will be ordered later
-            
-            parent_info = None
-        
-        # Apply permission filtering for children
-        user = request.user
-        if not user.is_authenticated:
-            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
-        
+            # List the current user's home directory children only
+            home = get_or_create_user_home(user)
+            children = FileItem.objects.filter(parent=home)
+            parent_serializer = FileItemSerializer(home, context={'request': request})
+            parent_info = parent_serializer.data
+            listing_home_root = True
+
         if not user.is_superuser:
             user_groups = user.groups.all()
             children = children.filter(
-                Q(owner=user) |  # Own files
-                Q(visibility='public') |  # Public files
-                Q(visibility='user', shared_users=user) |  # User shared files
-                Q(visibility='group', shared_groups__in=user_groups) |  # Group shared files
-                Q(access_permissions__user=user, access_permissions__is_active=True) |  # Explicit user permissions
-                Q(access_permissions__group__in=user_groups, access_permissions__is_active=True)  # Explicit group permissions
+                Q(owner=user) |
+                Q(visibility='public') |
+                Q(visibility='user', shared_users=user) |
+                Q(visibility='group', shared_groups__in=user_groups) |
+                Q(access_permissions__user=user, access_permissions__is_active=True) |
+                Q(access_permissions__group__in=user_groups, access_permissions__is_active=True)
             ).distinct()
-        
-        # If listing root directory, also include orphaned shared items
-        if parent_id is None:
-            orphaned_items = self._get_orphaned_shared_items(user)
-            # Get IDs from both querysets and combine them
-            children_ids = list(children.values_list('id', flat=True))
-            orphaned_ids = list(orphaned_items.values_list('id', flat=True))
-            all_ids = children_ids + orphaned_ids
-            
-            # Get all items with the combined IDs and order them
-            all_items = FileItem.objects.filter(id__in=all_ids).order_by('item_type', 'name')
-        else:
-            # For specific parent directories, just apply ordering
-            all_items = children.order_by('item_type', 'name')
-        
-        # Serialize children with full context
+
+        all_items = children.order_by('item_type', 'name')
         serializer = FileItemSerializer(all_items, many=True, context={'request': request})
-        
+
         response_data = {
             'children': serializer.data,
-            'total_count': len(serializer.data)
+            'total_count': len(serializer.data),
+            'parent': parent_info,
         }
-        
-        if parent_info:
-            response_data['parent'] = parent_info
-        else:
-            response_data['parent'] = None
-            response_data['message'] = 'Listing top-level files and directories'
-            # Add info about orphaned items if any
-            if parent_id is None:
-                orphaned_count = len(self._get_orphaned_shared_items(user))
-                if orphaned_count > 0:
-                    response_data['orphaned_shared_count'] = orphaned_count
-                    response_data['message'] += f' (including {orphaned_count} shared items from inaccessible parent directories)'
-        
+
+        if listing_home_root:
+            response_data['message'] = 'Listing home directory files and directories'
+
         return Response(response_data)
 
     
@@ -1313,7 +1334,7 @@ class FileUploadView(generics.CreateAPIView):
         shared_groups = serializer.validated_data.get('shared_groups', [])
         
         try:
-            # Get parent directory if specified
+            # Get parent directory if specified; default to user's home
             parent_directory = None
             if parent_id:
                 try:
@@ -1323,6 +1344,8 @@ class FileUploadView(generics.CreateAPIView):
                         return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
                 except FileItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                parent_directory = get_or_create_user_home(request.user)
             
             # Handle relative path and create directories if needed
             final_parent_directory = parent_directory
@@ -1364,20 +1387,16 @@ class FileUploadView(generics.CreateAPIView):
             file_storage.checksum = file_storage.calculate_checksum()
             file_storage.save()
             
-            # Determine file visibility and sharing based on parent directory
-            file_visibility, file_shared_users, file_shared_groups = determine_file_sharing(
-                final_parent_directory, visibility, shared_users, shared_groups, request.user
-            )
-            
-            # Create FileItem record
+            # Create FileItem record (always under a parent; default is user home)
             file_item = FileItem.objects.create(
                 name=uploaded_file.name,
                 item_type='file',
                 parent=final_parent_directory,
                 storage=file_storage,
                 owner=request.user,
-                visibility=file_visibility
+                visibility='private',
             )
+            inherit_parent_access(final_parent_directory, file_item, request.user)
             
             # Generate thumbnail for images or video covers
             if file_info['mime_type'].startswith('image/'):
@@ -1391,16 +1410,6 @@ class FileUploadView(generics.CreateAPIView):
                 if thumbnail:
                     file_item.thumbnail = thumbnail
                     file_item.save()
-            
-            # Add shared users if visibility is 'user'
-            if file_visibility == 'user' and file_shared_users:
-                users = User.objects.filter(id__in=file_shared_users)
-                file_item.shared_users.set(users)
-            
-            # Add shared groups if visibility is 'group'
-            if file_visibility == 'group' and file_shared_groups:
-                groups = Group.objects.filter(id__in=file_shared_groups)
-                file_item.shared_groups.set(groups)
             
             # Add tags
             for tag_name in tags:
@@ -1577,12 +1586,11 @@ class FileUploadView(generics.CreateAPIView):
             # Use get_or_create with atomic transaction to prevent race conditions
             with transaction.atomic():
                 try:
-                    # First try to get existing directory
+                    # First try to get existing directory (tree uniqueness, not by owner)
                     existing_dir = FileItem.objects.get(
                         name=part,
                         parent=current_parent,
                         item_type='directory',
-                        owner=user,
                         is_deleted=False
                     )
                 except FileItem.DoesNotExist:
@@ -1593,8 +1601,10 @@ class FileUploadView(generics.CreateAPIView):
                             parent=current_parent,
                             item_type='directory',
                             owner=user,
-                            visibility=visibility
+                            visibility='private',
                         )
+                        if current_parent:
+                            inherit_parent_access(current_parent, existing_dir, user)
                     except ValidationError:
                         # Another thread created it between our check and create
                         # Try to get it again
@@ -1602,7 +1612,6 @@ class FileUploadView(generics.CreateAPIView):
                             name=part,
                             parent=current_parent,
                             item_type='directory',
-                            owner=user,
                             is_deleted=False
                         )
                     except IntegrityError:
@@ -1611,7 +1620,6 @@ class FileUploadView(generics.CreateAPIView):
                             name=part,
                             parent=current_parent,
                             item_type='directory',
-                            owner=user,
                             is_deleted=False
                         )
             
@@ -1710,12 +1718,10 @@ class FileOperationView(generics.CreateAPIView):
     def _copy_file(self, file_item, destination_id, user):
         """Copy a file to a new destination"""
         try:
-            # Handle root directory (destination_id == 0)
-            if destination_id == 0:
-                # Copy to root directory
-                destination_dir = None
-                # Generate unique name for root directory first
-                new_name = self._generate_unique_name_root(file_item.name)
+            # Missing / null destination → user's home
+            if not destination_id:
+                destination_dir = get_or_create_user_home(user)
+                new_name = self._generate_unique_name(file_item.name, destination_dir)
 
             else:
                 # Get destination directory
@@ -1743,12 +1749,9 @@ class FileOperationView(generics.CreateAPIView):
                 
                 # Generate new UUID filename and copy file
                 new_uuid_filename = file_path_manager.generate_uuid_filename(new_name)
-                if destination_dir:
-                    new_file_path, new_relative_path = file_path_manager.get_upload_path(
-                        new_name, destination_dir.get_relative_path()
-                    )
-                else:
-                    new_file_path, new_relative_path = file_path_manager.get_upload_path(new_name, '')
+                new_file_path, new_relative_path = file_path_manager.get_upload_path(
+                    new_name, destination_dir.get_relative_path() if destination_dir else ''
+                )
                 
                 shutil.copy2(source_path, new_file_path)
                 
@@ -1785,9 +1788,10 @@ class FileOperationView(generics.CreateAPIView):
                     visibility=file_item.visibility
                 )
                 
-                # Copy permissions and sharing
+                # Copy source sharing, then inherit destination parent ACL
                 new_file_item.shared_users.set(file_item.shared_users.all())
                 new_file_item.shared_groups.set(file_item.shared_groups.all())
+                inherit_parent_access(destination_dir, new_file_item, user)
                 
             elif file_item.item_type == 'directory':
                 # For directories, just create the logical structure
@@ -1799,9 +1803,10 @@ class FileOperationView(generics.CreateAPIView):
                     visibility=file_item.visibility
                 )
                 
-                # Copy permissions and sharing
+                # Copy source sharing, then inherit destination parent ACL
                 new_file_item.shared_users.set(file_item.shared_users.all())
                 new_file_item.shared_groups.set(file_item.shared_groups.all())
+                inherit_parent_access(destination_dir, new_file_item, user)
             
             return True, None
             
@@ -1811,13 +1816,10 @@ class FileOperationView(generics.CreateAPIView):
     def _move_file(self, file_item, destination_id, user):
         """Move a file to a new destination"""
         try:
-            # Handle root directory (destination_id is 0)
-            if destination_id == 0:
-                # Move to root directory
-                destination_dir = None
-                # Generate unique name for root directory first
-                new_name = self._generate_unique_name_root(file_item.name)
-
+            # Missing / null destination → user's home
+            if not destination_id:
+                destination_dir = get_or_create_user_home(user)
+                new_name = self._generate_unique_name(file_item.name, destination_dir)
 
             else:
                 # Get destination directory
@@ -1857,27 +1859,16 @@ class FileOperationView(generics.CreateAPIView):
             return False, str(e)
     
     def _generate_unique_name(self, original_name, destination_dir):
-        """Generate a unique name in the destination directory"""
+        """Generate a unique name in the destination directory (parent + name)."""
         base_name, extension = os.path.splitext(original_name)
         counter = 1
         new_name = original_name
         
-        while FileItem.objects.filter(parent=destination_dir, name=new_name).exists():
-            if extension:
-                new_name = f"{base_name} ({counter}){extension}"
-            else:
-                new_name = f"{base_name} ({counter})"
-            counter += 1
-        
-        return new_name
-    
-    def _generate_unique_name_root(self, original_name):
-        """Generate a unique name in the root directory"""
-        base_name, extension = os.path.splitext(original_name)
-        counter = 1
-        new_name = original_name
-        
-        while FileItem.objects.filter(parent__isnull=True, name=new_name).exists():
+        while FileItem.objects.filter(
+            parent=destination_dir,
+            name=new_name,
+            is_deleted=False,
+        ).exists():
             if extension:
                 new_name = f"{base_name} ({counter}){extension}"
             else:
@@ -2012,14 +2003,14 @@ class FileAccessPermissionViewSet(viewsets.ModelViewSet):
         
         user = self.request.user
         
-        # Filter by file if specified
+        # Filter by file if specified (FileItem.id is UUID)
         file_id = self.request.query_params.get('file', None)
         if file_id:
+            import uuid as _uuid
             try:
-                file_id = int(file_id)
+                _uuid.UUID(str(file_id))
                 queryset = queryset.filter(file_id=file_id)
-            except (ValueError, TypeError):
-                # Invalid file ID, return empty queryset
+            except (ValueError, TypeError, ValidationError):
                 return FileAccessPermission.objects.none()
         
         # Users can only see permissions for files they own or have admin access to
@@ -2360,7 +2351,7 @@ class FileCreationView(generics.CreateAPIView):
             if not name.endswith('.txt'):
                 name += '.txt'
             
-            # Get parent directory
+            # Get parent directory; default to user's home
             parent_directory = None
             if parent_id:
                 try:
@@ -2369,6 +2360,8 @@ class FileCreationView(generics.CreateAPIView):
                         return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
                 except FileItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                parent_directory = get_or_create_user_home(request.user)
             
             # Use the same pattern as file upload - get UUID-based path
             file_path_manager = FilePathManager()
@@ -2405,8 +2398,9 @@ class FileCreationView(generics.CreateAPIView):
                 parent=parent_directory,
                 storage=file_storage,
                 owner=request.user,
-                visibility=visibility
+                visibility='private',
             )
+            inherit_parent_access(parent_directory, file_item, request.user)
             
             return Response({
                 'message': 'Text file created successfully',
@@ -2455,7 +2449,7 @@ class FileCreationView(generics.CreateAPIView):
             if not name.endswith(template['extension']):
                 name += template['extension']
             
-            # Get parent directory
+            # Get parent directory; default to user's home
             parent_directory = None
             if parent_id:
                 try:
@@ -2464,6 +2458,8 @@ class FileCreationView(generics.CreateAPIView):
                         return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
                 except FileItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                parent_directory = get_or_create_user_home(request.user)
             
             # Use the same pattern as file upload - get UUID-based path
             file_path_manager = FilePathManager()
@@ -2499,8 +2495,9 @@ class FileCreationView(generics.CreateAPIView):
                 parent=parent_directory,
                 storage=file_storage,
                 owner=request.user,
-                visibility=visibility
+                visibility='private',
             )
+            inherit_parent_access(parent_directory, file_item, request.user)
             
             return Response({
                 'message': f'{document_type.upper()} document created successfully',

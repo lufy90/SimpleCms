@@ -12,16 +12,26 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=User)
 def ensure_user_uuid_map(sender, instance, created, **kwargs):
-    """Ensure every auth user has a UUID mapping record."""
+    """Ensure every auth user has a UUID mapping record and a home directory."""
     if created:
         UserUUIDMap.objects.get_or_create(user=instance)
+        try:
+            from .utils import get_or_create_user_home
+            get_or_create_user_home(instance)
+        except Exception as e:
+            logger.error(f'Failed to create home directory for user {instance.username}: {e}')
 
 
 @receiver(post_save, sender=Group)
 def ensure_group_uuid_map(sender, instance, created, **kwargs):
-    """Ensure every auth group has a UUID mapping record."""
+    """Ensure every auth group has a UUID mapping record and a group space root."""
     if created:
         GroupUUIDMap.objects.get_or_create(group=instance)
+        try:
+            from .utils import get_or_create_group_space
+            get_or_create_group_space(instance)
+        except Exception as e:
+            logger.error(f'Failed to create group space for group {instance.name}: {e}')
 
 
 @receiver(post_save, sender=FileAccessPermission)

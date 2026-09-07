@@ -230,8 +230,13 @@ export const filesAPI = {
     data: { visibility: string; shared_users?: string[]; shared_groups?: string[] },
   ) => api.put(`/api/files/${id}/update_visibility/`, data),
 
-  listChildren: (parentId?: string) =>
-    api.get('/api/files/list_children/', { params: { parent_id: parentId } }),
+  listChildren: (parentId?: string, space?: string) =>
+    api.get('/api/files/list_children/', {
+      params: {
+        ...(parentId ? { parent_id: parentId } : {}),
+        ...(space ? { space } : {}),
+      },
+    }),
 
   createDirectory: (data: { name: string; parent_id?: string; visibility?: string }) =>
     api.post('/api/files/create_directory/', data),

@@ -33,12 +33,19 @@
 
     <!-- Ownership indicator badge -->
     <div
-      v-if="!isOwnedByCurrentUser"
+      v-if="!isOwnedByCurrentUser && !spaceBadge"
       class="ownership-badge"
       :title="`Owned by ${file.owner?.username || 'Unknown'}`"
     >
       <el-icon :size="Math.max(6, size * 0.2)">
         <User />
+      </el-icon>
+    </div>
+
+    <!-- Sidebar space root corner badge -->
+    <div v-if="spaceBadge" class="space-badge" :class="spaceBadge.className" :title="spaceBadge.title">
+      <el-icon :size="Math.max(6, size * 0.35)">
+        <component :is="spaceBadge.icon" />
       </el-icon>
     </div>
 
@@ -70,6 +77,9 @@ import {
   Reading,
   Monitor,
   User,
+  Share,
+  UserFilled,
+  House,
 } from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
@@ -100,6 +110,9 @@ interface FileItem {
     first_name: string
     last_name: string
   }
+  is_home?: boolean
+  is_virtual?: boolean
+  space?: string
 }
 
 interface Props {
@@ -225,6 +238,20 @@ const isOwnedByCurrentUser = computed(() => {
   return props.file.owner.id === authStore.user.id
 })
 
+const spaceBadge = computed(() => {
+  const file = props.file as FileItem & { id?: string }
+  if (file.is_home) {
+    return { icon: House, title: 'My Files', className: 'space-badge-home' }
+  }
+  if (file.space === 'shared_to_me' || file.id === 'shared_to_me') {
+    return { icon: Share, title: 'Shared with me', className: 'space-badge-shared' }
+  }
+  if (file.space === 'group_spaces' || file.id === 'group_spaces') {
+    return { icon: UserFilled, title: 'Group spaces', className: 'space-badge-groups' }
+  }
+  return null
+})
+
 const iconColor = computed(() => {
   const type = fileType.value
   const colors: Record<string, string> = {
@@ -322,7 +349,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
   aspect-ratio: 1;
 }
 
@@ -382,5 +409,37 @@ onUnmounted(() => {
 
 .ownership-badge .el-icon {
   font-size: 8px;
+}
+
+.space-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  color: white;
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  z-index: 10;
+}
+
+.space-badge .el-icon {
+  font-size: 8px;
+}
+
+.space-badge-home {
+  background: #409eff;
+}
+
+.space-badge-shared {
+  background: #e6a23c;
+}
+
+.space-badge-groups {
+  background: #67c23a;
 }
 </style>

@@ -201,6 +201,185 @@ def determine_file_sharing(parent_directory, requested_visibility, requested_sha
     return 'private', [], []
 
 
+def get_or_create_user_home(user):
+    """
+    Return the user's virtual home directory, creating it if needed.
+
+    Home is a FileItem directory with parent=None and is_home=True.
+    Name uses username so root-level (parent, name, item_type) stays unique.
+    """
+    from .models import FileItem
+
+    existing = FileItem.objects.filter(
+        owner=user,
+        is_home=True,
+        item_type='directory',
+        is_deleted=False,
+    ).first()
+    if existing:
+        return existing
+
+    # Reuse a root folder already named after the user if present
+    named = FileItem.objects.filter(
+        owner=user,
+        parent__isnull=True,
+        name=user.username,
+        item_type='directory',
+        is_deleted=False,
+    ).first()
+    if named:
+        named.is_home = True
+        named.visibility = named.visibility or 'private'
+        named.save(update_fields=['is_home', 'visibility'])
+        return named
+
+    home = FileItem(
+        name=user.username,
+        item_type='directory',
+        parent=None,
+        owner=user,
+        visibility='private',
+        is_home=True,
+    )
+    home.save()
+    return home
+
+
+def get_or_create_group_space(group, owner=None):
+    """
+    Return the group's collaborative space root, creating it if needed.
+
+    Space is a FileItem directory with parent=None, is_group_space=True,
+    and space_group set. Members get write access via shared_groups + FAP.
+    """
+    from django.contrib.auth.models import User
+    from .models import FileItem, FileAccessPermission
+
+    existing = FileItem.objects.filter(
+        space_group=group,
+        is_group_space=True,
+        item_type='directory',
+        is_deleted=False,
+    ).first()
+    if existing:
+        return existing
+
+    space_owner = owner
+    if space_owner is None:
+        space_owner = group.user_set.first()
+    if space_owner is None:
+        space_owner = User.objects.filter(is_superuser=True).first()
+
+    # Reuse a root folder already named after the group if present
+    named = FileItem.objects.filter(
+        parent__isnull=True,
+        name=group.name,
+        item_type='directory',
+        is_deleted=False,
+        is_home=False,
+        is_group_space=False,
+    ).first()
+    if named:
+        named.is_group_space = True
+        named.space_group = group
+        named.visibility = 'group'
+        if space_owner and not named.owner_id:
+            named.owner = space_owner
+        named.save(update_fields=['is_group_space', 'space_group', 'visibility', 'owner'])
+        space = named
+    else:
+        space = FileItem(
+            name=group.name,
+            item_type='directory',
+            parent=None,
+            owner=space_owner,
+            visibility='group',
+            is_group_space=True,
+            space_group=group,
+        )
+        space.save()
+
+    space.shared_groups.add(group)
+
+    if space_owner is not None:
+        FileAccessPermission.objects.update_or_create(
+            file=space,
+            group=group,
+            permission_type='write',
+            defaults={
+                'user': None,
+                'granted_by': space_owner,
+                'is_active': True,
+                'priority': 2,
+            },
+        )
+    return space
+
+
+def is_under_group_space(item):
+    """Return True if item or any ancestor is a group-space root."""
+    current = item
+    while current is not None:
+        if getattr(current, 'is_group_space', False):
+            return True
+        current = current.parent
+    return False
+
+
+def inherit_parent_access(parent, child, granted_by):
+    """
+    Copy parent visibility, shared users/groups, and active FileAccessPermission
+    rows onto a newly created child FileItem.
+
+    No-op when parent is missing. Soft-fails per permission row so create never fails.
+    """
+    if not parent or not child:
+        return
+
+    import logging
+    from .models import FileAccessPermission
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        child.visibility = parent.visibility
+        child.save(update_fields=['visibility'])
+        child.shared_users.set(parent.shared_users.all())
+        child.shared_groups.set(parent.shared_groups.all())
+    except Exception as e:
+        logger.error(f'Failed to inherit visibility/sharing from parent {parent.id} onto {child.id}: {e}')
+        return
+
+    for perm in parent.access_permissions.filter(is_active=True):
+        try:
+            defaults = {
+                'granted_by': granted_by,
+                'expires_at': perm.expires_at,
+                'is_active': True,
+                'priority': getattr(perm, 'priority', 1),
+            }
+            if perm.user_id:
+                FileAccessPermission.objects.get_or_create(
+                    file=child,
+                    user=perm.user,
+                    group=None,
+                    permission_type=perm.permission_type,
+                    defaults=defaults,
+                )
+            elif perm.group_id:
+                FileAccessPermission.objects.get_or_create(
+                    file=child,
+                    user=None,
+                    group=perm.group,
+                    permission_type=perm.permission_type,
+                    defaults=defaults,
+                )
+        except Exception as e:
+            logger.error(
+                f'Failed to inherit permission {perm.id} from parent {parent.id} onto {child.id}: {e}'
+            )
+
+
 # Global instance
 file_path_manager = FilePathManager()
 

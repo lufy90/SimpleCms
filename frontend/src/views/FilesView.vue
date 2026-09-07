@@ -2,7 +2,7 @@
   <div class="files-view">
     <div class="page-header">
       <div class="header-left">
-        <h1>{{ currentDirectory ? currentDirectory.name : $t('navigation.files') }}</h1>
+        <h1>{{ pageTitle }}</h1>
       </div>
       <div class="header-actions">
         <!-- File input for multiple files -->
@@ -21,7 +21,7 @@
           style="display: none"
           @change="handleDirectorySelection"
         />
-        <el-dropdown @command="handleUploadCommand" trigger="click">
+        <el-dropdown v-if="canCreateHere" @command="handleUploadCommand" trigger="click">
           <el-button type="primary">
             <el-icon><Upload /></el-icon>
             {{ $t('common.upload') }}
@@ -40,7 +40,7 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-dropdown @command="handleCreateCommand" trigger="click">
+        <el-dropdown v-if="canCreateHere" @command="handleCreateCommand" trigger="click">
           <el-button type="success">
             <el-icon><FolderAdd /></el-icon>
             {{ $t('common.create') }}
@@ -86,43 +86,11 @@
       </div>
     </div>
 
-    <!-- Bulk Operations Toolbar -->
-    <div v-if="selectedFileIds.size > 0" class="bulk-operations-toolbar">
-      <div class="bulk-info">
-        <span>{{ selectedFileIds.size }} {{ $t('files.bulkOperations.itemsSelected') }}</span>
-      </div>
-      <div class="bulk-actions">
-        <el-button @click="showCopyDialog" type="primary" size="small">
-          <el-icon><CopyDocument /></el-icon>
-          {{ $t('common.copy') }}
-        </el-button>
-        <el-button @click="showMoveDialog" type="warning" size="small">
-          <el-icon><Position /></el-icon>
-          {{ $t('common.move') }}
-        </el-button>
-        <el-button @click="bulkDownload" type="success" size="small" :disabled="!hasSelectedFiles">
-          <el-icon><Download /></el-icon>
-          {{ $t('common.download') }}
-        </el-button>
-        <el-button @click="confirmDelete" type="danger" size="small">
-          <el-icon><Delete /></el-icon>
-          {{ $t('common.delete') }}
-        </el-button>
-        <el-button @click="clearSelection" size="small">
-          <el-icon><Close /></el-icon>
-          {{ $t('common.clear') }}
-        </el-button>
-      </div>
-    </div>
-
     <!-- Breadcrumb Navigation -->
     <div class="breadcrumb-container">
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item @click="handleBreadcrumbClick({ id: null, name: 'root', path: '/' })">
-          root
-        </el-breadcrumb-item>
         <el-breadcrumb-item
-          v-for="(item, index) in breadcrumbPath.filter((item) => item.id !== null)"
+          v-for="(item, index) in breadcrumbPath"
           :key="index"
           @click="handleBreadcrumbClick(item)"
         >
@@ -133,49 +101,86 @@
 
     <!-- Search and Filters -->
     <div class="search-bar">
-      <el-input
-        v-model="searchQuery"
-        :placeholder="$t('files.placeholders.searchFiles')"
-        prefix-icon="Search"
-        clearable
-        @input="handleSearch"
-        style="width: 300px"
-      />
-      <!-- View Type Toggle -->
-      <el-button-group class="view-toggle">
-        <el-button
-          :type="viewType === 'grid' ? 'primary' : 'default'"
-          @click="setViewType('grid')"
-          size="default"
+      <div class="search-bar-left">
+        <el-input
+          v-model="searchQuery"
+          :placeholder="$t('files.placeholders.searchFiles')"
+          prefix-icon="Search"
+          clearable
+          @input="handleSearch"
+          class="search-bar-input"
+        />
+        <el-dropdown
+          :disabled="selectedFileIds.size === 0"
+          trigger="click"
+          @command="handleBulkCommand"
         >
-          <el-icon><Grid /></el-icon>
-          {{ $t('files.viewTypes.grid') }}
-        </el-button>
-        <el-button
-          :type="viewType === 'large' ? 'primary' : 'default'"
-          @click="setViewType('large')"
-          size="default"
-        >
-          <el-icon><Menu /></el-icon>
-          {{ $t('files.viewTypes.large') }}
-        </el-button>
-        <el-button
-          :type="viewType === 'picture' ? 'primary' : 'default'"
-          @click="setViewType('picture')"
-          size="default"
-        >
-          <el-icon><Picture /></el-icon>
-          {{ $t('files.viewTypes.pictures') }}
-        </el-button>
-        <el-button
-          :type="viewType === 'list' ? 'primary' : 'default'"
-          @click="setViewType('list')"
-          size="default"
-        >
-          <el-icon><List /></el-icon>
-          {{ $t('files.viewTypes.list') }}
-        </el-button>
-      </el-button-group>
+          <el-badge
+            :value="selectedFileIds.size"
+            :hidden="selectedFileIds.size === 0"
+            class="bulk-badge"
+          >
+            <el-button :disabled="selectedFileIds.size === 0">
+              {{ $t('files.bulkOperations.menu') }}
+              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+          </el-badge>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="copy">
+                <el-icon><CopyDocument /></el-icon>
+                {{ $t('common.copy') }}
+              </el-dropdown-item>
+              <el-dropdown-item command="move">
+                <el-icon><Position /></el-icon>
+                {{ $t('common.move') }}
+              </el-dropdown-item>
+              <el-dropdown-item command="download" :disabled="!hasSelectedFiles">
+                <el-icon><Download /></el-icon>
+                {{ $t('common.download') }}
+              </el-dropdown-item>
+              <el-dropdown-item command="clear">
+                <el-icon><Close /></el-icon>
+                {{ $t('common.clear') }}
+              </el-dropdown-item>
+              <el-dropdown-item command="delete" divided>
+                <el-icon><Delete /></el-icon>
+                {{ $t('common.delete') }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
+
+      <el-dropdown
+        split-button
+        type="default"
+        class="view-toggle"
+        @click="cycleViewType"
+        @command="setViewType"
+      >
+        <el-icon><component :is="currentViewIcon" /></el-icon>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="grid" :disabled="viewType === 'grid'">
+              <el-icon><Grid /></el-icon>
+              {{ $t('files.viewTypes.grid') }}
+            </el-dropdown-item>
+            <el-dropdown-item command="large" :disabled="viewType === 'large'">
+              <el-icon><Menu /></el-icon>
+              {{ $t('files.viewTypes.large') }}
+            </el-dropdown-item>
+            <el-dropdown-item command="picture" :disabled="viewType === 'picture'">
+              <el-icon><Picture /></el-icon>
+              {{ $t('files.viewTypes.pictures') }}
+            </el-dropdown-item>
+            <el-dropdown-item command="list" :disabled="viewType === 'list'">
+              <el-icon><List /></el-icon>
+              {{ $t('files.viewTypes.list') }}
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
 
     <!-- File List -->
@@ -184,7 +189,7 @@
         v-if="filteredFiles.length === 0 && !isLoading"
         :description="$t('files.noFilesFound')"
       >
-        <el-button type="primary" @click="triggerFileSelection">
+        <el-button v-if="canCreateHere" type="primary" @click="triggerFileSelection">
           {{ $t('files.uploadFiles') }}
         </el-button>
       </el-empty>
@@ -454,7 +459,16 @@
           sortable
         >
           <template #default="{ row }">
-            <el-tag :type="getVisibilityTagType(row.visibility)" size="small">
+            <el-tooltip
+              v-if="row.visibility === 'user'"
+              :content="sharedUsersTooltip(row)"
+              placement="top"
+            >
+              <el-tag :type="getVisibilityTagType(row.visibility)" size="small">
+                {{ $t(`files.visibility.${row.visibility}`) }}
+              </el-tag>
+            </el-tooltip>
+            <el-tag v-else :type="getVisibilityTagType(row.visibility)" size="small">
               {{ $t(`files.visibility.${row.visibility}`) }}
             </el-tag>
           </template>
@@ -568,10 +582,9 @@
       <el-form :model="uploadForm" label-width="120px">
         <el-form-item label="Visibility">
           <el-select v-model="uploadForm.visibility" placeholder="Select visibility">
-            <el-option label="Private" value="private" />
-            <el-option label="User Shared" value="user" />
-            <el-option label="Group Shared" value="group" />
-            <el-option label="Public" value="public" />
+            <el-option :label="$t('files.visibility.private')" value="private" />
+            <el-option :label="$t('files.visibility.user')" value="user" />
+            <el-option :label="$t('files.visibility.public')" value="public" />
           </el-select>
         </el-form-item>
 
@@ -682,18 +695,18 @@
   <!-- Copy Dialog -->
   <el-dialog
     v-model="copyDialogVisible"
-    title="Copy Files"
+    :title="$t('files.dialogs.copyFiles')"
     width="800px"
     :close-on-click-modal="false"
     class="operation-dialog"
   >
     <el-form>
-      <el-form-item label="Destination Directory" class="destination-selector">
+      <el-form-item :label="$t('files.dialogs.destinationDirectory')" class="destination-selector">
         <el-tree-select
           v-model="operationDestination"
           :data="directoryTreeData"
           :props="treeSelectProps"
-          placeholder="Select destination directory"
+          :placeholder="$t('files.placeholders.selectDestinationDirectory')"
           class="destination-tree-select"
           clearable
           check-strictly
@@ -703,13 +716,14 @@
     </el-form>
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="copyDialogVisible = false">Cancel</el-button>
+        <el-button @click="copyDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button
           type="primary"
           @click="executeOperation"
           :disabled="operationDestination === undefined"
-          >Copy Files</el-button
         >
+          {{ $t('files.dialogs.copyFiles') }}
+        </el-button>
       </div>
     </template>
   </el-dialog>
@@ -717,18 +731,18 @@
   <!-- Move Dialog -->
   <el-dialog
     v-model="moveDialogVisible"
-    title="Move Files"
+    :title="$t('files.dialogs.moveFiles')"
     width="800px"
     :close-on-click-modal="false"
     class="operation-dialog"
   >
     <el-form>
-      <el-form-item label="Destination Directory" class="destination-selector">
+      <el-form-item :label="$t('files.dialogs.destinationDirectory')" class="destination-selector">
         <el-tree-select
           v-model="operationDestination"
           :data="directoryTreeData"
           :props="treeSelectProps"
-          placeholder="Select destination directory"
+          :placeholder="$t('files.placeholders.selectDestinationDirectory')"
           class="destination-tree-select"
           clearable
           check-strictly
@@ -738,13 +752,14 @@
     </el-form>
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="moveDialogVisible = false">Cancel</el-button>
+        <el-button @click="moveDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button
           type="warning"
           @click="executeOperation"
           :disabled="operationDestination === undefined"
-          >Move Files</el-button
         >
+          {{ $t('files.dialogs.moveFiles') }}
+        </el-button>
       </div>
     </template>
   </el-dialog>
@@ -759,44 +774,50 @@
   <!-- Details Dialog -->
   <el-dialog
     v-model="detailsDialogVisible"
-    :title="`File Details: ${selectedFileForDetails?.name}`"
+    :title="$t('files.dialogs.fileDetailsTitle', { name: selectedFileForDetails?.name || '' })"
     width="600px"
     :close-on-click-modal="false"
   >
     <div v-if="selectedFileForDetails" class="file-details-content">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="Name">
+        <el-descriptions-item :label="$t('files.columns.name')">
           {{ selectedFileForDetails.name }}
         </el-descriptions-item>
-        <el-descriptions-item label="Type">
+        <el-descriptions-item :label="$t('files.columns.type')">
           <el-tag :type="selectedFileForDetails.item_type === 'directory' ? 'primary' : 'success'">
-            {{ selectedFileForDetails.item_type }}
+            {{ $t(`files.itemTypes.${selectedFileForDetails.item_type}`) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="Size" v-if="selectedFileForDetails.size">
+        <el-descriptions-item :label="$t('files.columns.size')" v-if="selectedFileForDetails.size">
           {{ formatFileSize(selectedFileForDetails.size) }}
         </el-descriptions-item>
-        <el-descriptions-item label="Extension" v-if="selectedFileForDetails.extension">
+        <el-descriptions-item
+          :label="$t('files.columns.extension')"
+          v-if="selectedFileForDetails.extension"
+        >
           {{ selectedFileForDetails.extension }}
         </el-descriptions-item>
-        <el-descriptions-item label="MIME Type" v-if="selectedFileForDetails.mime_type">
+        <el-descriptions-item
+          :label="$t('files.columns.mimeType')"
+          v-if="selectedFileForDetails.mime_type"
+        >
           <code>{{ selectedFileForDetails.mime_type }}</code>
         </el-descriptions-item>
-        <el-descriptions-item label="Visibility">
+        <el-descriptions-item :label="$t('files.columns.visibility')">
           <el-tag :type="getVisibilityTagType(selectedFileForDetails.visibility)" size="small">
-            {{ selectedFileForDetails.visibility }}
+            {{ $t(`files.visibility.${selectedFileForDetails.visibility}`) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="Owner">
+        <el-descriptions-item :label="$t('files.columns.owner')">
           {{ selectedFileForDetails.owner.username }}
         </el-descriptions-item>
-        <el-descriptions-item label="Created">
+        <el-descriptions-item :label="$t('files.columns.created')">
           {{ formatDate(selectedFileForDetails.created_at) }}
         </el-descriptions-item>
-        <el-descriptions-item label="Last Modified">
+        <el-descriptions-item :label="$t('files.columns.lastModified')">
           {{ formatDate(selectedFileForDetails.updated_at) }}
         </el-descriptions-item>
-        <el-descriptions-item label="Path" :span="2">
+        <el-descriptions-item :label="$t('files.columns.path')" :span="2">
           <code>{{ getFilePath(selectedFileForDetails) }}</code>
         </el-descriptions-item>
         <el-descriptions-item
@@ -806,7 +827,7 @@
         >
           {{ formatFileLocation(selectedFileForDetails) }}
         </el-descriptions-item>
-        <el-descriptions-item label="Permissions" :span="2">
+        <el-descriptions-item :label="$t('files.columns.permissions')" :span="2">
           <div class="permissions-display">
             <el-tag
               v-for="perm in selectedFileForDetails.effective_permissions"
@@ -815,12 +836,12 @@
               size="small"
               style="margin-right: 8px; margin-bottom: 8px"
             >
-              {{ perm }}
+              {{ permissionLabel(perm) }}
             </el-tag>
           </div>
         </el-descriptions-item>
         <el-descriptions-item
-          label="Tags"
+          :label="$t('files.columns.tags')"
           :span="2"
           v-if="selectedFileForDetails.tags && selectedFileForDetails.tags.length > 0"
         >
@@ -840,14 +861,14 @@
     </div>
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="detailsDialogVisible = false">Close</el-button>
+        <el-button @click="detailsDialogVisible = false">{{ $t('common.close') }}</el-button>
         <el-button
           type="primary"
           @click="handleFileAction('share', selectedFileForDetails)"
           :disabled="!selectedFileForDetails?.can_share"
         >
           <el-icon><Share /></el-icon>
-          Share
+          {{ $t('common.share') }}
         </el-button>
       </div>
     </template>
@@ -856,15 +877,23 @@
   <!-- Rename Dialog -->
   <el-dialog
     v-model="renameDialogVisible"
-    :title="`Rename ${selectedFileForRename?.item_type === 'directory' ? 'Folder' : 'File'}`"
+    :title="
+      selectedFileForRename?.item_type === 'directory'
+        ? $t('files.dialogs.renameFolder')
+        : $t('files.dialogs.renameFile')
+    "
     width="500px"
     :close-on-click-modal="false"
   >
     <el-form :model="renameForm" label-width="80px">
-      <el-form-item label="Name">
+      <el-form-item :label="$t('files.columns.name')">
         <el-input
           v-model="renameForm.name"
-          :placeholder="`Enter new ${selectedFileForRename?.item_type === 'directory' ? 'folder' : 'file'} name`"
+          :placeholder="
+            selectedFileForRename?.item_type === 'directory'
+              ? $t('files.placeholders.enterNewFolderName')
+              : $t('files.placeholders.enterNewFileName')
+          "
           @keyup.enter="handleRename"
           ref="renameInputRef"
         />
@@ -872,13 +901,13 @@
     </el-form>
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="renameDialogVisible = false">Cancel</el-button>
+        <el-button @click="renameDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button
           type="primary"
           @click="handleRename"
           :disabled="!renameForm.name.trim() || renameForm.name === selectedFileForRename?.name"
         >
-          Rename
+          {{ $t('common.rename') }}
         </el-button>
       </div>
     </template>
@@ -992,6 +1021,7 @@ import { electronUtils } from '@/utils/electron'
 import { config } from '@/config'
 import { useUploadLeaveGuard } from '@/composables/useUploadLeaveGuard'
 import {
+  Grid,
   List,
   Menu,
   Picture,
@@ -1014,23 +1044,65 @@ import {
   User,
   Location,
 } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
+import { toast } from 'vue3-toastify'
 import ShareDialog from '@/components/ShareDialog.vue'
 import FileIcon from '@/components/FileIcon.vue'
 
 // Props
 interface Props {
   parentId?: string | string[]
+  space?: string | string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   parentId: undefined,
+  space: undefined,
 })
 
 const router = useRouter()
 const route = useRoute()
 const filesStore = useFilesStore()
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+const currentSpace = computed(() => {
+  const space = Array.isArray(props.space) ? props.space[0] : props.space
+  return space || undefined
+})
+
+const isSharedToMeRoot = computed(
+  () => currentSpace.value === 'shared_to_me' && !props.parentId,
+)
+
+const isGroupSpacesRoot = computed(
+  () => currentSpace.value === 'group_spaces' && !props.parentId,
+)
+
+const isVirtualBrowseRoot = computed(
+  () => isSharedToMeRoot.value || isGroupSpacesRoot.value,
+)
+
+const canCreateHere = computed(() => {
+  // Virtual space roots are browse-only
+  if (isVirtualBrowseRoot.value) return false
+  if (currentDirectory.value?.space === 'shared_to_me') return false
+  if (currentDirectory.value?.space === 'group_spaces') return false
+  if (currentDirectory.value && currentDirectory.value.can_write === false) return false
+  return true
+})
+
+const pageTitle = computed(() => {
+  if (isSharedToMeRoot.value || currentDirectory.value?.space === 'shared_to_me') {
+    return t('files.sharedWithMe')
+  }
+  if (isGroupSpacesRoot.value || currentDirectory.value?.space === 'group_spaces') {
+    return t('files.groupSpaces')
+  }
+  if (currentDirectory.value?.is_home) return t('files.myFiles')
+  if (currentDirectory.value?.is_group_space) return currentDirectory.value.name
+  if (currentDirectory.value) return currentDirectory.value.name
+  return t('navigation.files')
+})
 
 // State
 const viewType = ref<'grid' | 'large' | 'picture' | 'list'>('list')
@@ -1070,6 +1142,8 @@ const copyDialogVisible = ref(false)
 const moveDialogVisible = ref(false)
 const operationDestination = ref<string | undefined>(undefined)
 const operationType = ref<'copy' | 'move'>('copy')
+// When set, copy/move/delete act on these ids instead of the checkbox selection
+const operationTargetIds = ref<string[] | null>(null)
 
 // Share dialog
 const shareDialogVisible = ref(false)
@@ -1116,7 +1190,7 @@ const treeSelectProps = {
 const directoryTreeData = ref<any[]>([
   {
     id: '',
-    name: 'Root Directory (/)',
+    name: 'My Files',
     children: [],
   },
 ])
@@ -1127,12 +1201,14 @@ const loadDirectoryTreeData = async () => {
     const response = await filesAPI.listChildren()
     const rootItems = response.data.children || []
     const directories = rootItems.filter((item: any) => item.item_type === 'directory')
+    const homeParent = response.data.parent
+    const homeId = homeParent?.id || ''
 
-    // Build the tree structure
+    // Build the tree structure rooted at the user's home
     const treeData = [
       {
-        id: '',
-        name: 'Root Directory (/)',
+        id: homeId,
+        name: t('files.myFiles'),
         children: await buildDirectoryTree(directories),
       },
     ]
@@ -1235,26 +1311,30 @@ const hasSelectedFiles = computed(() => {
 // Directory upload functionality removed - now handled by file upload with relative paths
 
 // Breadcrumb state - maintains the full navigation path
-const breadcrumbPath = ref<Array<{ id: string | null; name: string; path: string }>>([
-  { id: null, name: 'root', path: '/' },
-])
+const breadcrumbPath = ref<
+  Array<{
+    id: string | null
+    name: string
+    path: string
+    is_home?: boolean
+    is_group_space?: boolean
+    space?: string
+  }>
+>([{ id: null, name: 'My Files', path: '/', is_home: true }])
 
 // Utility functions for path construction
 const getFilePath = (file: FileItem | null): string => {
   if (!file) return ''
 
-  // If the file has a relative_path, use it (fallback for backward compatibility)
   if (file.relative_path) {
     return file.relative_path
   }
 
-  // Build path from parents array
   if (file.parents && file.parents.length > 0) {
     const parentNames = file.parents.map((parent) => parent.name)
     return '/' + parentNames.join('/') + '/' + file.name
   }
 
-  // If no parents, it's a root-level file
   return '/' + file.name
 }
 
@@ -1263,110 +1343,160 @@ const getDirectoryPath = (
 ): string => {
   if (!directory) return '/'
 
-  // If the directory has a relative_path, use it (fallback for backward compatibility)
   if (directory.relative_path) {
     return directory.relative_path
   }
 
-  // Build path from parents array (only for full FileItem objects)
   if ('parents' in directory && directory.parents && directory.parents.length > 0) {
     const parentNames = directory.parents.map((parent) => parent.name)
     return '/' + parentNames.join('/') + '/' + directory.name
   }
 
-  // If no parents, it's a root-level directory
   return '/' + directory.name
 }
 
 // Update breadcrumb when directory changes
 const updateBreadcrumb = async () => {
-  console.log('updateBreadcrumb called, currentDirectory:', currentDirectory.value)
+  const myFilesLabel = t('files.myFiles')
+  const sharedLabel = t('files.sharedWithMe')
+  const groupSpacesLabel = t('files.groupSpaces')
 
-  if (!currentDirectory.value) {
-    console.log('No current directory, setting root breadcrumb')
-    breadcrumbPath.value = [{ id: null, name: 'root', path: '/' }]
+  if (isSharedToMeRoot.value || currentDirectory.value?.space === 'shared_to_me') {
+    breadcrumbPath.value = [
+      { id: null, name: sharedLabel, path: '/shared', space: 'shared_to_me' },
+    ]
     return
   }
 
-  // Debug: Log the complete current directory object
-  console.log('Current directory full object:', JSON.stringify(currentDirectory.value, null, 2))
-  console.log('Parents attribute:', currentDirectory.value.parents)
-  console.log('Parents type:', typeof currentDirectory.value.parents)
-  console.log('Parents is array:', Array.isArray(currentDirectory.value.parents))
+  if (isGroupSpacesRoot.value || currentDirectory.value?.space === 'group_spaces') {
+    breadcrumbPath.value = [
+      { id: null, name: groupSpacesLabel, path: '/groups', space: 'group_spaces' },
+    ]
+    return
+  }
 
-  // Build breadcrumb using the parents attribute from the API
-  const newBreadcrumb = []
+  if (!currentDirectory.value) {
+    breadcrumbPath.value = [{ id: null, name: myFilesLabel, path: '/', is_home: true }]
+    return
+  }
 
-  // Always start with root
-  newBreadcrumb.push({
-    id: null,
-    name: 'root',
-    path: '/',
-  })
+  if (currentDirectory.value.is_home) {
+    breadcrumbPath.value = [
+      {
+        id: currentDirectory.value.id,
+        name: myFilesLabel,
+        path: '/',
+        is_home: true,
+      },
+    ]
+    return
+  }
 
-  // Add all parent directories from the parents array (if available)
+  if (currentDirectory.value.is_group_space) {
+    breadcrumbPath.value = [
+      {
+        id: null,
+        name: groupSpacesLabel,
+        path: '/groups',
+        space: 'group_spaces',
+      },
+      {
+        id: currentDirectory.value.id,
+        name: currentDirectory.value.name,
+        path: '/',
+        is_group_space: true,
+      },
+    ]
+    return
+  }
+
+  const newBreadcrumb: Array<{
+    id: string | null
+    name: string
+    path: string
+    is_home?: boolean
+    is_group_space?: boolean
+    space?: string
+  }> = []
+
+  // Shared folder drill-down without parents: prefix Shared with me
+  const cameFromShared =
+    currentSpace.value === 'shared_to_me' ||
+    (!currentDirectory.value.parents?.length &&
+      currentDirectory.value.owner &&
+      route.query.space === 'shared_to_me')
+
   if (
     currentDirectory.value.parents &&
     Array.isArray(currentDirectory.value.parents) &&
     currentDirectory.value.parents.length > 0
   ) {
-    console.log('Adding parents from API:', currentDirectory.value.parents)
-
-    currentDirectory.value.parents.forEach((parent) => {
+    const firstParent = currentDirectory.value.parents[0] as any
+    if (firstParent?.is_group_space) {
+      newBreadcrumb.push({
+        id: null,
+        name: groupSpacesLabel,
+        path: '/groups',
+        space: 'group_spaces',
+      })
+    }
+    currentDirectory.value.parents.forEach((parent: any) => {
       newBreadcrumb.push({
         id: parent.id,
-        name: parent.name,
+        name: parent.is_home ? myFilesLabel : parent.name,
         path: parent.relative_path || getDirectoryPath(parent),
+        is_home: !!parent.is_home,
+        is_group_space: !!parent.is_group_space,
       })
     })
+  } else if (cameFromShared || currentSpace.value === 'shared_to_me') {
+    newBreadcrumb.push({
+      id: null,
+      name: sharedLabel,
+      path: '/shared',
+      space: 'shared_to_me',
+    })
   } else {
-    console.log(
-      'No parents attribute available, breadcrumb will only show root and current directory',
-    )
+    newBreadcrumb.push({
+      id: null,
+      name: myFilesLabel,
+      path: '/',
+      is_home: true,
+    })
   }
 
-  // Add current directory at the end
   newBreadcrumb.push({
     id: currentDirectory.value.id,
     name: currentDirectory.value.name,
     path: currentDirectory.value.relative_path || getDirectoryPath(currentDirectory.value),
   })
 
-  console.log('Built complete breadcrumb:', newBreadcrumb)
   breadcrumbPath.value = newBreadcrumb
 }
 
 // Watch for route changes to load appropriate directory
 watch(
-  () => props.parentId,
-  async (newParentId, oldParentId) => {
-    console.log('parentId watcher triggered:', {
-      old: oldParentId,
-      new: newParentId,
-      isImmediate: oldParentId === undefined,
-    })
-
-    // Show loading state for directory changes (but not on initial load)
-    if (oldParentId !== undefined) {
+  [() => props.parentId, () => props.space],
+  async ([newParentId], [oldParentId]) => {
+    if (oldParentId !== undefined || route.query.space) {
       isNavigating.value = true
     }
 
     try {
+      const space = Array.isArray(props.space) ? props.space[0] : props.space
       if (newParentId) {
-        // Navigate to specific directory
-        console.log('Loading directory:', newParentId)
         const parentId = Array.isArray(newParentId) ? newParentId[0] : newParentId
         await filesStore.fetchChildren(parentId)
+      } else if (space === 'shared_to_me') {
+        await filesStore.fetchChildren(undefined, 'shared_to_me')
+      } else if (space === 'group_spaces') {
+        await filesStore.fetchChildren(undefined, 'group_spaces')
       } else {
-        // Navigate to root (parent_id is undefined or was removed)
-        console.log('Loading root directory')
         await filesStore.fetchChildren()
       }
 
-      // Update breadcrumb after loading
       await updateBreadcrumb()
     } finally {
-      // Hide loading state
       isNavigating.value = false
     }
   },
@@ -1397,9 +1527,62 @@ watch(
 )
 
 // Methods
-const setViewType = (type: 'grid' | 'large' | 'picture' | 'list') => {
-  viewType.value = type
+const VIEW_TYPES = ['grid', 'large', 'picture', 'list'] as const
+type ViewType = (typeof VIEW_TYPES)[number]
+
+const currentViewIcon = computed(() => {
+  switch (viewType.value) {
+    case 'grid':
+      return Grid
+    case 'large':
+      return Menu
+    case 'picture':
+      return Picture
+    case 'list':
+    default:
+      return List
+  }
+})
+
+const setViewType = (type: ViewType | string) => {
+  if ((VIEW_TYPES as readonly string[]).includes(type)) {
+    viewType.value = type as ViewType
+  }
 }
+
+const cycleViewType = () => {
+  const i = VIEW_TYPES.indexOf(viewType.value)
+  setViewType(VIEW_TYPES[(i + 1) % VIEW_TYPES.length])
+}
+
+const handleBulkCommand = (command: string) => {
+  operationTargetIds.value = null
+  switch (command) {
+    case 'copy':
+      showCopyDialog()
+      break
+    case 'move':
+      showMoveDialog()
+      break
+    case 'download':
+      bulkDownload()
+      break
+    case 'clear':
+      clearSelection()
+      break
+    case 'delete':
+      confirmDelete()
+      break
+  }
+}
+
+watch(copyDialogVisible, (visible) => {
+  if (!visible) clearOperationTarget()
+})
+
+watch(moveDialogVisible, (visible) => {
+  if (!visible) clearOperationTarget()
+})
 
 const handleSortChange = (sortInfo: { prop: string; order: string }) => {
   console.log('Sort changed:', sortInfo)
@@ -1442,7 +1625,7 @@ const handleFileSelection = async (event: Event) => {
     await processAndUploadFiles(files)
   } catch (error: any) {
     if (!isUploadAbortError(error) && !uploadCancelled.value) {
-      ElMessage.error(`Upload failed: ${error.message || error}`)
+      toast.error(`Upload failed: ${error.message || error}`)
     }
   } finally {
     isUploading.value = false
@@ -1473,7 +1656,7 @@ const handleDirectorySelection = async (event: Event) => {
     await processAndUploadFiles(files)
   } catch (error: any) {
     if (!isUploadAbortError(error) && !uploadCancelled.value) {
-      ElMessage.error(`Upload failed: ${error.message || error}`)
+      toast.error(`Upload failed: ${error.message || error}`)
     }
   } finally {
     isUploading.value = false
@@ -1515,13 +1698,13 @@ const processAndUploadFiles = async (files: File[]) => {
   await uploadAllFiles(files)
 
   if (uploadCancelled.value) {
-    ElMessage.warning(t('files.upload.uploadCancelled'))
+    toast.warning(t('files.upload.uploadCancelled'))
     await refreshFiles()
     return
   }
 
   await refreshFiles()
-  ElMessage.success(`Upload completed: ${files.length} files processed`)
+  toast.success(`Upload completed: ${files.length} files processed`)
 }
 
 // Directory creation now handled by backend during file upload
@@ -1687,9 +1870,9 @@ const uploadAllFiles = async (files: File[]) => {
 
   // Show final results
   if (failedCount === 0 && skippedCount === 0) {
-    ElMessage.success(`All ${files.length} files uploaded successfully!`)
+    toast.success(`All ${files.length} files uploaded successfully!`)
   } else {
-    ElMessage.warning(`${uploadedCount} uploaded, ${failedCount} failed, ${skippedCount} skipped.`)
+    toast.warning(`${uploadedCount} uploaded, ${failedCount} failed, ${skippedCount} skipped.`)
   }
 }
 
@@ -1727,7 +1910,7 @@ const showCreateDirectoryDialog = () => {
         const parentId = currentDirectory.value?.id
         const newDirectory = await filesStore.createDirectory(value, parentId)
         if (newDirectory) {
-          ElMessage.success('Folder created successfully')
+          toast.success('Folder created successfully')
           // Refresh the current directory contents
           await refreshFiles()
         }
@@ -1778,11 +1961,11 @@ const showCreateTextFileDialog = () => {
           })
 
           if (response.data) {
-            ElMessage.success('Text file created successfully')
+            toast.success('Text file created successfully')
             await refreshFiles()
           }
         } catch (error: any) {
-          ElMessage.error(error.response?.data?.error || 'Failed to create text file')
+          toast.error(error.response?.data?.error || 'Failed to create text file')
         }
       }
     })
@@ -1815,11 +1998,11 @@ const showCreateWordDocumentDialog = () => {
           })
 
           if (response.data) {
-            ElMessage.success('Word document created successfully')
+            toast.success('Word document created successfully')
             await refreshFiles()
           }
         } catch (error: any) {
-          ElMessage.error(error.response?.data?.error || 'Failed to create Word document')
+          toast.error(error.response?.data?.error || 'Failed to create Word document')
         }
       }
     })
@@ -1852,11 +2035,11 @@ const showCreateExcelDocumentDialog = () => {
           })
 
           if (response.data) {
-            ElMessage.success('Excel spreadsheet created successfully')
+            toast.success('Excel spreadsheet created successfully')
             await refreshFiles()
           }
         } catch (error: any) {
-          ElMessage.error(error.response?.data?.error || 'Failed to create Excel spreadsheet')
+          toast.error(error.response?.data?.error || 'Failed to create Excel spreadsheet')
         }
       }
     })
@@ -1889,11 +2072,11 @@ const showCreatePowerPointDocumentDialog = () => {
           })
 
           if (response.data) {
-            ElMessage.success('PowerPoint presentation created successfully')
+            toast.success('PowerPoint presentation created successfully')
             await refreshFiles()
           }
         } catch (error: any) {
-          ElMessage.error(error.response?.data?.error || 'Failed to create PowerPoint presentation')
+          toast.error(error.response?.data?.error || 'Failed to create PowerPoint presentation')
         }
       }
     })
@@ -1909,7 +2092,7 @@ const handleUpload = () => {
     const fileList = uploadRef.value.uploadFiles || []
 
     if (fileList.length === 0) {
-      ElMessage.warning('Please select files to upload.')
+      toast.warning('Please select files to upload.')
       return
     }
 
@@ -1924,7 +2107,7 @@ const handleUpload = () => {
 }
 
 const handleUploadSuccess = (response: any, file: any) => {
-  ElMessage.success(`${file.name} uploaded successfully`)
+  toast.success(`${file.name} uploaded successfully`)
   // Refresh the file list to show the new file
   refreshFiles()
 }
@@ -1935,7 +2118,7 @@ const handleUploadComplete = () => {
 }
 
 const handleUploadError = (error: any, file: any) => {
-  ElMessage.error(`${file.name} upload failed: ${error.message || 'Unknown error'}`)
+  toast.error(`${file.name} upload failed: ${error.message || 'Unknown error'}`)
 }
 
 const beforeUpload = (file: any) => {
@@ -1960,7 +2143,7 @@ const handleUploadProgress = (event: any, file: any) => {
 }
 
 const handleFileExceed = (files: any, fileList: any) => {
-  ElMessage.warning(`Maximum ${fileList.length} files allowed. Please remove some files first.`)
+  toast.warning(`Maximum ${fileList.length} files allowed. Please remove some files first.`)
 }
 
 // Directory selection method removed - now handled by file input with webkitdirectory
@@ -1974,9 +2157,17 @@ const handleFileExceed = (files: any, fileList: any) => {
 // Directory handle methods removed - no longer needed
 
 const refreshFiles = async () => {
-  // Use current route parent_id to determine which directory to refresh
   const parentId = Array.isArray(props.parentId) ? props.parentId[0] : props.parentId
-  await filesStore.fetchChildren(parentId)
+  const space = Array.isArray(props.space) ? props.space[0] : props.space
+  if (parentId) {
+    await filesStore.fetchChildren(parentId)
+  } else if (space === 'shared_to_me') {
+    await filesStore.fetchChildren(undefined, 'shared_to_me')
+  } else if (space === 'group_spaces') {
+    await filesStore.fetchChildren(undefined, 'group_spaces')
+  } else {
+    await filesStore.fetchChildren()
+  }
 }
 
 const handleSearch = async (value: string) => {
@@ -2057,7 +2248,7 @@ const showImagePreview = async (clickedFile: any) => {
   const currentImageFiles = getImageFiles()
 
   if (currentImageFiles.length === 0) {
-    ElMessage.warning('No images found in current directory')
+    toast.warning('No images found in current directory')
     return
   }
 
@@ -2065,7 +2256,7 @@ const showImagePreview = async (clickedFile: any) => {
   const clickedIndex = currentImageFiles.findIndex((file) => file.id === clickedFile.id)
 
   if (clickedIndex === -1) {
-    ElMessage.warning('Image not found in current directory')
+    toast.warning('Image not found in current directory')
     return
   }
 
@@ -2090,7 +2281,7 @@ const showImagePreview = async (clickedFile: any) => {
     await loadImageLazy(clickedIndex)
   } catch (error) {
     console.error('Error setting up image preview:', error)
-    ElMessage.error('Failed to set up image preview')
+    toast.error('Failed to set up image preview')
   }
 }
 
@@ -2231,13 +2422,13 @@ const openFileInBrowser = async (file: any) => {
       window.open(fileViewerUrl, '_blank')
     } else {
       // For unsupported files, show details or download
-      ElMessage.info(`File type not supported for browser preview. Use download option.`)
+      toast.info(`File type not supported for browser preview. Use download option.`)
       // Optionally, you could still open the details dialog here
       // showFileDetails(file)
     }
   } catch (error) {
     console.error('Error opening file in browser:', error)
-    ElMessage.error('Failed to open file in browser')
+    toast.error('Failed to open file in browser')
   }
 }
 
@@ -2250,34 +2441,52 @@ const handleListRowClick = (row: any, column: any, event: Event) => {
 }
 
 const navigateToDirectory = async (directoryId: string) => {
-  console.log('navigateToDirectory called with ID:', directoryId)
-  // Use router navigation instead of direct store calls
+  const query: Record<string, string> = { parent_id: directoryId.toString() }
+  if (currentSpace.value === 'shared_to_me' || route.query.space === 'shared_to_me') {
+    query.space = 'shared_to_me'
+  }
   await router.push({
     name: 'Files',
-    query: { parent_id: directoryId.toString() },
+    query,
   })
 }
 
 const navigateToRoot = async () => {
-  console.log('navigateToRoot called')
-  // Use router navigation to root
+  if (currentSpace.value === 'shared_to_me' || isSharedToMeRoot.value) {
+    await router.push({ name: 'Files', query: { space: 'shared_to_me' } })
+    return
+  }
+  if (
+    currentSpace.value === 'group_spaces' ||
+    isGroupSpacesRoot.value ||
+    currentDirectory.value?.is_group_space
+  ) {
+    await router.push({ name: 'Files', query: { space: 'group_spaces' } })
+    return
+  }
   await router.push({
     name: 'Files',
     query: {},
   })
 }
 
-const handleBreadcrumbClick = async (item: { id: string | null; name: string; path: string }) => {
-  if (item.id === null) {
-    // Clicked on root
+const handleBreadcrumbClick = async (item: {
+  id: string | null
+  name: string
+  path: string
+  is_home?: boolean
+  is_group_space?: boolean
+  space?: string
+}) => {
+  if (item.space === 'shared_to_me') {
+    await router.push({ name: 'Files', query: { space: 'shared_to_me' } })
+  } else if (item.space === 'group_spaces') {
+    await router.push({ name: 'Files', query: { space: 'group_spaces' } })
+  } else if (item.is_home || (item.id === null && !item.space)) {
     await navigateToRoot()
-  } else {
-    // Clicked on a directory in the breadcrumb
-    console.log('Navigating to breadcrumb directory:', item)
-    // Navigate to this directory using router
+  } else if (item.id) {
     await navigateToDirectory(item.id)
   }
-  // Loading state will be handled by the parentId watcher
 }
 
 // File operation methods
@@ -2294,6 +2503,28 @@ const clearSelection = () => {
   // Clear table selection if list view is active
   if (viewType.value === 'list' && listTableRef.value) {
     listTableRef.value.clearSelection()
+  }
+}
+
+const resolveOperationIds = (): string[] => {
+  if (operationTargetIds.value && operationTargetIds.value.length > 0) {
+    return [...operationTargetIds.value]
+  }
+  return Array.from(selectedFileIds.value)
+}
+
+const clearOperationTarget = () => {
+  operationTargetIds.value = null
+}
+
+const removeIdsFromSelection = (ids: string[]) => {
+  ids.forEach((id) => selectedFileIds.value.delete(id))
+  if (viewType.value === 'list' && listTableRef.value) {
+    const remaining = filteredFiles.value.filter((file) => selectedFileIds.value.has(file.id))
+    listTableRef.value.clearSelection()
+    remaining.forEach((row) => {
+      listTableRef.value.toggleRowSelection(row, true)
+    })
   }
 }
 
@@ -2318,9 +2549,12 @@ const showMoveDialog = () => {
 }
 
 const confirmDelete = async () => {
+  const fileIds = resolveOperationIds()
+  if (fileIds.length === 0) return
+
   try {
     await ElMessageBox.confirm(
-      t('files.messages.deleteConfirm', { count: selectedFileIds.value.size }),
+      t('files.messages.deleteConfirm', { count: fileIds.length }),
       t('common.confirmDelete'),
       {
         confirmButtonText: t('common.delete'),
@@ -2329,30 +2563,32 @@ const confirmDelete = async () => {
       },
     )
 
-    const fileIds = Array.from(selectedFileIds.value)
     await filesStore.deleteFiles(fileIds)
-    clearSelection()
+    if (operationTargetIds.value) {
+      removeIdsFromSelection(fileIds)
+      clearOperationTarget()
+    } else {
+      clearSelection()
+    }
   } catch (error) {
+    clearOperationTarget()
     // User cancelled
   }
 }
 
 const handleFileAction = async (command: string, file: any) => {
   if (command === 'copy') {
-    selectedFileIds.value.clear()
-    selectedFileIds.value.add(file.id)
+    operationTargetIds.value = [file.id]
     showCopyDialog()
   } else if (command === 'move') {
-    selectedFileIds.value.clear()
-    selectedFileIds.value.add(file.id)
+    operationTargetIds.value = [file.id]
     showMoveDialog()
   } else if (command === 'download') {
     if (file.item_type === 'file') {
       await downloadFile(file)
     }
   } else if (command === 'delete') {
-    selectedFileIds.value.clear()
-    selectedFileIds.value.add(file.id)
+    operationTargetIds.value = [file.id]
     await confirmDelete()
   } else if (command === 'share') {
     selectedFileForSharing.value = file
@@ -2398,8 +2634,10 @@ const handleRename = async () => {
     // Call the API to rename the file
     await filesAPI.patch(selectedFileForRename.value.id, { name: newName })
 
-    ElMessage.success(
-      `${selectedFileForRename.value.item_type === 'directory' ? 'Folder' : 'File'} renamed successfully`,
+    toast.success(
+      selectedFileForRename.value.item_type === 'directory'
+        ? t('files.messages.folderRenamedSuccess')
+        : t('files.messages.fileRenamedSuccess'),
     )
 
     // Close the dialog
@@ -2409,8 +2647,10 @@ const handleRename = async () => {
     await refreshFiles()
   } catch (error: any) {
     console.error('Rename error:', error)
-    ElMessage.error(
-      `Rename failed: ${error.response?.data?.error || error.message || 'Unknown error'}`,
+    toast.error(
+      t('files.messages.renameFailed', {
+        error: error.response?.data?.error || error.message || 'Unknown error',
+      }),
     )
   }
 }
@@ -2576,10 +2816,10 @@ const downloadFile = async (file: any) => {
   try {
     // Use Electron utility for download
     await electronUtils.downloadFile(file.id, file.name, true)
-    ElMessage.success(`Download started for ${file.name}`)
+    toast.success(`Download started for ${file.name}`)
   } catch (error: any) {
     console.error('Download error:', error)
-    ElMessage.error(
+    toast.error(
       `Download failed: ${error.response?.data?.error || error.message || 'Unknown error'}`,
     )
   }
@@ -2592,11 +2832,11 @@ const bulkDownload = async () => {
       .filter((file) => file && file.item_type === 'file')
 
     if (selectedFiles.length === 0) {
-      ElMessage.warning('No files selected for download')
+      toast.warning('No files selected for download')
       return
     }
 
-    ElMessage.info(`Downloading ${selectedFiles.length} file(s)...`)
+    toast.info(`Downloading ${selectedFiles.length} file(s)...`)
 
     // Download files one by one
     for (const file of selectedFiles) {
@@ -2607,15 +2847,15 @@ const bulkDownload = async () => {
           await new Promise((resolve) => setTimeout(resolve, 100))
         } catch (error) {
           console.error(`Failed to download ${file.name}:`, error)
-          ElMessage.error(`Failed to download ${file.name}`)
+          toast.error(`Failed to download ${file.name}`)
         }
       }
     }
 
-    ElMessage.success(`Bulk download completed`)
+    toast.success(`Bulk download completed`)
   } catch (error: any) {
     console.error('Bulk download error:', error)
-    ElMessage.error(`Bulk download failed: ${error.message || 'Unknown error'}`)
+    toast.error(`Bulk download failed: ${error.message || 'Unknown error'}`)
   }
 }
 
@@ -2629,25 +2869,41 @@ const handleListSelectionChange = (selection: any[]) => {
 
 const executeOperation = async () => {
   if (operationDestination.value === undefined) {
-    ElMessage.warning('Please select a destination directory')
+    toast.warning(t('files.messages.pleaseSelectDestination'))
     return
   }
 
   try {
-    const fileIds = Array.from(selectedFileIds.value)
+    const fileIds = resolveOperationIds()
+    if (fileIds.length === 0) {
+      toast.warning(t('files.messages.noItemsSelected'))
+      return
+    }
+
+    const wasSingleAction = !!operationTargetIds.value
 
     if (operationType.value === 'copy') {
       await filesStore.copyFiles(fileIds, operationDestination.value)
+      clearOperationTarget()
       copyDialogVisible.value = false
     } else if (operationType.value === 'move') {
       await filesStore.moveFiles(fileIds, operationDestination.value)
+      if (wasSingleAction) {
+        removeIdsFromSelection(fileIds)
+        clearOperationTarget()
+      } else {
+        clearSelection()
+      }
       moveDialogVisible.value = false
     }
 
     operationDestination.value = undefined
-    clearSelection()
   } catch (error: any) {
-    ElMessage.error(`Operation failed: ${error.message || error}`)
+    toast.error(
+      t('files.messages.operationFailedWithReason', {
+        error: error.message || error,
+      }),
+    )
   }
 }
 
@@ -2729,6 +2985,18 @@ const getVisibilityTagType = (visibility: string): string => {
   }
 }
 
+const sharedUsersTooltip = (row: {
+  shared_users?: Array<{ username?: string }>
+}): string => {
+  const names = (row.shared_users || [])
+    .map((user) => user.username)
+    .filter((name): name is string => !!name)
+  if (names.length === 0) {
+    return t('files.visibility.noUsers')
+  }
+  return names.join(', ')
+}
+
 const getPermissionTagType = (permission: string): string => {
   switch (permission) {
     case 'read':
@@ -2744,6 +3012,11 @@ const getPermissionTagType = (permission: string): string => {
     default:
       return 'info'
   }
+}
+
+const permissionLabel = (permission: string): string => {
+  const key = `shareDialog.permissionTypes.${permission}`
+  return te(key) ? t(key) : permission
 }
 
 // Lifecycle
@@ -2792,28 +3065,6 @@ onUnmounted(() => {
   margin-right: 0;
 }
 
-.bulk-operations-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  padding: 12px 24px;
-  background-color: #f5f7fa;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-}
-
-.bulk-info {
-  font-size: 16px;
-  color: #303133;
-  font-weight: 500;
-}
-
-.bulk-actions {
-  display: flex;
-  gap: 12px;
-}
-
 .breadcrumb-container {
   margin-bottom: 24px;
 }
@@ -2844,6 +3095,23 @@ onUnmounted(() => {
   justify-content: space-between;
 }
 
+.search-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.search-bar-input {
+  width: 300px;
+  max-width: 100%;
+}
+
+.bulk-badge {
+  display: inline-flex;
+}
+
 .view-toggle {
   flex-shrink: 0;
 }
@@ -2856,7 +3124,12 @@ onUnmounted(() => {
     gap: 12px;
   }
 
-  .search-bar .el-input {
+  .search-bar-left {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-bar-input {
     width: 100% !important;
   }
 

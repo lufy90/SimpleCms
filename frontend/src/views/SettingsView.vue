@@ -274,7 +274,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
+import { toast } from 'vue3-toastify'
 import { Plus, Search, Sunny, Moon, Monitor } from '@element-plus/icons-vue'
 import { usersAPI, groupsAPI } from '@/services/api'
 import { useThemeStore } from '@/stores/theme'
@@ -376,7 +377,7 @@ const loadUsers = async () => {
     filteredUsers.value = users.value
   } catch (error) {
     console.error('Failed to load users:', error)
-    ElMessage.error(t('settings.users.failedToLoadUsers'))
+    toast.error(t('settings.users.failedToLoadUsers'))
 
     // Fallback to mock data for development
     users.value = [
@@ -411,7 +412,7 @@ const loadGroups = async () => {
     filteredGroups.value = groups.value
   } catch (error) {
     console.error('Failed to load groups:', error)
-    ElMessage.error(t('settings.groups.failedToLoadGroups'))
+    toast.error(t('settings.groups.failedToLoadGroups'))
 
     // Fallback to mock data for development
     groups.value = [
@@ -485,11 +486,11 @@ const deleteUser = async (user: User) => {
 
     await usersAPI.delete(user.id)
 
-    ElMessage.success(t('settings.users.userDeletedSuccessfully'))
+    toast.success(t('settings.users.userDeletedSuccessfully'))
     loadUsers()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(t('settings.users.failedToDeleteUser'))
+      toast.error(t('settings.users.failedToDeleteUser'))
     }
   }
 }
@@ -512,7 +513,7 @@ const saveUser = async () => {
       await usersAPI.create(userData)
     }
 
-    ElMessage.success(
+    toast.success(
       editingUser.value
         ? t('settings.users.userUpdatedSuccessfully')
         : t('settings.users.userCreatedSuccessfully'),
@@ -522,7 +523,7 @@ const saveUser = async () => {
     loadUsers()
   } catch (error) {
     console.error('Failed to save user:', error)
-    ElMessage.error(t('settings.users.failedToSaveUser'))
+    toast.error(t('settings.users.failedToSaveUser'))
   }
 }
 
@@ -558,11 +559,11 @@ const deleteGroup = async (group: Group) => {
 
     await groupsAPI.delete(group.id)
 
-    ElMessage.success(t('settings.groups.groupDeletedSuccessfully'))
+    toast.success(t('settings.groups.groupDeletedSuccessfully'))
     loadGroups()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(t('settings.groups.failedToDeleteGroup'))
+      toast.error(t('settings.groups.failedToDeleteGroup'))
     }
   }
 }
@@ -577,7 +578,7 @@ const saveGroup = async () => {
       await groupsAPI.create(groupForm)
     }
 
-    ElMessage.success(
+    toast.success(
       editingGroup.value
         ? t('settings.groups.groupUpdatedSuccessfully')
         : t('settings.groups.groupCreatedSuccessfully'),
@@ -587,7 +588,7 @@ const saveGroup = async () => {
     loadGroups()
   } catch (error) {
     console.error('Failed to save group:', error)
-    ElMessage.error(t('settings.groups.failedToSaveGroup'))
+    toast.error(t('settings.groups.failedToSaveGroup'))
   }
 }
 
