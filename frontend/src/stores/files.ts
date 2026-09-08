@@ -29,6 +29,13 @@ export interface FileItem {
     first_name: string
     last_name: string
   }
+  created_by?: {
+    id: string
+    username: string
+    email: string
+    first_name: string
+    last_name: string
+  } | null
   visibility: 'private' | 'user' | 'group' | 'public'
   is_home?: boolean
   is_group_space?: boolean

@@ -43,6 +43,10 @@ from .utils import (
     get_or_create_user_home,
     get_or_create_group_space,
     is_under_group_space,
+    can_write_destination,
+    resolve_item_owner,
+    apply_destination_access_recursive,
+    is_descendant_of,
 )
 
 
@@ -698,8 +702,7 @@ class FileItemViewSet(viewsets.ModelViewSet):
             if parent_id:
                 try:
                     parent_directory = FileItem.objects.get(id=parent_id, item_type='directory')
-                    # Check if user can write to parent directory
-                    if not parent_directory.can_write(request.user):
+                    if not can_write_destination(parent_directory, request.user):
                         return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
                 except FileItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -717,7 +720,8 @@ class FileItemViewSet(viewsets.ModelViewSet):
                 name=name,
                 item_type='directory',
                 parent=parent_directory,
-                owner=request.user,
+                owner=resolve_item_owner(parent_directory, request.user),
+                created_by=request.user,
                 visibility='private',
             )
 
@@ -1339,8 +1343,7 @@ class FileUploadView(generics.CreateAPIView):
             if parent_id:
                 try:
                     parent_directory = FileItem.objects.get(id=parent_id, item_type='directory')
-                    # Check if user can write to parent directory
-                    if not parent_directory.can_write(request.user):
+                    if not can_write_destination(parent_directory, request.user):
                         return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
                 except FileItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -1393,7 +1396,8 @@ class FileUploadView(generics.CreateAPIView):
                 item_type='file',
                 parent=final_parent_directory,
                 storage=file_storage,
-                owner=request.user,
+                owner=resolve_item_owner(final_parent_directory, request.user),
+                created_by=request.user,
                 visibility='private',
             )
             inherit_parent_access(final_parent_directory, file_item, request.user)
@@ -1600,7 +1604,8 @@ class FileUploadView(generics.CreateAPIView):
                             name=part,
                             parent=current_parent,
                             item_type='directory',
-                            owner=user,
+                            owner=resolve_item_owner(current_parent, user),
+                            created_by=user,
                             visibility='private',
                         )
                         if current_parent:
@@ -1730,12 +1735,13 @@ class FileOperationView(generics.CreateAPIView):
                 except FileItem.DoesNotExist:
                     return False, 'Destination directory not found'
                 
-                # Check if user can write to destination
-                if not destination_dir.can_access(user, 'write'):
+                if not can_write_destination(destination_dir, user):
                     return False, 'No write permission to destination directory'
                 
                 # Generate new name
                 new_name = self._generate_unique_name(file_item.name, destination_dir)
+
+            item_owner = resolve_item_owner(destination_dir, user)
             
             if file_item.item_type == 'file':
                 # For files, we need to copy the physical file and create new storage
@@ -1784,13 +1790,11 @@ class FileOperationView(generics.CreateAPIView):
                     item_type=file_item.item_type,
                     parent=destination_dir,
                     storage=new_storage,
-                    owner=user,
+                    owner=item_owner,
+                    created_by=user,
                     visibility=file_item.visibility
                 )
                 
-                # Copy source sharing, then inherit destination parent ACL
-                new_file_item.shared_users.set(file_item.shared_users.all())
-                new_file_item.shared_groups.set(file_item.shared_groups.all())
                 inherit_parent_access(destination_dir, new_file_item, user)
                 
             elif file_item.item_type == 'directory':
@@ -1799,13 +1803,11 @@ class FileOperationView(generics.CreateAPIView):
                     name=new_name,
                     item_type=file_item.item_type,
                     parent=destination_dir,
-                    owner=user,
+                    owner=item_owner,
+                    created_by=user,
                     visibility=file_item.visibility
                 )
                 
-                # Copy source sharing, then inherit destination parent ACL
-                new_file_item.shared_users.set(file_item.shared_users.all())
-                new_file_item.shared_groups.set(file_item.shared_groups.all())
                 inherit_parent_access(destination_dir, new_file_item, user)
             
             return True, None
@@ -1828,13 +1830,16 @@ class FileOperationView(generics.CreateAPIView):
                 except FileItem.DoesNotExist:
                     return False, 'Destination directory not found'
                 
-                # Check if user can write to destination
-                if not destination_dir.can_access(user, 'write'):
+                if not can_write_destination(destination_dir, user):
                     return False, 'No write permission to destination directory'
                 
                 # Check if user can delete from current location
                 if not file_item.can_delete(user):
                     return False, 'No permission to move file from current location'
+
+                # Prevent moving a directory into itself or a descendant
+                if file_item.item_type == 'directory' and is_descendant_of(destination_dir, file_item):
+                    return False, 'Cannot move a directory into itself or its subdirectory'
                 
                 # Generate new name
                 new_name = self._generate_unique_name(file_item.name, destination_dir)
@@ -1848,10 +1853,12 @@ class FileOperationView(generics.CreateAPIView):
                 # No physical file movement needed - just update database
                 pass
             
-            # Update database record
+            # Update database record (created_by stays unchanged)
             file_item.name = new_name
             file_item.parent = destination_dir
-            file_item.save()
+            file_item.save(update_fields=['name', 'parent', 'updated_at'])
+
+            apply_destination_access_recursive(destination_dir, file_item, user)
             
             return True, None
             
@@ -2356,7 +2363,7 @@ class FileCreationView(generics.CreateAPIView):
             if parent_id:
                 try:
                     parent_directory = FileItem.objects.get(id=parent_id, item_type='directory')
-                    if not parent_directory.can_access(request.user, 'write'):
+                    if not can_write_destination(parent_directory, request.user):
                         return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
                 except FileItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -2397,7 +2404,8 @@ class FileCreationView(generics.CreateAPIView):
                 item_type='file',
                 parent=parent_directory,
                 storage=file_storage,
-                owner=request.user,
+                owner=resolve_item_owner(parent_directory, request.user),
+                created_by=request.user,
                 visibility='private',
             )
             inherit_parent_access(parent_directory, file_item, request.user)
@@ -2454,7 +2462,7 @@ class FileCreationView(generics.CreateAPIView):
             if parent_id:
                 try:
                     parent_directory = FileItem.objects.get(id=parent_id, item_type='directory')
-                    if not parent_directory.can_access(request.user, 'write'):
+                    if not can_write_destination(parent_directory, request.user):
                         return Response({'error': 'Access denied to parent directory'}, status=status.HTTP_403_FORBIDDEN)
                 except FileItem.DoesNotExist:
                     return Response({'error': 'Parent directory not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -2494,7 +2502,8 @@ class FileCreationView(generics.CreateAPIView):
                 item_type='file',
                 parent=parent_directory,
                 storage=file_storage,
-                owner=request.user,
+                owner=resolve_item_owner(parent_directory, request.user),
+                created_by=request.user,
                 visibility='private',
             )
             inherit_parent_access(parent_directory, file_item, request.user)

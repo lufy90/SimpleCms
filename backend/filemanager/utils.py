@@ -326,6 +326,54 @@ def is_under_group_space(item):
     return False
 
 
+def can_write_destination(directory, user):
+    """
+    Strict write check for copy/move/create destinations.
+
+    Grants write only via superuser, ownership, or explicit FAP write.
+    Does not use visibility M2M fallback (which would allow read-only sharees to write).
+    """
+    if not directory or getattr(directory, 'item_type', None) != 'directory':
+        return False
+    return can_write_strict(directory, user)
+
+
+def can_write_strict(item, user):
+    """Write via superuser, ownership, or explicit FAP only (no visibility fallback)."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if not item:
+        return False
+    if user.is_superuser:
+        return True
+    if item.owner_id == user.id:
+        return True
+
+    user_permission = item.get_user_permission(user)
+    if user_permission and user_permission.has_permission('write'):
+        return True
+
+    group_permission = item.get_group_permission(user)
+    if group_permission and group_permission.has_permission('write'):
+        return True
+
+    return False
+
+
+def resolve_item_owner(destination_dir, actor):
+    """Owner follows destination when writing into someone else's directory."""
+    if destination_dir and destination_dir.owner_id and destination_dir.owner_id != actor.id:
+        return destination_dir.owner
+    return actor
+
+
+def clear_item_access_permissions(item):
+    """Remove active FAPs so inherit_parent_access can rebuild from parent."""
+    from .models import FileAccessPermission
+
+    FileAccessPermission.objects.filter(file=item, is_active=True).delete()
+
+
 def inherit_parent_access(parent, child, granted_by):
     """
     Copy parent visibility, shared users/groups, and active FileAccessPermission
@@ -378,6 +426,50 @@ def inherit_parent_access(parent, child, granted_by):
             logger.error(
                 f'Failed to inherit permission {perm.id} from parent {parent.id} onto {child.id}: {e}'
             )
+
+
+def apply_destination_access(destination_dir, item, actor, *, replace_permissions=False):
+    """Set owner for foreign destinations and inherit parent ACL onto item."""
+    if not destination_dir or not item:
+        return
+
+    new_owner = resolve_item_owner(destination_dir, actor)
+    update_fields = []
+    if item.owner_id != getattr(new_owner, 'id', None):
+        item.owner = new_owner
+        update_fields.append('owner')
+    if update_fields:
+        item.save(update_fields=update_fields)
+
+    if replace_permissions:
+        clear_item_access_permissions(item)
+    inherit_parent_access(destination_dir, item, actor)
+
+
+def apply_destination_access_recursive(destination_dir, root_item, actor):
+    """Reparent access for a moved item and, if a directory, all descendants."""
+    apply_destination_access(destination_dir, root_item, actor, replace_permissions=True)
+    if root_item.item_type != 'directory':
+        return
+
+    stack = list(root_item.get_children().filter(is_deleted=False))
+    while stack:
+        child = stack.pop()
+        apply_destination_access(child.parent, child, actor, replace_permissions=True)
+        if child.item_type == 'directory':
+            stack.extend(list(child.get_children().filter(is_deleted=False)))
+
+
+def is_descendant_of(item, possible_ancestor):
+    """Return True if item is possible_ancestor or lies under it."""
+    if not item or not possible_ancestor:
+        return False
+    current = item
+    while current is not None:
+        if current.id == possible_ancestor.id:
+            return True
+        current = current.parent
+    return False
 
 
 # Global instance

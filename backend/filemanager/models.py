@@ -149,6 +149,13 @@ class FileItem(models.Model):
     
     # Ownership and visibility
     owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_files',
+    )
     visibility = models.CharField(max_length=10, choices=VISIBILITY_CHOICES, default='private')
     
     # Logical deletion
@@ -183,6 +190,7 @@ class FileItem(models.Model):
             models.Index(fields=['parent']),
             models.Index(fields=['visibility']),
             models.Index(fields=['owner']),
+            models.Index(fields=['created_by']),
             models.Index(fields=['is_deleted']),
             models.Index(fields=['is_home']),
             models.Index(fields=['is_group_space']),

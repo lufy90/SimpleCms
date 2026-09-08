@@ -239,6 +239,7 @@ class FileItemSerializer(serializers.ModelSerializer):
     parent = serializers.PrimaryKeyRelatedField(queryset=FileItem.objects.all(), required=False)
     parents = serializers.SerializerMethodField()
     owner = UserSerializer(read_only=True)
+    created_by = UserSerializer(read_only=True)
     shared_users = UserSerializer(many=True, read_only=True)
     shared_groups = GroupSerializer(many=True, read_only=True)
     children_count = serializers.SerializerMethodField()
@@ -261,13 +262,13 @@ class FileItemSerializer(serializers.ModelSerializer):
         model = FileItem
         fields = [
             'id', 'name', 'item_type', 'parent', 'parents', 'created_at', 'updated_at',
-            'owner', 'visibility', 'shared_users', 'shared_groups', 'children_count', 'tags', 
-            'file_info', 'permissions', 'can_read', 'can_write', 'can_delete', 
+            'owner', 'created_by', 'visibility', 'shared_users', 'shared_groups', 'children_count', 'tags',
+            'file_info', 'permissions', 'can_read', 'can_write', 'can_delete',
             'can_share', 'can_admin', 'effective_permissions', 'thumbnail', 'sharing_status',
             'url', 'is_home', 'is_group_space', 'space_group',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'owner', 'children_count', 
-                           'tags', 'file_info', 'permissions', 'can_read', 'can_write', 
+        read_only_fields = ['id', 'created_at', 'updated_at', 'owner', 'created_by', 'children_count',
+                           'tags', 'file_info', 'permissions', 'can_read', 'can_write',
                            'can_delete', 'can_share', 'can_admin', 'effective_permissions',
                            'url', 'is_home', 'is_group_space', 'space_group']
     
@@ -347,10 +348,11 @@ class FileItemSerializer(serializers.ModelSerializer):
         return False
     
     def get_can_write(self, obj):
-        """Check if current user can write this file"""
+        """Check if current user can write this file (strict; no visibility fallback)."""
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            return obj.can_write(request.user)
+            from filemanager.utils import can_write_strict
+            return can_write_strict(obj, request.user)
         return False
     
     def get_can_delete(self, obj):
@@ -431,17 +433,26 @@ class FileItemCreateSerializer(serializers.ModelSerializer):
         fields = ['name', 'item_type', 'parent', 'visibility']
     
     def create(self, validated_data):
-        # Set the current user as owner
         request = self.context['request']
-        validated_data['owner'] = request.user
         parent = validated_data.get('parent')
         if not parent:
             from filemanager.utils import get_or_create_user_home
             parent = get_or_create_user_home(request.user)
             validated_data['parent'] = parent
+
+        from filemanager.utils import (
+            can_write_destination,
+            inherit_parent_access,
+            resolve_item_owner,
+        )
+
+        if not can_write_destination(parent, request.user):
+            raise serializers.ValidationError('No write permission to destination directory')
+
+        validated_data['owner'] = resolve_item_owner(parent, request.user)
+        validated_data['created_by'] = request.user
         validated_data['visibility'] = validated_data.get('visibility', 'private')
         instance = super().create(validated_data)
-        from filemanager.utils import inherit_parent_access
         inherit_parent_access(parent, instance, request.user)
         return instance
 
