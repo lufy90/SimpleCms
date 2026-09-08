@@ -87,6 +87,7 @@
       "size": "大小",
       "type": "类型",
       "owner": "所有者",
+      "createdBy": "创建者",
       "visibility": "可见性",
       "created": "创建时间",
       "lastModified": "最后修改",

@@ -39,6 +39,12 @@
               {{ $t('fileDetails.location') }}:
               {{ file.file_info.latitude }}, {{ file.file_info.longitude }}
             </span>
+            <span v-if="file.owner?.username" class="file-owner">
+              {{ $t('files.columns.owner') }}: {{ file.owner.username }}
+            </span>
+            <span v-if="file.created_by?.username" class="file-created-by">
+              {{ $t('files.columns.createdBy') }}: {{ file.created_by.username }}
+            </span>
             <span class="file-date">
               {{ formatDate(file.created_at) }}
             </span>
@@ -173,6 +179,14 @@ interface FileItem {
   item_type: 'file' | 'directory'
   parent?: string | null
   created_at: string
+  owner?: {
+    id: string
+    username: string
+  } | null
+  created_by?: {
+    id: string
+    username: string
+  } | null
   file_info?: {
     size?: number
     mime_type?: string

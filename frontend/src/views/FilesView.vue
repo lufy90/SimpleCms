@@ -809,7 +809,10 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item :label="$t('files.columns.owner')">
-          {{ selectedFileForDetails.owner.username }}
+          {{ selectedFileForDetails.owner?.username || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="$t('files.columns.createdBy')">
+          {{ selectedFileForDetails.created_by?.username || '-' }}
         </el-descriptions-item>
         <el-descriptions-item :label="$t('files.columns.created')">
           {{ formatDate(selectedFileForDetails.created_at) }}
@@ -1184,6 +1187,7 @@ const treeSelectProps = {
   children: 'children',
   label: 'name',
   value: 'id',
+  disabled: 'disabled',
 }
 
 // Directory tree data for tree-select (non-lazy)
@@ -1195,23 +1199,61 @@ const directoryTreeData = ref<any[]>([
   },
 ])
 
-// Load directory tree data for tree-select
+// Load directory tree data for tree-select (My Files + writable shared + group spaces)
 const loadDirectoryTreeData = async () => {
   try {
-    const response = await filesAPI.listChildren()
-    const rootItems = response.data.children || []
-    const directories = rootItems.filter((item: any) => item.item_type === 'directory')
-    const homeParent = response.data.parent
-    const homeId = homeParent?.id || ''
+    const treeData: any[] = []
 
-    // Build the tree structure rooted at the user's home
-    const treeData = [
-      {
+    // My Files
+    const homeResponse = await filesAPI.listChildren()
+    const homeItems = homeResponse.data.children || []
+    const homeDirs = homeItems.filter((item: any) => item.item_type === 'directory')
+    const homeParent = homeResponse.data.parent
+    const homeId = homeParent?.id || ''
+    if (homeId) {
+      treeData.push({
         id: homeId,
         name: t('files.myFiles'),
-        children: await buildDirectoryTree(directories),
-      },
-    ]
+        children: await buildDirectoryTree(homeDirs, { writableOnly: false }),
+      })
+    }
+
+    // Shared with me — only writable directories (virtual root not selectable)
+    try {
+      const sharedResponse = await filesAPI.listChildren(undefined, 'shared_to_me')
+      const sharedItems = sharedResponse.data.children || []
+      const sharedWritableDirs = sharedItems.filter(
+        (item: any) => item.item_type === 'directory' && item.can_write,
+      )
+      if (sharedWritableDirs.length > 0) {
+        treeData.push({
+          id: 'shared_to_me',
+          name: t('files.sharedWithMe'),
+          disabled: true,
+          children: await buildDirectoryTree(sharedWritableDirs, { writableOnly: true }),
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load shared destinations:', error)
+    }
+
+    // Group spaces — writable roots and subdirs
+    try {
+      const groupsResponse = await filesAPI.listChildren(undefined, 'group_spaces')
+      const groupRoots = (groupsResponse.data.children || []).filter(
+        (item: any) => item.item_type === 'directory' && item.can_write,
+      )
+      if (groupRoots.length > 0) {
+        treeData.push({
+          id: 'group_spaces',
+          name: t('files.groupSpaces'),
+          disabled: true,
+          children: await buildDirectoryTree(groupRoots, { writableOnly: true }),
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load group space destinations:', error)
+    }
 
     directoryTreeData.value = treeData
   } catch (error) {
@@ -1219,26 +1261,35 @@ const loadDirectoryTreeData = async () => {
   }
 }
 
-// Recursively build directory tree
-const buildDirectoryTree = async (directories: any[]): Promise<any[]> => {
+// Recursively build directory tree for destination picker
+const buildDirectoryTree = async (
+  directories: any[],
+  options: { writableOnly?: boolean } = {},
+): Promise<any[]> => {
   const tree = []
+  const writableOnly = options.writableOnly === true
 
   for (const dir of directories) {
+    if (writableOnly && dir.can_write === false) {
+      continue
+    }
     try {
       const response = await filesAPI.listChildren(dir.id)
       const children = response.data.children || []
-      const childDirs = children.filter((item: any) => item.item_type === 'directory')
+      let childDirs = children.filter((item: any) => item.item_type === 'directory')
+      if (writableOnly) {
+        childDirs = childDirs.filter((item: any) => item.can_write)
+      }
 
       const node = {
         id: dir.id,
         name: dir.name,
-        children: childDirs.length > 0 ? await buildDirectoryTree(childDirs) : [],
+        children: childDirs.length > 0 ? await buildDirectoryTree(childDirs, options) : [],
       }
 
       tree.push(node)
     } catch (error) {
       console.error(`Failed to load children for directory ${dir.id}:`, error)
-      // Add directory without children if loading fails
       tree.push({
         id: dir.id,
         name: dir.name,

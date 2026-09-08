@@ -87,6 +87,7 @@
       "size": "Size",
       "type": "Type",
       "owner": "Owner",
+      "createdBy": "Created by",
       "visibility": "Visibility",
       "created": "Created",
       "lastModified": "Last Modified",

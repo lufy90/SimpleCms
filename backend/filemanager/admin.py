@@ -73,8 +73,8 @@ class FileThumbnailAdmin(admin.ModelAdmin):
 
 @admin.register(FileItem)
 class FileItemAdmin(admin.ModelAdmin):
-    list_display = ['name', 'item_type', 'size_display', 'owner', 'visibility_display', 'created_at', 'storage_info']
-    list_filter = ['item_type', 'visibility', 'owner', 'created_at']
+    list_display = ['name', 'item_type', 'size_display', 'owner', 'created_by', 'visibility_display', 'created_at', 'storage_info']
+    list_filter = ['item_type', 'visibility', 'owner', 'created_by', 'created_at']
     search_fields = ['name']
     readonly_fields = ['created_at', 'updated_at', 'storage_info', 'thumbnail_info']
     list_per_page = 50
@@ -93,7 +93,7 @@ class FileItemAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Ownership & Visibility', {
-            'fields': ('owner', 'visibility', 'shared_users', 'shared_groups')
+            'fields': ('owner', 'created_by', 'visibility', 'shared_users', 'shared_groups')
         }),
     )
     
