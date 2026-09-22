@@ -26,6 +26,7 @@
       <Document v-else-if="fileType === 'powerpoint'" />
       <Tools v-else-if="fileType === 'code'" />
       <DataLine v-else-if="fileType === 'json'" />
+      <Notebook v-else-if="fileType === 'markdown'" />
       <Document v-else-if="fileType === 'text'" />
       <Files v-else-if="fileType === 'archive'" />
       <Document v-else />
@@ -80,6 +81,7 @@ import {
   Share,
   UserFilled,
   House,
+  Notebook,
 } from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
@@ -215,8 +217,17 @@ const detectFileType = (file: FileItem) => {
     return 'json'
   }
 
+  // Markdown
+  if (
+    mimeType === 'text/markdown' ||
+    mimeType === 'text/x-markdown' ||
+    /\.(md|markdown)$/i.test(fileName)
+  ) {
+    return 'markdown'
+  }
+
   // Text files
-  if (mimeType.startsWith('text/') || /\.(txt|md|log|csv|rtf)$/i.test(fileName)) {
+  if (mimeType.startsWith('text/') || /\.(txt|log|csv|rtf)$/i.test(fileName)) {
     return 'text'
   }
 
@@ -266,6 +277,7 @@ const iconColor = computed(() => {
     office: '#409eff', // Blue for general office documents
     code: '#909399',
     json: '#e6a23c',
+    markdown: '#409eff',
     text: '#606266',
     archive: '#909399',
     file: '#909399',

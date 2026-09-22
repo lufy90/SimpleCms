@@ -117,6 +117,61 @@ def generate_jwt_token(payload, secret_key):
         return None
 
 
+def get_frontend_base_url(request):
+    """
+    Resolve the frontend origin so goback.url is set before JWT signing.
+    Prefer Origin, then Referer; fall back to API base URL.
+    """
+    origin = request.headers.get('Origin') or request.META.get('HTTP_ORIGIN')
+    if origin:
+        return origin.rstrip('/')
+
+    referer = request.headers.get('Referer') or request.META.get('HTTP_REFERER')
+    if referer:
+        from urllib.parse import urlparse
+        parsed = urlparse(referer)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+
+    return get_api_base_url(request)
+
+
+def extract_callback_data(request):
+    """
+    Parse OnlyOffice callback body. When JWT is enabled, Document Server often
+    sends only { "token": "<jwt>" } or Authorization: Bearer <jwt>; decode it.
+    """
+    raw_body = request.body.decode('utf-8') if request.body else '{}'
+    try:
+        body = json.loads(raw_body) if raw_body.strip() else {}
+    except json.JSONDecodeError:
+        raise
+
+    if not isinstance(body, dict):
+        body = {}
+
+    token = body.get('token')
+    if not token:
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:].strip()
+
+    if token and SECRET_KEY:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            if isinstance(payload, dict):
+                # Prefer JWT fields; keep any non-conflicting plain body keys
+                merged = dict(body)
+                merged.update(payload)
+                merged.pop('token', None)
+                return merged
+        except jwt.InvalidTokenError as e:
+            print(f"Invalid OnlyOffice callback JWT: {e}")
+            raise
+
+    return body
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_onlyoffice_settings(request):
@@ -211,6 +266,14 @@ def get_document_config(request, file_id):
             file_extension = 'docx'
         
         document_type = supported_extensions[file_extension]
+
+        # Sync UI language/theme from the frontend (must be set before JWT signing)
+        lang = request.GET.get('lang', 'en')
+        if lang not in ('en', 'zh'):
+            lang = 'en'
+        region = 'zh-CN' if lang == 'zh' else 'en-US'
+        theme = request.GET.get('theme', 'light')
+        ui_theme = 'theme-dark' if theme == 'dark' else 'theme-light'
         
         # Build configuration
         config = {
@@ -231,8 +294,8 @@ def get_document_config(request, file_id):
             'documentType': document_type,
             'editorConfig': {
                 'mode': 'edit' if file_item.can_write(request.user) else 'view',
-                'lang': 'en',
-                'location': 'en-US',
+                'lang': lang,
+                'region': region,
                 'customization': {
                     'autosave': True,
                     'forcesave': True,
@@ -244,8 +307,10 @@ def get_document_config(request, file_id):
                     'submitForm': False,
                     'about': True,
                     'feedback': False,
+                    'uiTheme': ui_theme,
                     'goback': {
-                        'url': '',  # Will be set by frontend
+                        # Must be set before JWT signing so token matches config
+                        'url': f"{get_frontend_base_url(request)}/view/{file_id}",
                         'text': 'Open in New Tab'
                     }
                 },
@@ -424,7 +489,8 @@ def office_upload(request, file_id):
 @require_http_methods(["POST"])
 def document_callback(request):
     """
-    Handle OnlyOffice document server callbacks
+    Handle OnlyOffice document server callbacks.
+    Status 2 (ready for save / session end) and 6 (forcesave) write to CMS storage.
     """
     try:
         # Check if OnlyOffice is configured first
@@ -433,117 +499,116 @@ def document_callback(request):
             return JsonResponse({
                 'error': f'OnlyOffice is not available: {config_error}'
             }, status=503)
-        
-        # Parse the callback data
-        callback_data = json.loads(request.body.decode('utf-8'))
+
+        try:
+            callback_data = extract_callback_data(request)
+        except jwt.InvalidTokenError:
+            return JsonResponse({'error': 1})
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
         print(f"Document callback received: {callback_data}")
-        
-        # Verify the signature if provided
+
+        # Optional legacy HMAC signature check (non-JWT deployments)
         if 'signature' in callback_data and SECRET_KEY:
             payload = {k: v for k, v in callback_data.items() if k != 'signature'}
             expected_signature = generate_signature(payload, SECRET_KEY)
-            
             if callback_data['signature'] != expected_signature:
-                return JsonResponse({'error': 'Invalid signature'}, status=400)
-        
-        # Handle different callback statuses
+                return JsonResponse({'error': 1})
+
         status_code = callback_data.get('status', 0)
-        
-        # Only status codes 2 and 6 should trigger file updates
-        if status_code in [2, 6]:  # Document is being edited or document state is saved
-            file_id = callback_data.get('key', '').split('_')[1] if '_' in callback_data.get('key', '') else None
-            
-            if file_id:
-                try:
-                    file_item = FileItem.objects.get(id=file_id)
-                    
-                    # Download the updated document from OnlyOffice
-                    download_url = callback_data.get('url')
-                    
-                    if download_url:    
-                        response = requests.get(download_url, stream=True)
-                        if response.status_code == 200:
-                            # Update the file content
-                            file_path = file_item.storage.get_file_path()
-                            with open(file_path, 'wb') as f:
-                                f.write(response.content)
-                            
-                            # Get user information from callback data
-                            user_info = None
-                            try:
-                                history = callback_data.get('history', {})
-                                changes = history.get('changes', [])
-                                if changes:
-                                    user_info = changes[-1].get('user')
-                            except (KeyError, IndexError, AttributeError) as e:
-                                print(f"Could not extract user info from callback data: {e}")
-                            
-                            # Update file metadata
-                            file_item.updated_at = timezone.now()
-                            
-                            # Update modifier if user info is available
-                            if user_info and isinstance(user_info, dict):
-                                user_id_str = user_info.get('id')
-                                user_name = user_info.get('name', 'Unknown')
-                                if user_id_str:
-                                    try:
-                                        # Convert string ID to integer
-                                        user_id = int(user_id_str)
-                                        # Try to find the user by ID
-                                        from django.contrib.auth.models import User
-                                        modifier = User.objects.get(id=user_id)
-                                        file_item.modifier = modifier
-                                        print(f"Updated modifier to user {user_name} (ID: {user_id})")
-                                    except (ValueError, TypeError) as e:
-                                        print(f"Invalid user ID format '{user_id_str}': {e}")
-                                    except User.DoesNotExist:
-                                        print(f"User with ID {user_id} not found, keeping current modifier")
-                                else:
-                                    print("No user ID found in callback data")
-                            else:
-                                print("No user information available in callback data")
-                            
-                            file_item.save()
-                            
-                            print(f"File {file_id} updated successfully for status code {status_code}")
-                        else:
-                            print(f"Failed to download updated document for file {file_id}, status: {response.status_code}")
-                            if response.text:
-                                print(f"Response content: {response.text}")
-                    else:
-                        print(f"No download URL provided for file {file_id} with status code {status_code}")
-                            
-                except FileItem.DoesNotExist:
-                    print(f"FileItem with id {file_id} does not exist for status code {status_code}")
-                except Exception as e:
-                    print(f"Error updating file {file_id} for status code {status_code}: {e}")
-            else:
+
+        # Status 2: document ready for saving (editors closed)
+        # Status 6: forcesave while editing
+        if status_code in [2, 6]:
+            key = callback_data.get('key', '') or ''
+            file_id = key.split('_')[1] if '_' in key else None
+
+            if not file_id:
                 print(f"No valid file_id found in callback data for status code {status_code}")
-        
-        else:
-            # Log other status codes without updating files
-            status_messages = {
-                0: "No document with the key identifier could be found",
-                1: "Document is being edited",
-                3: "Document is ready for saving",
-                4: "Document saving error has occurred",
-                5: "Document is closed with no changes",
-                7: "Error has occurred while force saving the document",
-                8: "Force saving document is in progress"
-            }
-            
-            status_message = status_messages.get(status_code, f"Unknown status code: {status_code}")
-            print(f"Document callback status {status_code}: {status_message}")
-            print(f"Callback data: {callback_data}")
-        
+                return JsonResponse({'error': 1})
+
+            try:
+                file_item = FileItem.objects.get(id=file_id)
+            except FileItem.DoesNotExist:
+                print(f"FileItem with id {file_id} does not exist for status code {status_code}")
+                return JsonResponse({'error': 1})
+
+            download_url = callback_data.get('url')
+            if not download_url:
+                print(f"No download URL provided for file {file_id} with status code {status_code}")
+                return JsonResponse({'error': 1})
+
+            try:
+                response = requests.get(download_url, stream=True, timeout=60)
+                if response.status_code != 200:
+                    print(
+                        f"Failed to download updated document for file {file_id}, "
+                        f"status: {response.status_code}"
+                    )
+                    if response.text:
+                        print(f"Response content: {response.text}")
+                    return JsonResponse({'error': 1})
+
+                file_path = file_item.storage.get_file_path()
+                with open(file_path, 'wb') as f:
+                    f.write(response.content)
+
+                user_info = None
+                try:
+                    history = callback_data.get('history', {})
+                    changes = history.get('changes', [])
+                    if changes:
+                        user_info = changes[-1].get('user')
+                except (KeyError, IndexError, AttributeError, TypeError) as e:
+                    print(f"Could not extract user info from callback data: {e}")
+
+                file_item.updated_at = timezone.now()
+
+                if user_info and isinstance(user_info, dict):
+                    user_id_str = user_info.get('id')
+                    user_name = user_info.get('name', 'Unknown')
+                    if user_id_str:
+                        try:
+                            user_id = int(user_id_str)
+                            from django.contrib.auth.models import User
+                            modifier = User.objects.get(id=user_id)
+                            file_item.modifier = modifier
+                            print(f"Updated modifier to user {user_name} (ID: {user_id})")
+                        except (ValueError, TypeError) as e:
+                            print(f"Invalid user ID format '{user_id_str}': {e}")
+                        except User.DoesNotExist:
+                            print(f"User with ID {user_id} not found, keeping current modifier")
+                    else:
+                        print("No user ID found in callback data")
+                else:
+                    print("No user information available in callback data")
+
+                file_item.save()
+                print(f"File {file_id} updated successfully for status code {status_code}")
+                return JsonResponse({'error': 0})
+
+            except Exception as e:
+                print(f"Error updating file {file_id} for status code {status_code}: {e}")
+                return JsonResponse({'error': 1})
+
+        # Non-save statuses: acknowledge without writing
+        status_messages = {
+            0: "No document with the key identifier could be found",
+            1: "Document is being edited",
+            3: "Document saving error has occurred",
+            4: "Document is closed with no changes",
+            5: "Document editing error has occurred",
+            7: "Error has occurred while force saving the document",
+            8: "Force saving document is in progress",
+        }
+        status_message = status_messages.get(status_code, f"Unknown status code: {status_code}")
+        print(f"Document callback status {status_code}: {status_message}")
         return JsonResponse({'error': 0})
-        
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
     except Exception as e:
         print(f"Callback error: {e}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 1})
 
 
 @api_view(['GET'])

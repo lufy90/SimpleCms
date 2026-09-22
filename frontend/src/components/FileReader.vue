@@ -54,6 +54,15 @@
         @content-updated="handleContentUpdated"
       />
 
+      <!-- Markdown Viewer -->
+      <MarkdownViewer
+        v-else-if="fileType === 'markdown' && fileContent !== null"
+        :content="fileContent"
+        :filename="file?.name || 'File'"
+        :file-id="file?.id"
+        @content-updated="handleContentUpdated"
+      />
+
       <!-- Code Viewer -->
       <CodeViewer
         v-else-if="fileType === 'code' && fileContent !== null"
@@ -127,6 +136,7 @@ import ImageViewer from './readers/ImageViewer.vue'
 import PDFViewer from './readers/PDFViewer.vue'
 import TextViewer from './readers/TextViewer.vue'
 import JSONViewer from './readers/JSONViewer.vue'
+import MarkdownViewer from './readers/MarkdownViewer.vue'
 import CodeViewer from './readers/CodeViewer.vue'
 import VideoViewer from './readers/VideoViewer.vue'
 import AudioViewer from './readers/AudioViewer.vue'
@@ -206,6 +216,15 @@ const fileType = computed(() => {
     return 'json'
   }
 
+  // Markdown
+  if (
+    mimeType === 'text/markdown' ||
+    mimeType === 'text/x-markdown' ||
+    /\.(md|markdown)$/i.test(fileName)
+  ) {
+    return 'markdown'
+  }
+
   // Code files
   if (
     /\.(js|ts|jsx|tsx|py|java|cpp|c|cs|php|rb|go|rs|swift|kt|scala|sh|bash|sql|html|css|scss|less|xml|yaml|yml|toml|ini|conf)$/i.test(
@@ -216,7 +235,7 @@ const fileType = computed(() => {
   }
 
   // Text files
-  if (mimeType.startsWith('text/') || /\.(txt|md|log|csv)$/i.test(fileName)) {
+  if (mimeType.startsWith('text/') || /\.(txt|log|csv)$/i.test(fileName)) {
     return 'text'
   }
 
