@@ -43,11 +43,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { toast } from 'vue3-toastify'
 import { Loading, Download, Refresh } from '@element-plus/icons-vue'
 import { filesAPI } from '@/services/api'
 import api from '@/services/api'
 import { useOfficeConfig } from '@/services/officeConfig'
+import { useThemeStore } from '@/stores/theme'
 import { tokenStorage } from '@/utils/storage'
 import { electronUtils } from '@/utils/electron'
 
@@ -77,6 +79,8 @@ const isInitialized = ref(false)
 
 // Services
 const officeConfig = useOfficeConfig()
+const { locale } = useI18n()
+const themeStore = useThemeStore()
 
 // Computed
 const editorHeight = computed(() => props.height)
@@ -110,7 +114,12 @@ const getDocumentType = () => {
 
 const getOfficeConfig = async () => {
   try {
-    const response = await api.get(`/api/office/config/${props.file.id}/`)
+    const response = await api.get(`/api/office/config/${props.file.id}/`, {
+      params: {
+        lang: locale.value,
+        theme: themeStore.isDarkMode ? 'dark' : 'light',
+      },
+    })
     return response.data
   } catch (err) {
     throw new Error('Failed to get office configuration')
@@ -146,10 +155,19 @@ const initializeDocumentEditor = async () => {
     const config = officeResponse.config
     const token = officeResponse.token
 
-    // Set frontend URL for goback button
-    if (config.editorConfig?.customization?.goback) {
-      const frontendUrl = officeConfig.frontendUrl.value
-      config.editorConfig.customization.goback.url = `${frontendUrl}/view/${props.file.id}`
+    // Track dirty→clean so we only notify once per save cycle
+    let hadUnsavedChanges = false
+
+    // Client-side events are not part of the JWT payload
+    config.events = {
+      onDocumentStateChange: (event: { data?: boolean }) => {
+        if (event.data) {
+          hadUnsavedChanges = true
+        } else if (hadUnsavedChanges) {
+          hadUnsavedChanges = false
+          emit('documentSaved', props.file)
+        }
+      },
     }
 
     // Initialize OnlyOffice Document Editor

@@ -103,6 +103,15 @@
           @content-updated="handleContentUpdated"
         />
 
+        <!-- Markdown Viewer -->
+        <MarkdownViewer
+          v-else-if="fileType === 'markdown' && fileContent !== null"
+          :content="fileContent"
+          :filename="file.name"
+          :file-id="file.id"
+          @content-updated="handleContentUpdated"
+        />
+
         <!-- Code Viewer -->
         <CodeViewer
           v-else-if="fileType === 'code' && fileContent !== null"
@@ -167,6 +176,7 @@ import ImageViewer from '@/components/readers/ImageViewer.vue'
 import PDFViewer from '@/components/readers/PDFViewer.vue'
 import TextViewer from '@/components/readers/TextViewer.vue'
 import JSONViewer from '@/components/readers/JSONViewer.vue'
+import MarkdownViewer from '@/components/readers/MarkdownViewer.vue'
 import CodeViewer from '@/components/readers/CodeViewer.vue'
 import VideoViewer from '@/components/readers/VideoViewer.vue'
 import AudioViewer from '@/components/readers/AudioViewer.vue'
@@ -250,6 +260,15 @@ const fileType = computed(() => {
     return 'json'
   }
 
+  // Markdown
+  if (
+    mimeType === 'text/markdown' ||
+    mimeType === 'text/x-markdown' ||
+    /\.(md|markdown)$/i.test(fileName)
+  ) {
+    return 'markdown'
+  }
+
   // Code files
   if (
     /\.(js|ts|jsx|tsx|py|java|cpp|c|cs|php|rb|go|rs|swift|kt|scala|sh|bash|sql|html|css|scss|less|xml|yaml|yml|toml|ini|conf)$/i.test(
@@ -260,7 +279,7 @@ const fileType = computed(() => {
   }
 
   // Text files
-  if (mimeType.startsWith('text/') || /\.(txt|md|log|csv)$/i.test(fileName)) {
+  if (mimeType.startsWith('text/') || /\.(txt|log|csv)$/i.test(fileName)) {
     return 'text'
   }
 
@@ -348,7 +367,7 @@ const loadFile = async () => {
       const response = await filesAPI.download(file.value!.id)
       const blob = new Blob([response.data], { type: 'application/pdf' })
       fileContent.value = URL.createObjectURL(blob)
-    } else if (['text', 'json', 'code'].includes(fileType.value || '')) {
+    } else if (['text', 'json', 'code', 'markdown'].includes(fileType.value || '')) {
       // For text-based files, get as text
       const response = await filesAPI.download(file.value!.id)
       const text = await response.data.text()
@@ -391,12 +410,12 @@ const handleDownload = async () => {
   }
 }
 
-const handleOpenInNewTab = () => {
+const handleOpenInNewTab = async () => {
   if (!file.value) return
 
   if (file.value.file_info?.mime_type === 'application/pdf') {
-    // Open file in new tab using download url
-    window.open(file.value.url, '_blank')
+    // Tokenized download URL so the new tab is authenticated (JWT is not in cookies)
+    await electronUtils.openInNewTab(file.value.id, false)
   } else {
     // Open file in new tab using the dedicated file viewer route
     const fileViewerUrl = `/view/${file.value.id}`

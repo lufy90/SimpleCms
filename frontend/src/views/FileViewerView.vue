@@ -73,6 +73,15 @@
           @content-updated="handleContentUpdated"
         />
 
+        <!-- Markdown Viewer -->
+        <MarkdownViewer
+          v-else-if="fileType === 'markdown' && textContent !== null"
+          :content="textContent"
+          :filename="file?.name || ''"
+          :file-id="file?.id"
+          @content-updated="handleContentUpdated"
+        />
+
         <!-- Code Viewer -->
         <CodeViewer
           v-else-if="fileType === 'code' && textContent !== null"
@@ -131,6 +140,7 @@ import { electronUtils } from '@/utils/electron'
 import ImageViewer from '@/components/readers/ImageViewer.vue'
 import TextViewer from '@/components/readers/TextViewer.vue'
 import JSONViewer from '@/components/readers/JSONViewer.vue'
+import MarkdownViewer from '@/components/readers/MarkdownViewer.vue'
 import CodeViewer from '@/components/readers/CodeViewer.vue'
 import VideoViewer from '@/components/readers/VideoViewer.vue'
 import AudioViewer from '@/components/readers/AudioViewer.vue'
@@ -196,6 +206,15 @@ const fileType = computed(() => {
     return 'json'
   }
 
+  // Markdown files
+  if (
+    mimeType === 'text/markdown' ||
+    mimeType === 'text/x-markdown' ||
+    ['md', 'markdown'].some((ext) => extension === ext || fileName.endsWith(`.${ext}`))
+  ) {
+    return 'markdown'
+  }
+
   // Code files
   if (
     [
@@ -224,7 +243,7 @@ const fileType = computed(() => {
   // Text files
   if (
     mimeType.startsWith('text/') ||
-    ['txt', 'md', 'csv', 'log'].some((ext) => extension === ext || fileName.endsWith(`.${ext}`))
+    ['txt', 'csv', 'log'].some((ext) => extension === ext || fileName.endsWith(`.${ext}`))
   ) {
     return 'text'
   }
@@ -308,7 +327,7 @@ const loadFile = async () => {
     console.log('currentFileType:', currentFileType)
     if (['unsupported', 'video', 'audio'].includes(currentFileType)) {
       fileContent.value = null
-    } else if (['office', 'image', 'pdf', 'text', 'json', 'code'].includes(currentFileType)) {
+    } else if (['office', 'image', 'pdf', 'text', 'json', 'code', 'markdown'].includes(currentFileType)) {
       const contentResponse = await filesAPI.download(fileId)
       let blob
       if (currentFileType === 'pdf') {
@@ -321,7 +340,7 @@ const loadFile = async () => {
       fileContent.value = objectUrl
 
       // For text-based files, also read the content as text
-      if (['text', 'json', 'code'].includes(currentFileType)) {
+      if (['text', 'json', 'code', 'markdown'].includes(currentFileType)) {
         try {
           const text = await blob.text()
           textContent.value = text
