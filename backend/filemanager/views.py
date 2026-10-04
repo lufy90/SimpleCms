@@ -2354,8 +2354,9 @@ class FileCreationView(generics.CreateAPIView):
             if not name:
                 return Response({'error': 'File name is required'}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Ensure .txt extension
-            if not name.endswith('.txt'):
+            # Append .txt only when the name has no extension
+            basename = name.rsplit('/', 1)[-1].rsplit('\\', 1)[-1]
+            if '.' not in basename or basename.rsplit('.', 1)[-1] == '':
                 name += '.txt'
             
             # Get parent directory; default to user's home
