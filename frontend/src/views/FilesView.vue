@@ -1051,6 +1051,13 @@ import { ElMessageBox } from 'element-plus'
 import { toast } from 'vue3-toastify'
 import ShareDialog from '@/components/ShareDialog.vue'
 import FileIcon from '@/components/FileIcon.vue'
+import {
+  DEFAULT_DIR_VIEW_TYPE,
+  getDirViewType,
+  resolveDirViewTypeKey,
+  setDirViewType,
+  type DirViewType,
+} from '@/utils/dirViewTypeStorage'
 
 // Props
 interface Props {
@@ -1108,7 +1115,7 @@ const pageTitle = computed(() => {
 })
 
 // State
-const viewType = ref<'grid' | 'large' | 'picture' | 'list'>('list')
+const viewType = ref<DirViewType>(DEFAULT_DIR_VIEW_TYPE)
 const searchQuery = ref('')
 const uploadDialogVisible = ref(false)
 const imagePreviewVisible = ref(false)
@@ -1525,6 +1532,20 @@ const updateBreadcrumb = async () => {
   breadcrumbPath.value = newBreadcrumb
 }
 
+const getCurrentDirViewTypeKey = (): string => {
+  const space = Array.isArray(props.space) ? props.space[0] : props.space
+  return resolveDirViewTypeKey({
+    directoryId: currentDirectory.value?.id,
+    space,
+  })
+}
+
+const applyStoredViewTypeForCurrentDirectory = () => {
+  const dirKey = getCurrentDirViewTypeKey()
+  const saved = getDirViewType(dirKey)
+  viewType.value = saved || DEFAULT_DIR_VIEW_TYPE
+}
+
 // Watch for route changes to load appropriate directory
 watch(
   [() => props.parentId, () => props.space],
@@ -1547,6 +1568,7 @@ watch(
       }
 
       await updateBreadcrumb()
+      applyStoredViewTypeForCurrentDirectory()
     } finally {
       isNavigating.value = false
     }
@@ -1579,7 +1601,6 @@ watch(
 
 // Methods
 const VIEW_TYPES = ['grid', 'large', 'picture', 'list'] as const
-type ViewType = (typeof VIEW_TYPES)[number]
 
 const currentViewIcon = computed(() => {
   switch (viewType.value) {
@@ -1595,9 +1616,11 @@ const currentViewIcon = computed(() => {
   }
 })
 
-const setViewType = (type: ViewType | string) => {
+const setViewType = (type: DirViewType | string) => {
   if ((VIEW_TYPES as readonly string[]).includes(type)) {
-    viewType.value = type as ViewType
+    const nextType = type as DirViewType
+    viewType.value = nextType
+    setDirViewType(getCurrentDirViewTypeKey(), nextType)
   }
 }
 
@@ -1992,6 +2015,13 @@ const handleCreateCommand = (command: string) => {
   }
 }
 
+const ensureTextFileExtension = (fileName: string): string => {
+  const trimmed = fileName.trim()
+  const basename = trimmed.split(/[/\\]/).pop() || trimmed
+  const hasExtension = basename.includes('.') && basename.split('.').pop() !== ''
+  return hasExtension ? trimmed : `${trimmed}.txt`
+}
+
 const showCreateTextFileDialog = () => {
   ElMessageBox.prompt('Enter file name:', 'Create Text File', {
     confirmButtonText: 'Create',
@@ -2005,7 +2035,7 @@ const showCreateTextFileDialog = () => {
         try {
           const parentId = currentDirectory.value?.id
           const response = await filesAPI.createTextFile({
-            name: value,
+            name: ensureTextFileExtension(value),
             content: '',
             parent_id: parentId,
             visibility: 'private',
